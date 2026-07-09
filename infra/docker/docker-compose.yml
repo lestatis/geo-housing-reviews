@@ -1,0 +1,22 @@
+# Local development database only. Credentials below are throwaway
+# defaults for localhost use — never reuse them in a shared or deployed
+# environment.
+services:
+  postgres:
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: geo_housing
+      POSTGRES_USER: geo_housing
+      POSTGRES_PASSWORD: geo_housing
+    ports:
+      - "5432:5432"
+    volumes:
+      - geo_housing_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geo_housing -d geo_housing"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  geo_housing_postgres_data:
