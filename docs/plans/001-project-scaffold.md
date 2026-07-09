@@ -1,7 +1,7 @@
 # Project Scaffold: Gradle Multi-Module Backend
 
-Status: Draft
-Owner: Claude (drafted) — pending human approval
+Status: Completed
+Owner: Claude
 Related issue: none (direct founder request)
 Last updated: 2026-07-09
 
@@ -11,13 +11,13 @@ Stand up the backend's build and infrastructure skeleton — Gradle multi-module
 
 ## Acceptance criteria
 
-- [ ] `apps/api` builds with `./gradlew build` on a clean checkout using only the committed Gradle wrapper.
-- [ ] `./gradlew check` runs formatting/static-analysis checks, unit tests, and architecture tests, and passes.
-- [ ] A Testcontainers-backed integration test starts `postgis/postgis`, applies the Flyway baseline migration, boots the Spring context, and asserts `/actuator/health` returns `UP`.
-- [ ] Architecture tests fail the build if a domain module depends on another domain module directly, or if a `domain` package depends on Spring/JPA types.
-- [ ] `docker compose -f infra/docker/docker-compose.yml up -d` provides a local Postgres+PostGIS instance the app can connect to.
-- [ ] `.github/workflows/ci.yml` runs the same checks on push/PR.
-- [ ] No entity, endpoint, or table related to identity, properties, reviews, verification, moderation, media, search or listings exists yet — only empty module skeletons.
+- [x] `apps/api` builds with `./gradlew build` on a clean checkout using only the committed Gradle wrapper.
+- [x] `./gradlew check` runs formatting/static-analysis checks, unit tests, and architecture tests, and passes.
+- [x] A Testcontainers-backed integration test starts `postgis/postgis`, applies the Flyway baseline migration, boots the Spring context, and asserts `/actuator/health` returns `UP`.
+- [x] Architecture tests fail the build if a domain module depends on another domain module directly, or if a `domain` package depends on Spring/JPA types. (Verified live: a real cross-module violation was temporarily introduced and confirmed to fail the build, then reverted.)
+- [x] `docker compose -f infra/docker/docker-compose.yml up -d` provides a local Postgres+PostGIS instance the app can connect to. (Verified live against a real `bootRun`, not just Testcontainers.)
+- [x] CI runs the same checks on push/PR — via the extended `.github/workflows/governance-check.yml` rather than a separate `ci.yml` (see step 13 deviation note).
+- [x] No entity, endpoint, or table related to identity, properties, reviews, verification, moderation, media, search or listings exists yet — only empty module skeletons.
 
 ## Non-goals
 
@@ -150,7 +150,7 @@ Versions confirmed current as of 2026-07-09; **re-confirm exact patch versions a
 10. Add a Testcontainers integration test in `app`: start `postgis/postgis:18-3.6`, wire datasource via `@DynamicPropertySource`, assert context loads, Flyway migration applied, `/actuator/health` returns `UP`.
 11. Add `infra/docker/docker-compose.yml` with a single dev-only Postgres+PostGIS service (non-secret default credentials, clearly commented as local-dev-only, never for shared/deployed use).
 12. Add `apps/api/README.md` documenting build/lint/test/integration/run commands, per CONTRIBUTING.md's requirement that each application documents its own commands.
-13. Add `.github/workflows/ci.yml`: checkout, setup-java 21 (temurin), Gradle setup/caching, run `./scripts/check.sh`.
+13. ~~Add `.github/workflows/ci.yml`~~ — **deviation**: `.github/workflows/governance-check.yml` already existed (added alongside the governance files) and already runs `./scripts/check.sh` on `pull_request`/`push: main`. Since `check.sh` already invokes the Gradle build/check when `apps/api/gradlew` is present, a separate `ci.yml` would just run the identical script twice on every PR. Extended the existing workflow with `actions/setup-java@v4` (temurin, 21) and `gradle/actions/setup-gradle@v4` for caching instead of adding a duplicate file.
 14. Add `docs/adr/0004-backend-build-tooling.md` recording the Gradle/Spring Boot 4.x/Testcontainers/ArchUnit/Spotless+Checkstyle trade-off, per AGENTS.md rule 5 (new production dependencies require an ADR).
 15. Run all verification commands below; fix until green.
 16. Hand off with a summary of what changed and any remaining follow-ups.
@@ -205,7 +205,11 @@ curl -f http://localhost:8080/actuator/health
 - 2026-07-09: Plan drafted from repository inspection; no implementation started; awaiting approval.
 - 2026-07-09: Founder confirmed Spring Boot 4.1.x and inclusion of the `analytics` module. Both open decisions in the Decisions table are now resolved.
 - 2026-07-09: Founder added the missing `.claude/`, `.agents/`, `.github/` governance files. Verified via `./scripts/check.sh` → `Governance validation passed: 15 required files, 5 shared skills.` No open blockers remain. Implementation not yet started — awaiting explicit go-ahead.
+- 2026-07-09: Branch 1 (`chore/001-gradle-module-skeleton`) implemented, self-checked, independently reviewed by Codex (2 findings: 1 rejected as intentional scope-splitting, 1 accepted — added the sibling-module api-boundary ArchUnit rule, verified it actually fires against a real temporary violation). Merged to `main`.
+- 2026-07-09: Branch 2 (`chore/001-spring-boot-app`) implemented: Spring Boot 4.1.0 wired in, actuator restricted to `health`. Hit and fixed a real Boot-4-specific package relocation (`@AutoConfigureMockMvc` moved, needs `spring-boot-starter-webmvc-test`). Verified live via `bootRun` + `curl`. Codex review: no findings. Merged to `main`.
+- 2026-07-09: Branch 3 (`chore/001-postgres-flyway-testcontainers`) implemented: Flyway baseline migration, docker-compose, Testcontainers integration test. Found and fixed two real bugs by actually running things instead of trusting green tests: Flyway autoconfiguration is a separate `spring-boot-starter-flyway` module in Boot 4.1 (was silently never running — a DB-less smoke test couldn't have caught this, only an explicit `flyway_schema_history`/`pg_extension` assertion did), and the docker-compose volume used the pre-Postgres-18 mount path. Verified live via `docker compose up` + `bootRun` + `curl`. Codex review: no findings. Merged to `main`.
+- 2026-07-09: Branch 4 (`chore/001-ci-and-adr`) implemented: ADR-0004 recording the tooling trade-offs, `apps/api/README.md`, and CI — deviated from the original step 13 by extending the already-existing `.github/workflows/governance-check.yml` instead of adding a duplicate `ci.yml`, since that workflow already ran `./scripts/check.sh` on the same triggers.
 
 ## Final outcome
 
-Not started.
+All four branches implemented, self-checked (`./gradlew build`/`check`, live `bootRun`/`docker compose` smoke tests), independently reviewed by Codex, and merged to `main`. Acceptance criteria met. Deviations from the original plan: CI reused/extended the existing governance workflow instead of adding a new one; three real, unanticipated bugs (two Spring Boot 4.1 package/module relocations, one Postgres 18 volume-path change) were found and fixed during implementation, documented in ADR-0004 and this progress log rather than hidden. No business functionality was added, consistent with scope. Follow-ups: P-010 (legal entity) remains deferred per `docs/DECISION_LOG.md`; auth/OpenAPI/domain entities are separate future plans.
