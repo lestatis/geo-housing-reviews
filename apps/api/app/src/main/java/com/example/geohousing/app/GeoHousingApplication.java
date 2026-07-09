@@ -1,8 +1,12 @@
 package com.example.geohousing.app;
 
-public final class GeoHousingApplication {
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-  private GeoHousingApplication() {}
+@SpringBootApplication(scanBasePackages = "com.example.geohousing")
+public class GeoHousingApplication {
 
-  public static void main(String[] args) {}
+  public static void main(String[] args) {
+    SpringApplication.run(GeoHousingApplication.class, args);
+  }
 }
