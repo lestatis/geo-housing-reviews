@@ -1,0 +1,47 @@
+name: Feature
+description: A bounded user-facing capability
+title: "[Feature]: "
+labels: ["type:feature", "status:triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who has the problem and what decision/action is blocked?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk areas
+      multiple: true
+      options:
+        - Authentication/authorization
+        - Personal data/privacy
+        - Reviews/verification/moderation
+        - Uploads/media
+        - Schema/migration
+        - Ranking/search
+        - Payments/commercial influence
+        - None known
+  - type: textarea
+    id: design
+    attributes:
+      label: Design/API references

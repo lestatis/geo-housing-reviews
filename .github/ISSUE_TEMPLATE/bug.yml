@@ -1,0 +1,34 @@
+name: Bug
+description: Reproducible incorrect behavior
+title: "[Bug]: "
+labels: ["type:bug", "status:triage"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: User/data impact
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, versions
+      description: Remove tokens and personal data.

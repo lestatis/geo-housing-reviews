@@ -1,0 +1,26 @@
+name: Engineering task
+description: Technical work with a verifiable outcome
+title: "[Task]: "
+labels: ["type:task", "status:triage"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and non-goals
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation commands

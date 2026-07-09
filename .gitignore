@@ -1,0 +1,34 @@
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.iml
+
+# Local agent configuration and memory
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/agent-memory-local/
+.codex-log/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# Build outputs
+build/
+target/
+dist/
+node_modules/
+.expo/
+.next/
+coverage/
+
+# Local data
+*.db
+*.sqlite
+uploads/
+local-data/
