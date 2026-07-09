@@ -155,6 +155,19 @@ Versions confirmed current as of 2026-07-09; **re-confirm exact patch versions a
 15. Run all verification commands below; fix until green.
 16. Hand off with a summary of what changed and any remaining follow-ups.
 
+### Branch sequencing
+
+Implemented as 4 small, independently reviewable branches rather than one, per CONTRIBUTING.md's "small enough to review in one focused session." Recorded here so a reviewer (human or Codex) working from this file alone knows a given branch's absence of later steps is intentional scoping, not an oversight:
+
+| Branch | Covers steps | Explicitly excludes |
+|---|---|---|
+| `chore/001-gradle-module-skeleton` | 1–6, 9 (partial: module-boundary rules only) | Spring Boot (step 7), Flyway/Testcontainers (steps 8, 10), docker-compose (11), CI (13), ADR (14) — these land in later branches |
+| `chore/001-spring-boot-app` | 7 | DB/Flyway/Testcontainers |
+| `chore/001-postgres-flyway-testcontainers` | 8, 10, 11 | — |
+| `chore/001-ci-and-adr` | 12, 13, 14 | — |
+
+Each branch gets its own self-check, independent Codex review, and human review before the next starts.
+
 ## Verification
 
 ```bash
