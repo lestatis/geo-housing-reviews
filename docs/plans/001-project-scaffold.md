@@ -25,15 +25,13 @@ Stand up the backend's build and infrastructure skeleton — Gradle multi-module
 - No authentication, review, verification, listings or moderation domain logic.
 - No OpenAPI contract, no public API endpoints beyond `/actuator/health`.
 - No mobile/admin app scaffolding (`apps/mobile`, `apps/admin`) — out of scope for this plan.
-- No fix for the pre-existing missing `.claude/` / `.agents/` / rest-of-`.github/` governance files (see Risks) — flagged, not silently repaired here.
 
 ## Current system
 
 The repository currently contains **documentation and process files only**; no application code exists. Confirmed by direct inspection:
 
-- No `apps/`, `packages/`, `infra/`, or `docs/plans/` directories exist yet, despite being referenced in [README.md](../../README.md)'s proposed structure and in `FILE_INVENTORY.txt`.
-- `FILE_INVENTORY.txt` also lists `.claude/`, `.agents/`, and most of `.github/` (CODEOWNERS, issue templates, PR template, workflows) as expected files — **none of these exist in the working tree today.** [README.md](../../README.md) itself confirms this is intentional at this stage: *"Сейчас это стартовый набор документации... Код приложения ещё не сгенерирован."*
-- `scripts/validate_repo_governance.py` — invoked by `./scripts/check.sh` — hard-requires `.claude/settings.json`, `.claude/hooks/block-privileged-commands.sh`, and matching `.claude/skills/*` / `.agents/skills/*` directories. **This means `./scripts/check.sh` fails today**, independent of anything in this plan (see Risks).
+- No `apps/`, `packages/`, `infra/`, or `docs/plans/` (other than this plan) directories exist yet.
+- `.claude/`, `.agents/`, and `.github/` (CODEOWNERS, issue templates, PR template, `governance-check.yml`) were missing as of 2026-07-09 despite being listed in `FILE_INVENTORY.txt`, which caused `./scripts/check.sh` to fail at the governance step regardless of backend state. **Resolved 2026-07-09** — the founder added the missing files; `./scripts/check.sh` now runs clean (`Governance validation passed: 15 required files, 5 shared skills.`) with Gradle/pnpm checks correctly skipped since no scaffold exists yet.
 - `scripts/check.sh` already anticipates a Gradle backend at `apps/api/gradlew` and a root `package.json` for a JS frontend — this plan implements the former only.
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md) specifies the stack (Java 21+, Spring Boot, Spring Security, PostgreSQL, PostGIS, Flyway, OpenAPI, Testcontainers) and the module list (`identity, properties, reviews, verification, moderation, media, search, notifications, analytics, listings (future), shared-kernel`) but does not pin a build tool or exact versions — the user's request fixes the build tool as Gradle.
 - Locally available: OpenJDK 21.0.11, Docker 29.6.0, no system Gradle (wrapper will be bootstrapped during implementation).
@@ -134,7 +132,7 @@ Versions confirmed current as of 2026-07-09; **re-confirm exact patch versions a
 | Spring Boot line | 4.1.x (Spring Framework 7) — **confirmed by founder 2026-07-09** | greenfield project — starting on latest stable avoids a near-term forced major upgrade | if ecosystem/plugin gaps (IDE, third-party libs) block progress, fall back to latest Spring Boot 3.x LTS-track release instead |
 | Module boundary enforcement | Gradle subproject isolation + ArchUnit in `app` | matches ADR-0001; compiler-level isolation plus a continuously-run test | if module count/complexity later warrants a dedicated `architecture-tests` module |
 | Formatting/static analysis | Spotless (google-java-format) + Checkstyle | low-config, common, runs under `./gradlew check` | if the team wants a different style guide |
-| CI runs full `./scripts/check.sh` | yes, unmodified | keeps CI aligned with the same command contributors run locally (CONTRIBUTING.md) | **today this will fail at governance-check** — see Risks; revisit once `.claude`/`.agents` governance files are restored, or founders decide to relax `validate_repo_governance.py`'s required list |
+| CI runs full `./scripts/check.sh` | yes, unmodified | keeps CI aligned with the same command contributors run locally (CONTRIBUTING.md); governance-check now passes (resolved 2026-07-09) | if governance requirements change again |
 | Package root | `com.example.geohousing` | matches ARCHITECTURE.md §4 exactly | before any real domain registration/public release, since `example` is a placeholder |
 | `analytics` module included | yes — **confirmed by founder 2026-07-09** | ARCHITECTURE.md §3 lists it without a "future" marker (unlike `listings`) | not expected |
 
@@ -154,8 +152,8 @@ Versions confirmed current as of 2026-07-09; **re-confirm exact patch versions a
 12. Add `apps/api/README.md` documenting build/lint/test/integration/run commands, per CONTRIBUTING.md's requirement that each application documents its own commands.
 13. Add `.github/workflows/ci.yml`: checkout, setup-java 21 (temurin), Gradle setup/caching, run `./scripts/check.sh`.
 14. Add `docs/adr/0004-backend-build-tooling.md` recording the Gradle/Spring Boot 4.x/Testcontainers/ArchUnit/Spotless+Checkstyle trade-off, per AGENTS.md rule 5 (new production dependencies require an ADR).
-15. Run all verification commands below; fix until green (except the known-failing governance-check step, called out explicitly rather than worked around).
-16. Hand off with a summary that explicitly states the governance-check gap as unresolved and separate from this task.
+15. Run all verification commands below; fix until green.
+16. Hand off with a summary of what changed and any remaining follow-ups.
 
 ## Verification
 
@@ -174,13 +172,13 @@ docker compose -f infra/docker/docker-compose.yml down
 ./gradlew bootRun
 curl -f http://localhost:8080/actuator/health
 
-# repo-wide gate (from repo root) — expected to fail at governance-check today, see Risks
+# repo-wide gate (from repo root)
 ./scripts/check.sh
 ```
 
 ## Risks and assumptions
 
-- **`./scripts/check.sh` fails today independent of this scaffold.** `scripts/validate_repo_governance.py` requires `.claude/settings.json`, `.claude/hooks/block-privileged-commands.sh`, and matching `.claude/skills/*` / `.agents/skills/*` directories, none of which exist in the working tree, despite being listed in `FILE_INVENTORY.txt`. This scaffold will make the Gradle portion of `check.sh` pass, but the overall script will still exit non-zero at the governance step until that separate gap is resolved. **This needs an explicit founder call**: restore the governance directories as a prerequisite/parallel task, or intentionally relax the validator — this plan does not decide that silently.
+- ~~`./scripts/check.sh` fails independent of this scaffold~~ — **resolved 2026-07-09**: founder added the missing `.claude/`, `.agents/`, `.github/` governance files; `./scripts/check.sh` now passes cleanly with the backend scaffold correctly reported as not-yet-present.
 - **No system Gradle installed.** Bootstrapping the wrapper requires a one-time local (non-privileged, user-writable) Gradle install; not a `HUMAN_ACTION_REQUIRED` case, but noted so it isn't a surprise mid-implementation.
 - **Spring Boot 4.1.x is a recent major line** (Spring Framework 7, released within the last few months). Tooling/IDE/third-party-library maturity may lag behind the Spring Boot 3.x line. Flagged in Decisions; fallback path identified.
 - **Testcontainers 2.x is also a recent major line** (jumped from 1.x). Verify Spring Boot 4.1 + Testcontainers 2.0.5 interop before relying on it; if incompatible, this is a same-day fallback to the latest compatible version, not a redesign.
@@ -192,7 +190,8 @@ curl -f http://localhost:8080/actuator/health
 ## Progress log
 
 - 2026-07-09: Plan drafted from repository inspection; no implementation started; awaiting approval.
-- 2026-07-09: Founder confirmed Spring Boot 4.1.x and inclusion of the `analytics` module. Both open decisions in the Decisions table are now resolved. Governance-check gap (`.claude`/`.agents` missing) remains unresolved and out of scope. Implementation not yet started — awaiting explicit go-ahead.
+- 2026-07-09: Founder confirmed Spring Boot 4.1.x and inclusion of the `analytics` module. Both open decisions in the Decisions table are now resolved.
+- 2026-07-09: Founder added the missing `.claude/`, `.agents/`, `.github/` governance files. Verified via `./scripts/check.sh` → `Governance validation passed: 15 required files, 5 shared skills.` No open blockers remain. Implementation not yet started — awaiting explicit go-ahead.
 
 ## Final outcome
 
