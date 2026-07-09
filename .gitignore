@@ -27,6 +27,12 @@ node_modules/
 .next/
 coverage/
 
+# Gradle
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+hs_err_pid*
+
 # Local data
 *.db
 *.sqlite
