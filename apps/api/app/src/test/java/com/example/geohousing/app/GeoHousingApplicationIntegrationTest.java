@@ -13,9 +13,9 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
@@ -24,8 +24,8 @@ import org.testcontainers.utility.DockerImageName;
 class GeoHousingApplicationIntegrationTest {
 
   @Container @ServiceConnection
-  static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>(
+  static final PostgreSQLContainer POSTGRES =
+      new PostgreSQLContainer(
           DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
 
   @Autowired private MockMvc mockMvc;

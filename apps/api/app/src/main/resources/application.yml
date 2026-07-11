@@ -11,6 +11,11 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${OIDC_JWK_SET_URI:https://issuer.invalid/.well-known/jwks.json}
 
 server:
   port: 8080
