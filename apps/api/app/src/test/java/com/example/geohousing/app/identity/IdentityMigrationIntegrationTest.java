@@ -1,11 +1,13 @@
 package com.example.geohousing.app.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -53,5 +55,22 @@ class IdentityMigrationIntegrationTest {
                 + " where table_schema = 'identity' and table_name = 'public_profile'",
             Integer.class);
     assertThat(profileTableCount).isEqualTo(1);
+  }
+
+  @Test
+  void accountRoleAndStatusRejectInvalidValues() {
+    assertThatThrownBy(
+            () ->
+                jdbcTemplate.update(
+                    "insert into identity.account (auth_subject, role) values (?, 'OWNER')",
+                    "invalid-role-subject"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+
+    assertThatThrownBy(
+            () ->
+                jdbcTemplate.update(
+                    "insert into identity.account (auth_subject, status) values (?, 'DELETED')",
+                    "invalid-status-subject"))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 }
