@@ -1,9 +1,12 @@
 package com.example.geohousing.identity.domain;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Public projection of an account: pseudonym, optional avatar and locale. Deliberately holds no
@@ -11,7 +14,14 @@ import java.util.Optional;
  */
 public final class PublicProfile {
 
-  private static final String TOMBSTONE_PREFIX = "deleted-";
+  private static final String TOMBSTONE_PREFIX = "del-";
+
+  /**
+   * base36 chars needed to hold the full 128-bit account id (36^25 > 2^128 > 36^24). Fixed-width so
+   * the encoding is injective; {@code "del-"} (4) + 25 = 29 stays within {@link
+   * Pseudonym#MAX_LENGTH}.
+   */
+  private static final int TOMBSTONE_ID_WIDTH = 25;
 
   private final AccountId accountId;
   private Pseudonym pseudonym;
@@ -82,9 +92,15 @@ public final class PublicProfile {
   }
 
   private static String tombstoneFor(AccountId accountId) {
-    String hex = accountId.value().toString().replace("-", "");
-    int available = Pseudonym.MAX_LENGTH - TOMBSTONE_PREFIX.length();
-    return TOMBSTONE_PREFIX + hex.substring(0, Math.min(available, hex.length()));
+    UUID uuid = accountId.value();
+    byte[] bytes =
+        ByteBuffer.allocate(16)
+            .putLong(uuid.getMostSignificantBits())
+            .putLong(uuid.getLeastSignificantBits())
+            .array();
+    String encoded = new BigInteger(1, bytes).toString(36);
+    String padded = "0".repeat(TOMBSTONE_ID_WIDTH - encoded.length()) + encoded;
+    return TOMBSTONE_PREFIX + padded;
   }
 
   public AccountId accountId() {

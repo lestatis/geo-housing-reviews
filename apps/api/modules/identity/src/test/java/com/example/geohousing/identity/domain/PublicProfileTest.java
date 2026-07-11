@@ -63,7 +63,7 @@ class PublicProfileTest {
     profile.anonymize(UPDATED);
 
     assertThat(profile.pseudonym().value())
-        .startsWith("deleted-")
+        .startsWith("del-")
         .isNotEqualTo("Anna K")
         .hasSizeLessThanOrEqualTo(Pseudonym.MAX_LENGTH);
     assertThat(profile.avatarUrl()).isEmpty();

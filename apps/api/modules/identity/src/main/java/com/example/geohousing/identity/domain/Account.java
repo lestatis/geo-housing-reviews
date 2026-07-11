@@ -7,14 +7,14 @@ import java.util.Optional;
 
 /**
  * Private authentication identity and lifecycle status for a user (see {@code
- * docs/DOMAIN_MODEL.md}). Holds the mapping to the external auth subject and the server-side
- * authorization role. The public-facing name lives separately in {@link PublicProfile} and is never
- * exposed from here.
+ * docs/DOMAIN_MODEL.md}). Holds a non-reversible hash of the external auth subject (never the raw
+ * subject — see ADR-0006) and the server-side authorization role. The public-facing name lives
+ * separately in {@link PublicProfile} and is never exposed from here.
  */
 public final class Account {
 
   private final AccountId id;
-  private final String authSubject;
+  private final String authSubjectHash;
   private String email;
   private final AccountRole role;
   private AccountStatus status;
@@ -24,7 +24,7 @@ public final class Account {
 
   private Account(
       AccountId id,
-      String authSubject,
+      String authSubjectHash,
       String email,
       AccountRole role,
       AccountStatus status,
@@ -32,7 +32,7 @@ public final class Account {
       Instant closedAt,
       long version) {
     this.id = Objects.requireNonNull(id, "id");
-    this.authSubject = requireText(authSubject, "authSubject");
+    this.authSubjectHash = requireText(authSubjectHash, "authSubjectHash");
     this.email = email;
     this.role = Objects.requireNonNull(role, "role");
     this.status = Objects.requireNonNull(status, "status");
@@ -42,28 +42,38 @@ public final class Account {
   }
 
   /** Creates a new active account with the default {@link AccountRole#USER} role. */
-  public static Account provision(AccountId id, String authSubject, String email, Clock clock) {
+  public static Account provision(AccountId id, String authSubjectHash, String email, Clock clock) {
     Objects.requireNonNull(clock, "clock");
     return new Account(
-        id, authSubject, email, AccountRole.USER, AccountStatus.ACTIVE, clock.instant(), null, 0L);
+        id,
+        authSubjectHash,
+        email,
+        AccountRole.USER,
+        AccountStatus.ACTIVE,
+        clock.instant(),
+        null,
+        0L);
   }
 
   /** Rebuilds an account from persisted state. Intended for persistence adapters only. */
   public static Account reconstitute(
       AccountId id,
-      String authSubject,
+      String authSubjectHash,
       String email,
       AccountRole role,
       AccountStatus status,
       Instant createdAt,
       Instant closedAt,
       long version) {
-    return new Account(id, authSubject, email, role, status, createdAt, closedAt, version);
+    return new Account(id, authSubjectHash, email, role, status, createdAt, closedAt, version);
   }
 
   /**
    * Closes the account permanently and scrubs the email (a piece of confidential personal data that
-   * should not survive closure). Idempotent: closing an already-closed account is a no-op.
+   * should not survive closure). The auth-subject hash is intentionally retained: it is already
+   * non-reversible, so it carries no raw identifier, and keeping it lets provisioning reject any
+   * future login by the same subject (no resurrection — see ADR-0006). Idempotent: closing an
+   * already-closed account is a no-op.
    */
   public void close(Clock clock) {
     Objects.requireNonNull(clock, "clock");
@@ -83,8 +93,8 @@ public final class Account {
     return id;
   }
 
-  public String authSubject() {
-    return authSubject;
+  public String authSubjectHash() {
+    return authSubjectHash;
   }
 
   public Optional<String> email() {

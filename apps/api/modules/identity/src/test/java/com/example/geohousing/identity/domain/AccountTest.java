@@ -19,7 +19,7 @@ class AccountTest {
     Account account = Account.provision(ID, "auth|abc", "user@example.com", FIXED);
 
     assertThat(account.id()).isEqualTo(ID);
-    assertThat(account.authSubject()).isEqualTo("auth|abc");
+    assertThat(account.authSubjectHash()).isEqualTo("auth|abc");
     assertThat(account.email()).contains("user@example.com");
     assertThat(account.role()).isEqualTo(AccountRole.USER);
     assertThat(account.status()).isEqualTo(AccountStatus.ACTIVE);
