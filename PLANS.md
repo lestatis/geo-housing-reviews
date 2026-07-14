@@ -1,6 +1,6 @@
 # Execution Plans
 
-Use this template for work that is multi-step, cross-module, security-sensitive, migration-heavy, or likely to outlive one agent session.
+Use this template for every non-trivial implementation task, including work that is multi-step, cross-module, security-sensitive, migration-heavy, or likely to outlive one agent session.
 
 Create a task-specific plan under `docs/plans/YYYY-MM-DD-short-name.md`. Keep it updated while working. The plan is an execution record, not a speculative essay.
 
@@ -63,5 +63,6 @@ What changed, deviations from plan, tests, remaining follow-ups.
 - Do not create a plan for trivial one-file changes.
 - Do not treat a plan as approval to expand scope.
 - Update the plan when facts change.
+- Keep an active handoff under `docs/handoffs/` while a non-trivial task is active or interrupted.
 - If blocked by permissions or credentials, record `HUMAN_ACTION_REQUIRED` and continue only with independent work.
 - Archive completed plans; do not rewrite history to make the work look linear.

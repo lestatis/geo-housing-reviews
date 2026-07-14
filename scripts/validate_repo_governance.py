@@ -23,8 +23,16 @@ REQUIRED = [
     "docs/MODERATION.md",
     "docs/SECURITY_PRIVACY.md",
     "docs/AI_WORKFLOW.md",
+    "docs/handoffs/README.md",
+    "docs/handoffs/TEMPLATE.md",
+    "prompts/CODEX_TAKEOVER.md",
+    "prompts/CLAUDE_TAKEOVER.md",
+    "prompts/RECOVER_INTERRUPTED_TASK.md",
+    "prompts/INDEPENDENT_REVIEW.md",
     ".claude/settings.json",
     ".claude/hooks/block-privileged-commands.sh",
+    ".claude/skills/task-handoff/SKILL.md",
+    ".agents/skills/task-handoff/SKILL.md",
 ]
 
 errors: list[str] = []
@@ -67,6 +75,8 @@ claude_skills = {p.parent.name for p in (ROOT / ".claude/skills").glob("*/SKILL.
 codex_skills = {p.parent.name for p in (ROOT / ".agents/skills").glob("*/SKILL.md")}
 if claude_skills != codex_skills:
     errors.append("Claude and Codex shared skill names differ")
+if "task-handoff" not in claude_skills or "task-handoff" not in codex_skills:
+    errors.append("task-handoff skill must exist for both Claude and Codex")
 
 hook = ROOT / ".claude/hooks/block-privileged-commands.sh"
 if hook.is_file():

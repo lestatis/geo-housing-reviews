@@ -3,6 +3,7 @@
 .agents/skills/finish-task/SKILL.md
 .agents/skills/pr-review/SKILL.md
 .agents/skills/security-privacy-review/SKILL.md
+.agents/skills/task-handoff/SKILL.md
 .claude/agents/backend-architect.md
 .claude/agents/mobile-ux-reviewer.md
 .claude/agents/product-analyst.md
@@ -22,6 +23,7 @@
 .claude/skills/finish-task/SKILL.md
 .claude/skills/pr-review/SKILL.md
 .claude/skills/security-privacy-review/SKILL.md
+.claude/skills/task-handoff/SKILL.md
 .github/CODEOWNERS
 .github/ISSUE_TEMPLATE/bug.yml
 .github/ISSUE_TEMPLATE/config.yml
@@ -44,6 +46,10 @@ docs/DECISION_LOG.md
 docs/DESIGN_HANDOFF.md
 docs/DOCUMENTATION_INDEX.md
 docs/DOMAIN_MODEL.md
+docs/handoffs/README.md
+docs/handoffs/TEMPLATE.md
+docs/handoffs/003-cross-agent-handoff.md
+docs/handoffs/current-task.md
 docs/MODERATION.md
 docs/MVP_SCOPE.md
 docs/PRD_MVP.md
@@ -56,11 +62,16 @@ docs/adr/0000-template.md
 docs/adr/0001-modular-monolith.md
 docs/adr/0002-monorepo.md
 docs/adr/0003-verification-signal.md
+docs/plans/003-cross-agent-handoff.md
 docs/runbooks/CONTENT_DISPUTE.md
 docs/runbooks/DATA_SUBJECT_REQUEST.md
 docs/runbooks/INCIDENT_RESPONSE.md
 prompts/CLAUDE_IMPLEMENT.md
+prompts/CLAUDE_TAKEOVER.md
 prompts/CODEX_REVIEW.md
+prompts/CODEX_TAKEOVER.md
 prompts/HANDOFF.md
+prompts/INDEPENDENT_REVIEW.md
+prompts/RECOVER_INTERRUPTED_TASK.md
 scripts/check.sh
 scripts/validate_repo_governance.py

@@ -73,7 +73,7 @@
 2. Согласовать открытые продуктовые решения из [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md).
 3. Создать первый ADR по финальному стеку аутентификации.
 4. Создать GitHub Project и перенести задачи из [`docs/ROADMAP.md`](docs/ROADMAP.md).
-5. Запустить первую задачу Claude Code по шаблону из [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md).
+5. Запустить первую задачу Claude Code или Codex по шаблону из [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md).
 6. Перед первым PR выполнить:
 
 ```bash
@@ -82,12 +82,14 @@
 
 ## AI-инструменты
 
-- `AGENTS.md` — общий контракт для Codex и других агентов.
+- `AGENTS.md` — общий контракт для Claude Code, Codex и других агентов.
 - `CLAUDE.md` — импортирует `AGENTS.md` и добавляет правила Claude Code.
 - `.claude/rules/` — точечные правила, часть из них загружается только для нужных путей.
 - `.claude/skills/` и `.agents/skills/` — повторяемые рабочие процессы.
 - `.claude/agents/` — специализированные read-only субагенты для анализа и ревью.
 - `.claude/hooks/` — детерминированные ограничения, включая запрет обходить `sudo` и системные разрешения.
+- `docs/plans/` и `docs/handoffs/` — переносимое состояние нетривиальных задач; передача между агентами проверяется по Git и тестам.
+- `prompts/INDEPENDENT_REVIEW.md` — независимое read-only ревью в новой сессии перед решением человека о merge.
 
 ## Статус
 

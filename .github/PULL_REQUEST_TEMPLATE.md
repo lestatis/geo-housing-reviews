@@ -38,4 +38,4 @@
 
 ## Reviewer focus
 
-<!-- Point Codex/human reviewers at the riskiest areas. -->
+<!-- Point independent and human reviewers at the riskiest areas. -->

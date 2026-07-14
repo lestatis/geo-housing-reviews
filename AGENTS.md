@@ -43,6 +43,24 @@ When such an action is necessary:
 
 Do not bypass this by changing ownership/permissions, using `chmod 777`, installing into an unexpected location, downloading an alternative binary, using a container, or silently choosing another implementation unless the task explicitly authorizes that alternative.
 
+## Agent handoff and takeover
+
+Claude Code and Codex may each implement or review a task. For every non-trivial implementation, keep an execution plan in `docs/plans/`; while it is active or interrupted, also keep a handoff in `docs/handoffs/`. Update the handoff at meaningful checkpoints and before intentionally stopping. It must record the objective, branch, status, completed and remaining work, decisions and assumptions, changed files, commands and tests, failures, unresolved risks, and next action.
+
+A takeover starts from evidence, not the handoff: inspect the current branch, `git status`, `git diff`, `git diff --staged`, recent commits, active plan, modified and untracked files, and relevant tests. Git, code, tests, and accepted documentation override handoff claims; preserve correct completed work and continue only the remaining scope.
+
+Do not install Claude Code, Codex CLI, GitHub CLI, system packages, or global dependencies. Do not use `sudo`, `doas`, `pkexec`, `su`, or bypass a permission failure. If a required tool is unavailable, stop that path and return:
+
+```text
+HUMAN_ACTION_REQUIRED
+Command: <exact command>
+Reason: <why it is required>
+Expected result: <observable outcome>
+Verification command: <safe command>
+```
+
+Do not silently replace unavailable independent review with self-review. Independent review is read-only unless the user explicitly starts a separate fix phase, begins from the complete branch diff, and stays logically separate from implementation. If the same tool implemented the branch, review it only in a fresh independent session. Work one branch at a time unless the user approves another rollout. No agent may automatically merge a pull request.
+
 ## 5. Product safety rules
 
 - Treat uploaded verification evidence as highly sensitive.

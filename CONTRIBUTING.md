@@ -62,10 +62,10 @@ After applications are scaffolded, each application must document its own build,
 
 ## Review loop
 
-1. Claude Code implements and self-verifies.
-2. Codex performs an independent review without editing the branch.
-3. Claude addresses accepted findings.
-4. Codex re-reviews changed areas.
+1. The assigned implementation agent implements and self-verifies on one branch.
+2. The assigned review agent performs an independent review in a fresh session without editing the branch.
+3. The implementation agent addresses accepted findings in a separate fix phase.
+4. The review agent re-reviews changed areas when necessary.
 5. A human decides whether to merge.
 
 Cap automated fix/review loops at two iterations. After that, summarize disagreement for human resolution instead of creating an endless agent loop.
