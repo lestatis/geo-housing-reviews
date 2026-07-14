@@ -31,6 +31,7 @@ The domain and migration test files described by those commits exist in the work
 - 2026-07-14: Completed chunk 3 application ports/services and 11 in-memory-fake unit tests. No schema, infrastructure, endpoint, or security-wiring changes were made.
 - 2026-07-14: Verified chunk 3 is merged into `main` and created `feat/002-identity-chunk4-persistence` for persistence adapters and forward migrations.
 - 2026-07-14: Completed chunk 4: `V2.3` renames the raw-subject column to `auth_subject_hash CHAR(64)` and adds the identity-owned `user_restriction` table; JPA entities, repositories, mappers, and a transactional adapter implement all chunk-3 persistence ports. The app explicitly scans the identity persistence package for entities and repositories. Integration coverage proves the migration, restriction constraints, hash round trip, stale-profile rejection, and pseudonym-conflict translation.
+- 2026-07-14: Committed chunk 4 locally as `ebdcaea` (`feat(identity): add persistence adapters`). Push to `origin` is pending an informed approval for external code disclosure.
 
 ## Remaining work
 
@@ -150,7 +151,7 @@ None in this environment. Independent review remains pending.
 
 ## Recommended next action
 
-Obtain an independent review outside this execution environment, address only actionable findings in a separate fix phase, then commit this chunk on the current branch. Do not begin chunk 5 automatically.
+Obtain an independent review outside this execution environment and push the existing local commit after informed approval for external code disclosure. Address only actionable findings in a separate fix phase; do not begin chunk 5 automatically.
 
 ## Last updated
 
