@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
 import com.example.geohousing.identity.domain.OptimisticLockConflictException;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PseudonymAlreadyInUseException;
@@ -88,6 +89,53 @@ class IdentityPersistenceIntegrationTest {
 
     assertThatThrownBy(() -> persistence.save(profile, profile.version()))
         .isInstanceOf(PseudonymAlreadyInUseException.class);
+  }
+
+  @Test
+  void translatesDuplicatePseudonymConstraintOnCreate() {
+    createAccountWithProfile("e", "Resident-e1f2");
+    AccountId accountId = AccountId.of(UUID.randomUUID());
+    Account account = Account.provision(accountId, "f".repeat(64), null, CREATED_CLOCK);
+    PublicProfile collidingProfile =
+        PublicProfile.createDefault(accountId, Pseudonym.of("Resident-e1f2"), "en", CREATED_CLOCK);
+
+    assertThatThrownBy(() -> persistence.create(account, collidingProfile))
+        .isInstanceOf(PseudonymAlreadyInUseException.class);
+  }
+
+  @Test
+  void translatesConcurrentProvisioningOfTheSameAuthSubject() {
+    String sharedHash = "0".repeat(64);
+    AccountId firstAccountId = AccountId.of(UUID.randomUUID());
+    persistence.create(
+        Account.provision(firstAccountId, sharedHash, null, CREATED_CLOCK),
+        PublicProfile.createDefault(
+            firstAccountId, Pseudonym.of("Resident-0a1b"), "en", CREATED_CLOCK));
+
+    AccountId secondAccountId = AccountId.of(UUID.randomUUID());
+    Account raced = Account.provision(secondAccountId, sharedHash, null, CREATED_CLOCK);
+    PublicProfile racedProfile =
+        PublicProfile.createDefault(
+            secondAccountId, Pseudonym.of("Resident-0b2c"), "en", CREATED_CLOCK);
+
+    assertThatThrownBy(() -> persistence.create(raced, racedProfile))
+        .isInstanceOf(AuthSubjectAlreadyProvisionedException.class);
+  }
+
+  @Test
+  void rollsBackTheAccountWhenTheProfileInsertFails() {
+    createAccountWithProfile("1", "Resident-1a2b");
+    AccountId accountId = AccountId.of(UUID.randomUUID());
+    String orphanHash = "2".repeat(64);
+    Account account = Account.provision(accountId, orphanHash, null, CREATED_CLOCK);
+    PublicProfile collidingProfile =
+        PublicProfile.createDefault(accountId, Pseudonym.of("Resident-1a2b"), "en", CREATED_CLOCK);
+
+    assertThatThrownBy(() -> persistence.create(account, collidingProfile))
+        .isInstanceOf(PseudonymAlreadyInUseException.class);
+
+    assertThat(persistence.findByAuthSubjectHash(orphanHash)).isEmpty();
+    assertThat(persistence.findById(accountId)).isEmpty();
   }
 
   private AccountId createAccountWithProfile(String hashCharacter, String pseudonym) {

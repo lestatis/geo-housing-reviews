@@ -1,6 +1,7 @@
 package com.example.geohousing.app.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Timestamp;
@@ -46,6 +47,41 @@ class IdentityMigrationIntegrationTest {
             "select count(*) from flyway_schema_history where version = '2.3' and success = true",
             Integer.class);
     assertThat(restrictionMigration).isEqualTo(1);
+
+    Integer subjectHashFormatMigration =
+        jdbcTemplate.queryForObject(
+            "select count(*) from flyway_schema_history where version = '2.4' and success = true",
+            Integer.class);
+    assertThat(subjectHashFormatMigration).isEqualTo(1);
+  }
+
+  /**
+   * V2.3 renamed {@code auth_subject} to {@code auth_subject_hash} and retyped it to CHAR(64)
+   * without validating the existing values, so a raw OIDC subject — short enough to be silently
+   * blank-padded to 64 characters — would survive as if it were a hash. That is the reversible
+   * identifier ADR-0006 exists to remove, so the format constraint added by V2.4 must reject it.
+   */
+  @Test
+  void accountRejectsAnAuthSubjectHashThatIsNotAHash() {
+    assertThatThrownBy(
+            () ->
+                jdbcTemplate.update(
+                    "insert into identity.account (auth_subject_hash) values (?)",
+                    "google-oauth2|1092847561"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+
+    assertThatThrownBy(
+            () ->
+                jdbcTemplate.update(
+                    "insert into identity.account (auth_subject_hash) values (?)", "Z".repeat(64)))
+        .isInstanceOf(DataIntegrityViolationException.class);
+
+    assertThatCode(
+            () ->
+                jdbcTemplate.update(
+                    "insert into identity.account (auth_subject_hash) values (?)",
+                    "a1b2c3d4".repeat(8)))
+        .doesNotThrowAnyException();
   }
 
   @Test

@@ -6,11 +6,13 @@ import com.example.geohousing.identity.application.PublicProfileRepository;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
+import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
 import com.example.geohousing.identity.domain.OptimisticLockConflictException;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PseudonymAlreadyInUseException;
 import com.example.geohousing.identity.domain.PublicProfile;
 import java.util.Optional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 public class JpaIdentityPersistenceAdapter
     implements AccountRepository, PublicProfileRepository, IdentityProvisioningRepository {
+
+  /** Renamed from its Postgres-generated name by V2.4 to match the column it now constrains. */
+  private static final String AUTH_SUBJECT_HASH_UNIQUE_CONSTRAINT = "account_auth_subject_hash_key";
+
+  private static final String PSEUDONYM_UNIQUE_CONSTRAINT = "public_profile_pseudonym_key";
 
   private final SpringDataAccountRepository accountRepository;
   private final SpringDataPublicProfileRepository publicProfileRepository;
@@ -49,8 +56,14 @@ public class JpaIdentityPersistenceAdapter
     if (!account.id().equals(profile.accountId())) {
       throw new IllegalArgumentException("account and profile must have the same account id");
     }
-    accountRepository.save(AccountJpaMapper.toEntity(account));
-    publicProfileRepository.save(PublicProfileJpaMapper.toEntity(profile));
+    try {
+      // Flushed rather than left to commit-time, so a unique violation is raised here where it can
+      // still be translated instead of escaping the port as an infrastructure exception.
+      accountRepository.saveAndFlush(AccountJpaMapper.toEntity(account));
+      publicProfileRepository.saveAndFlush(PublicProfileJpaMapper.toEntity(profile));
+    } catch (DataIntegrityViolationException exception) {
+      throw translateUniqueViolation(exception, profile.pseudonym());
+    }
   }
 
   @Override
@@ -84,7 +97,32 @@ public class JpaIdentityPersistenceAdapter
     } catch (ObjectOptimisticLockingFailureException exception) {
       throw new OptimisticLockConflictException("public profile version does not match");
     } catch (DataIntegrityViolationException exception) {
-      throw new PseudonymAlreadyInUseException(profile.pseudonym());
+      throw translateUniqueViolation(exception, profile.pseudonym());
     }
+  }
+
+  /**
+   * Maps a violated unique constraint onto the domain conflict it actually represents. Matching on
+   * the constraint name keeps an unrelated integrity failure (a NOT NULL or foreign-key breach,
+   * say) from being reported to the user as "pseudonym already taken": anything unrecognised is
+   * rethrown as-is rather than guessed at.
+   */
+  private static RuntimeException translateUniqueViolation(
+      DataIntegrityViolationException exception, Pseudonym pseudonym) {
+    String constraintName = constraintNameOf(exception);
+    if (PSEUDONYM_UNIQUE_CONSTRAINT.equals(constraintName)) {
+      return new PseudonymAlreadyInUseException(pseudonym);
+    }
+    if (AUTH_SUBJECT_HASH_UNIQUE_CONSTRAINT.equals(constraintName)) {
+      return new AuthSubjectAlreadyProvisionedException(
+          "an account for this auth subject was provisioned concurrently");
+    }
+    return exception;
+  }
+
+  private static String constraintNameOf(DataIntegrityViolationException exception) {
+    return exception.getCause() instanceof ConstraintViolationException violation
+        ? violation.getConstraintName()
+        : null;
   }
 }
