@@ -21,7 +21,11 @@ class AccountJpaEntity {
   @Id private UUID id;
 
   @JdbcType(CharJdbcType.class)
-  @Column(name = "auth_subject_hash", nullable = false, unique = true, columnDefinition = "char(64)")
+  @Column(
+      name = "auth_subject_hash",
+      nullable = false,
+      unique = true,
+      columnDefinition = "char(64)")
   private String authSubjectHash;
 
   @Column(length = 320)

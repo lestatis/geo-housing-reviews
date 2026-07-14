@@ -1,8 +1,8 @@
 package com.example.geohousing.identity.infrastructure.persistence;
 
 import com.example.geohousing.identity.domain.AccountId;
-import com.example.geohousing.identity.domain.PublicProfile;
 import com.example.geohousing.identity.domain.Pseudonym;
+import com.example.geohousing.identity.domain.PublicProfile;
 
 final class PublicProfileJpaMapper {
 
