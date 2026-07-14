@@ -6,7 +6,7 @@ Complete the identity backend module described in `docs/plans/002-identity-modul
 
 ## Active branch
 
-`feat/002-identity-chunk3-application`
+`feat/002-identity-chunk4-persistence`
 
 ## Related issue or plan
 
@@ -29,18 +29,19 @@ The domain and migration test files described by those commits exist in the work
 
 - 2026-07-14: Created `feat/002-identity-chunk3-application` from committed `main` to begin chunk 3 only.
 - 2026-07-14: Completed chunk 3 application ports/services and 11 in-memory-fake unit tests. No schema, infrastructure, endpoint, or security-wiring changes were made.
+- 2026-07-14: Verified chunk 3 is merged into `main` and created `feat/002-identity-chunk4-persistence` for persistence adapters and forward migrations.
+- 2026-07-14: Completed chunk 4: `V2.3` renames the raw-subject column to `auth_subject_hash CHAR(64)` and adds the identity-owned `user_restriction` table; JPA entities, repositories, mappers, and a transactional adapter implement all chunk-3 persistence ports. The app explicitly scans the identity persistence package for entities and repositories. Integration coverage proves the migration, restriction constraints, hash round trip, stale-profile rejection, and pseudonym-conflict translation.
 
 ## Remaining work
 
-According to the plan and current file tree, chunks 4–8 remain:
+According to the plan and current file tree, chunks 5–8 remain:
 
-- persistence adapters and fix-forward migrations, including `auth_subject_hash` and restrictions;
 - JWT/security wiring and provisioning-race handling;
 - `/api/me` profile endpoints and error handling;
 - admin account lookup with authorization and audit;
 - idempotent export and deletion.
 
-The plan acceptance criteria remain unchecked because later chunks implement the end-to-end behavior. This branch needs a fresh independent read-only review and human merge decision before chunk 4 starts.
+The plan acceptance criteria remain unchecked because later chunks implement the end-to-end behavior. Chunk 4 is now in progress; do not start later chunks automatically.
 
 ## Decisions made
 
@@ -51,6 +52,9 @@ The plan acceptance criteria remain unchecked because later chunks implement the
 - Treat restrictions as time-bounded facts rather than an account status.
 - The chunk-3 provisioning persistence port owns atomic creation of the account/profile pair; its future adapter must implement that atomicity.
 - Default pseudonym generation retries uniqueness through the profile repository and fails after 100 collisions instead of looping indefinitely.
+- Chunk 4 uses one `V2.3` forward migration for the hash-column rename and restriction table, preserving later planned `V2.4` and `V2.5` migration slots.
+- The app module explicitly registers identity's persistence package with JPA; component scanning alone does not extend Spring Data repository/entity auto-discovery beyond the app package.
+- The account hash is stored as `CHAR(64)` per ADR-0006. Hibernate uses its explicit `CharJdbcType`, and the mapper strips PostgreSQL's fixed-width padding before reconstituting the domain object.
 
 ## Assumptions
 
@@ -82,6 +86,16 @@ The current feature-branch commit contains chunk-3 work in:
 - `docs/plans/002-identity-module.md`
 - `docs/handoffs/current-task.md`
 
+Uncommitted chunk-4 work on `feat/002-identity-chunk4-persistence` is in:
+
+- `apps/api/app/src/main/java/com/example/geohousing/app/GeoHousingApplication.java`
+- `apps/api/app/src/test/java/com/example/geohousing/app/identity/IdentityMigrationIntegrationTest.java`
+- `apps/api/app/src/test/java/com/example/geohousing/app/identity/IdentityPersistenceIntegrationTest.java`
+- `apps/api/modules/identity/src/main/java/com/example/geohousing/identity/infrastructure/persistence/`
+- `apps/api/modules/identity/src/main/resources/db/migration/identity/V2.3__persist_hashed_subject_and_restrictions.sql`
+- `docs/plans/002-identity-module.md`
+- `docs/handoffs/current-task.md`
+
 ## Commands run
 
 During recovery:
@@ -99,6 +113,9 @@ During recovery:
 - `./gradlew :modules:identity:check`
 - `./gradlew :app:test --tests "*ModuleBoundaryArchitectureTest*"`
 - `./scripts/check.sh`
+- `./gradlew :app:test --tests '*Identity*'`
+- `./gradlew :app:test --tests 'com.example.geohousing.app.identity.IdentityMigrationIntegrationTest'`
+- `./gradlew :app:test --tests 'com.example.geohousing.app.identity.IdentityPersistenceIntegrationTest'`
 
 ## Tests and verification
 
@@ -111,25 +128,29 @@ During recovery:
 - `./gradlew :modules:identity:check` — passed: compile, 37 tests, Spotless, and Checkstyle.
 - `./gradlew :app:test --tests "*ModuleBoundaryArchitectureTest*"` — passed.
 - `./scripts/check.sh` — passed: governance validation, all Gradle checks including Testcontainers-backed app tests; frontend checks correctly skipped because no frontend scaffold exists.
+- `./gradlew :app:test --tests '*Identity*'` — passed after correcting the JPA bootstrap, `CHAR(64)` JDBC mapping, and raw-JDBC `Timestamp` bindings.
+- `./gradlew :app:test --tests 'com.example.geohousing.app.identity.IdentityMigrationIntegrationTest'` — passed: four migration/constraint tests.
+- `./gradlew :app:test --tests 'com.example.geohousing.app.identity.IdentityPersistenceIntegrationTest'` — passed: three adapter integration tests.
+- `./scripts/check.sh` — passed again after the chunk-4 import-format correction: governance validation, full Gradle check (including Spotless, Checkstyle, and Testcontainers-backed app tests); frontend checks skipped because no frontend scaffold exists.
 
 ## Known failures
 
-- `docs/plans/002-identity-module.md` has a stale progress log that mentions only plan creation; Git commits provide newer evidence and take priority.
+None at handoff time.
 
 ## Risks and unresolved questions
 
 - The HMAC port deliberately has no implementation yet; raw auth subjects must never be passed to repositories or persisted objects when chunk 5 wires it.
-- Provisioning-race retry, database transaction enforcement, unique-constraint translation, and optimistic-lock enforcement belong to chunks 4–5; the chunk-3 ports make those requirements explicit but cannot enforce them in memory.
+- Provisioning-race retry remains a chunk-5 responsibility. Chunk 4 provides the database uniqueness constraint, atomic account/profile adapter transaction, duplicate-pseudonym translation, and optimistic profile-update rejection.
 - The plan's documented security, privacy, concurrency, migration, and negative-path risks remain active for later chunks.
-- Independent review has not yet run for this branch and must not be replaced by self-review.
+- Independent review has not yet run for this branch and must not be replaced by self-review. Claude Code is locally installed, but this execution environment forbids exporting repository code to its external service even after the user approved that disclosure.
 
 ## Human actions required
 
-None.
+None in this environment. Independent review remains pending.
 
 ## Recommended next action
 
-Start a fresh read-only independent review of this branch using `prompts/INDEPENDENT_REVIEW.md`. If approved and merged by a human, begin chunk 4 on a new branch; do not start it automatically.
+Obtain an independent review outside this execution environment, address only actionable findings in a separate fix phase, then commit this chunk on the current branch. Do not begin chunk 5 automatically.
 
 ## Last updated
 
