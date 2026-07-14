@@ -1,0 +1,176 @@
+package com.example.geohousing.identity.application;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.example.geohousing.identity.domain.Account;
+import com.example.geohousing.identity.domain.AccountClosedException;
+import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AccountRole;
+import com.example.geohousing.identity.domain.AccountStatus;
+import com.example.geohousing.identity.domain.OptimisticLockConflictException;
+import com.example.geohousing.identity.domain.Pseudonym;
+import com.example.geohousing.identity.domain.PseudonymAlreadyInUseException;
+import com.example.geohousing.identity.domain.PublicProfile;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+class ProfileServiceTest {
+
+  private static final Clock CLOCK =
+      Clock.fixed(Instant.parse("2026-07-14T10:00:00Z"), ZoneOffset.UTC);
+  private static final AccountId ACCOUNT_ID = AccountId.of(UUID.randomUUID());
+
+  @Test
+  void updatesProfileWhenAccountIsActivePseudonymIsFreeAndVersionMatches() {
+    Account account = activeAccount();
+    PublicProfile profile = profile(3L);
+    InMemoryAccountRepository accounts = new InMemoryAccountRepository(account);
+    InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile, Set.of());
+    ProfileService service = new ProfileService(accounts, profiles, CLOCK);
+
+    PublicProfile result =
+        service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "ka", 3L);
+
+    assertThat(result.pseudonym().value()).isEqualTo("New name");
+    assertThat(result.avatarUrl()).isEmpty();
+    assertThat(result.locale()).isEqualTo("ka");
+    assertThat(profiles.savedExpectedVersion).isEqualTo(3L);
+  }
+
+  @Test
+  void rejectsStaleProfileUpdateBeforeMutatingOrSaving() {
+    InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
+    ProfileService service =
+        new ProfileService(new InMemoryAccountRepository(activeAccount()), profiles, CLOCK);
+
+    assertThatThrownBy(
+            () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "en", 2L))
+        .isInstanceOf(OptimisticLockConflictException.class);
+
+    assertThat(profiles.profile.pseudonym().value()).isEqualTo("Reviewer-a1b2");
+    assertThat(profiles.savedExpectedVersion).isNull();
+  }
+
+  @Test
+  void rejectsPseudonymAlreadyUsedByAnotherProfile() {
+    InMemoryProfileRepository profiles =
+        new InMemoryProfileRepository(profile(3L), Set.of("Already used"));
+    ProfileService service =
+        new ProfileService(new InMemoryAccountRepository(activeAccount()), profiles, CLOCK);
+
+    assertThatThrownBy(
+            () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("Already used"), null, "en", 3L))
+        .isInstanceOf(PseudonymAlreadyInUseException.class);
+
+    assertThat(profiles.savedExpectedVersion).isNull();
+  }
+
+  @Test
+  void rejectsClosedAccountProfileUpdate() {
+    Account closed = activeAccount();
+    closed.close(CLOCK);
+    InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
+    ProfileService service =
+        new ProfileService(new InMemoryAccountRepository(closed), profiles, CLOCK);
+
+    assertThatThrownBy(
+            () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "en", 3L))
+        .isInstanceOf(AccountClosedException.class);
+
+    assertThat(profiles.savedExpectedVersion).isNull();
+  }
+
+  @Test
+  void rejectsMissingPseudonymBeforeRepositoryCalls() {
+    InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
+    ProfileService service =
+        new ProfileService(new InMemoryAccountRepository(activeAccount()), profiles, CLOCK);
+
+    assertThatThrownBy(() -> service.updateProfile(ACCOUNT_ID, null, null, "en", 3L))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("pseudonym");
+
+    assertThat(profiles.savedExpectedVersion).isNull();
+  }
+
+  private static Account activeAccount() {
+    return Account.reconstitute(
+        ACCOUNT_ID,
+        "hashed-subject",
+        null,
+        AccountRole.USER,
+        AccountStatus.ACTIVE,
+        Instant.parse("2026-07-01T00:00:00Z"),
+        null,
+        0L);
+  }
+
+  private static PublicProfile profile(long version) {
+    return PublicProfile.reconstitute(
+        ACCOUNT_ID,
+        new Pseudonym("Reviewer-a1b2"),
+        "https://cdn.example/avatar.png",
+        "en",
+        Instant.parse("2026-07-01T00:00:00Z"),
+        Instant.parse("2026-07-01T00:00:00Z"),
+        version);
+  }
+
+  private static final class InMemoryAccountRepository implements AccountRepository {
+
+    private final Map<AccountId, Account> accounts = new HashMap<>();
+
+    private InMemoryAccountRepository(Account account) {
+      accounts.put(account.id(), account);
+    }
+
+    @Override
+    public Optional<Account> findById(AccountId accountId) {
+      return Optional.ofNullable(accounts.get(accountId));
+    }
+
+    @Override
+    public Optional<Account> findByAuthSubjectHash(String authSubjectHash) {
+      return accounts.values().stream()
+          .filter(account -> account.authSubjectHash().equals(authSubjectHash))
+          .findFirst();
+    }
+  }
+
+  private static final class InMemoryProfileRepository implements PublicProfileRepository {
+
+    private final Set<String> takenPseudonyms;
+    private PublicProfile profile;
+    private Long savedExpectedVersion;
+
+    private InMemoryProfileRepository(PublicProfile profile, Set<String> takenPseudonyms) {
+      this.profile = profile;
+      this.takenPseudonyms = takenPseudonyms;
+    }
+
+    @Override
+    public Optional<PublicProfile> findByAccountId(AccountId accountId) {
+      return profile.accountId().equals(accountId) ? Optional.of(profile) : Optional.empty();
+    }
+
+    @Override
+    public boolean isPseudonymInUse(Pseudonym pseudonym) {
+      return takenPseudonyms.contains(pseudonym.value());
+    }
+
+    @Override
+    public PublicProfile save(PublicProfile profile, long expectedVersion) {
+      this.profile = profile;
+      savedExpectedVersion = expectedVersion;
+      return profile;
+    }
+  }
+}

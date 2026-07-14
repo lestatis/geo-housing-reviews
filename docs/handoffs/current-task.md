@@ -6,7 +6,7 @@ Complete the identity backend module described in `docs/plans/002-identity-modul
 
 ## Active branch
 
-`main`
+`feat/002-identity-chunk3-application`
 
 ## Related issue or plan
 
@@ -14,7 +14,7 @@ No issue. See `docs/plans/002-identity-module.md`.
 
 ## Current status
 
-in_progress
+ready_for_review
 
 ## Completed work
 
@@ -27,18 +27,20 @@ Observable committed work on `main`:
 
 The domain and migration test files described by those commits exist in the working tree. No uncommitted identity changes were present when this handoff was recovered.
 
+- 2026-07-14: Created `feat/002-identity-chunk3-application` from committed `main` to begin chunk 3 only.
+- 2026-07-14: Completed chunk 3 application ports/services and 11 in-memory-fake unit tests. No schema, infrastructure, endpoint, or security-wiring changes were made.
+
 ## Remaining work
 
-According to the plan and current file tree, chunks 3–8 remain:
+According to the plan and current file tree, chunks 4–8 remain:
 
-- application services and repository/hasher ports;
 - persistence adapters and fix-forward migrations, including `auth_subject_hash` and restrictions;
 - JWT/security wiring and provisioning-race handling;
 - `/api/me` profile endpoints and error handling;
 - admin account lookup with authorization and audit;
 - idempotent export and deletion.
 
-The plan acceptance criteria remain unchecked. The recommended next scope is chunk 3 only; do not start later branches automatically.
+The plan acceptance criteria remain unchecked because later chunks implement the end-to-end behavior. This branch needs a fresh independent read-only review and human merge decision before chunk 4 starts.
 
 ## Decisions made
 
@@ -47,6 +49,8 @@ The plan acceptance criteria remain unchecked. The recommended next scope is chu
 - Keep `identity.api` empty until another module has a concrete cross-module use case.
 - Use schema-local Flyway migrations and append-only fix-forward changes after merge.
 - Treat restrictions as time-bounded facts rather than an account status.
+- The chunk-3 provisioning persistence port owns atomic creation of the account/profile pair; its future adapter must implement that atomicity.
+- Default pseudonym generation retries uniqueness through the profile repository and fails after 100 collisions instead of looping indefinitely.
 
 ## Assumptions
 
@@ -71,6 +75,13 @@ Committed identity work includes:
 
 See `git show --stat f8cc350 506353b 9b79b87 16b0dee` for the exact committed file list.
 
+The current feature-branch commit contains chunk-3 work in:
+
+- `apps/api/modules/identity/src/main/java/com/example/geohousing/identity/application/`
+- `apps/api/modules/identity/src/test/java/com/example/geohousing/identity/application/`
+- `docs/plans/002-identity-module.md`
+- `docs/handoffs/current-task.md`
+
 ## Commands run
 
 During recovery:
@@ -84,6 +95,10 @@ During recovery:
 - `git show -s --format=fuller f8cc350 506353b 9b79b87 16b0dee`
 - identity source/test file inventory via `rg --files`
 - baseline governance and repository checks listed below
+- `./gradlew :modules:identity:test`
+- `./gradlew :modules:identity:check`
+- `./gradlew :app:test --tests "*ModuleBoundaryArchitectureTest*"`
+- `./scripts/check.sh`
 
 ## Tests and verification
 
@@ -92,26 +107,30 @@ During recovery:
 - `GRADLE_USER_HOME=/tmp/geo-housing-gradle ./scripts/check.sh` — governance passed, then Gradle wrapper download failed because sandbox network access was unavailable.
 - Commit `9b79b87` reports 33 passing plain-JUnit domain tests and an empirical ArchUnit negative check. This is historical commit evidence, not a test rerun during recovery.
 - Commits `506353b` and `16b0dee` report independent local Codex review fixes. This is historical commit evidence, not a new review.
+- `./gradlew :modules:identity:test` — passed: 37 tests, after correcting one new-test assertion that initially checked the `AtomicReference` object rather than its value.
+- `./gradlew :modules:identity:check` — passed: compile, 37 tests, Spotless, and Checkstyle.
+- `./gradlew :app:test --tests "*ModuleBoundaryArchitectureTest*"` — passed.
+- `./scripts/check.sh` — passed: governance validation, all Gradle checks including Testcontainers-backed app tests; frontend checks correctly skipped because no frontend scaffold exists.
 
 ## Known failures
 
-- Current full repository-check status is unverified in this sandbox because Gradle could not use the default cache and could not download into the writable `/tmp` cache.
 - `docs/plans/002-identity-module.md` has a stale progress log that mentions only plan creation; Git commits provide newer evidence and take priority.
 
 ## Risks and unresolved questions
 
-- The repository is on `main`, 10 commits ahead of `origin/main`; remote publication/merge status was not inspected and must not be inferred.
-- Chunk 3 will introduce the HMAC boundary port and application behavior; preserve ADR-0006 and do not place crypto or framework code in the domain package.
+- The HMAC port deliberately has no implementation yet; raw auth subjects must never be passed to repositories or persisted objects when chunk 5 wires it.
+- Provisioning-race retry, database transaction enforcement, unique-constraint translation, and optimistic-lock enforcement belong to chunks 4–5; the chunk-3 ports make those requirements explicit but cannot enforce them in memory.
 - The plan's documented security, privacy, concurrency, migration, and negative-path risks remain active for later chunks.
+- Independent review has not yet run for this branch and must not be replaced by self-review.
 
 ## Human actions required
 
-None for recovery. If the Gradle distribution remains unavailable to a future agent, use the `HUMAN_ACTION_REQUIRED` format rather than installing or bypassing permissions.
+None.
 
 ## Recommended next action
 
-Start a dedicated branch for chunk 3 from the intended base only after the user confirms that task. Re-inspect Git state, read the active plan and this handoff, implement only the application-layer ports/services and unit tests, run the relevant checks, and update this handoff before stopping.
+Start a fresh read-only independent review of this branch using `prompts/INDEPENDENT_REVIEW.md`. If approved and merged by a human, begin chunk 4 on a new branch; do not start it automatically.
 
 ## Last updated
 
-2026-07-11
+2026-07-14

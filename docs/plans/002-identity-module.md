@@ -1,9 +1,9 @@
 # Identity Module: Auth, Accounts, Public Profiles
 
 Status: Active
-Owner: Claude
+Owner: Codex
 Related issue: none (direct founder request)
-Last updated: 2026-07-09
+Last updated: 2026-07-14
 
 ## Objective
 
@@ -48,7 +48,7 @@ Gradle/Spring Boot scaffold complete (`docs/plans/001-project-scaffold.md`, merg
 | Shared generic ID type | None; `AccountId` is local to `identity.domain` | architecture.md: no shared abstraction until a second module needs it | when a second module needs the same pattern |
 | Flyway version-per-module | Root = major `1`; identity = major `2` (`V2.1`, `V2.2`, ...); next module = `3`. Migrations live in a `db/migration/<module>` subfolder for readability, but **no explicit `spring.flyway.locations` config is needed** — the Boot default `classpath:db/migration` scans recursively, so an explicit sub-location entry gets silently discarded by Flyway as redundant (confirmed empirically in Chunk 1). Only the version-number registry actually prevents collisions | never (append-only registry, extend for each new module) |
 
-## Implementation chunks (one git branch each — same process as the scaffold: self-check, local Codex review, human review, merge before the next starts)
+## Implementation chunks (one branch each: self-check, fresh independent read-only review, human review, then merge before the next starts)
 
 1. **Build/config foundation** (`feat/002-identity-chunk1-foundation`, this branch): ADR-0005, Spring Security deps on `app` + `identity`, `jwk-set-uri` placeholder in `application.yml`, `V2.1`/`V2.2` migrations (`identity.account`, `identity.public_profile`) under `db/migration/identity/`, `IdentityMigrationIntegrationTest`. Also required (found empirically, not in the original plan): a minimal `SecurityConfiguration` permitting `/actuator/health` only, since adding the OAuth2 Resource Server starter pulls in Spring Security's default "authenticate everything" auto-config, which regressed the existing health-check test. Chunk 5 replaces this with the full JWT-aware config.
 2. **Domain model**: `AccountId`, `AccountRole`, `AccountStatus` (`ACTIVE`/`CLOSED` only — restriction computed live, not a status flag), `Account` (holds `authSubjectHash`, not raw subject — ADR-0006), `PublicProfile`, `Pseudonym`, `PseudonymFormatter`, `UserRestriction`, `RestrictionScope`, `AppealStatus`, domain exceptions. Activates the two currently-vacuous ArchUnit domain rules for real.
@@ -85,6 +85,9 @@ Live smoke test at least once after Chunk 6 and again after Chunk 8: `docker com
 ## Progress log
 
 - 2026-07-09: Plan drafted via formal plan mode (CLAUDE.md authN/authZ trigger), reviewed via a Plan subagent, three product/architecture decisions confirmed with founder, approved. Chunk 1 branch created.
+- 2026-07-14: Recovered from Git evidence after the previous session ended. Chunks 1–2 and their follow-up fixes are committed on `main`; chunk 3 starts on `feat/002-identity-chunk3-application`. Scope is application ports/services and in-memory-fake unit tests only; no schema, infrastructure, endpoint, or security-wiring changes.
+- 2026-07-14: Chunk 3 implemented: framework-free account/profile/provisioning ports, HMAC boundary port, unique default-pseudonym allocation, provisioning/profile/admin services, and 11 in-memory-fake application tests. The provisioning persistence port explicitly requires atomic account/profile creation; HMAC implementation, database adapters, JWT race retry, endpoints, and migrations remain in their planned later chunks. `:modules:identity:check`, the module-boundary test, and `./scripts/check.sh` pass.
+- 2026-07-14: Chunk 3 is committed on `feat/002-identity-chunk3-application` and ready for fresh independent read-only review.
 
 ## Final outcome
 
