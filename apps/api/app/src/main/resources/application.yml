@@ -17,6 +17,13 @@ spring:
         jwt:
           jwk-set-uri: ${OIDC_JWK_SET_URI:https://issuer.invalid/.well-known/jwks.json}
 
+identity:
+  auth:
+    # Server-side HMAC pepper for auth-subject hashing (ADR-0006). Never committed; injected per
+    # environment. The empty default is deliberate: a blank pepper fails fast at startup rather than
+    # hashing every subject with an empty key. Tests supply a fixed non-secret pepper via the build.
+    subject-pepper: ${IDENTITY_AUTH_SUBJECT_PEPPER:}
+
 server:
   port: 8080
 

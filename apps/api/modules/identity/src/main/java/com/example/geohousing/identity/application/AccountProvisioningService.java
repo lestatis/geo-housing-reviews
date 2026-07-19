@@ -3,6 +3,7 @@ package com.example.geohousing.identity.application;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
 import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
 import java.util.Objects;
@@ -43,10 +44,7 @@ public final class AccountProvisioningService {
 
     Account existing = accountRepository.findByAuthSubjectHash(authSubjectHash).orElse(null);
     if (existing != null) {
-      if (existing.isClosed()) {
-        throw new AccountClosedException("closed accounts cannot be re-provisioned");
-      }
-      return existing;
+      return requireActive(existing);
     }
 
     Account account =
@@ -54,7 +52,24 @@ public final class AccountProvisioningService {
     PublicProfile profile =
         PublicProfile.createDefault(
             account.id(), pseudonymAllocator.allocateDefault(), locale, clock);
-    identityProvisioningRepository.create(account, profile);
+    try {
+      identityProvisioningRepository.create(account, profile);
+      return account;
+    } catch (AuthSubjectAlreadyProvisionedException raced) {
+      // A concurrent first request for the same subject won the unique auth_subject_hash
+      // constraint. Re-read and return that winner rather than surfacing the race: both requests
+      // must observe the same account. If the constraint fired but the row cannot be re-read,
+      // something is genuinely wrong, so the original exception propagates.
+      Account winner =
+          accountRepository.findByAuthSubjectHash(authSubjectHash).orElseThrow(() -> raced);
+      return requireActive(winner);
+    }
+  }
+
+  private static Account requireActive(Account account) {
+    if (account.isClosed()) {
+      throw new AccountClosedException("closed accounts cannot be re-provisioned");
+    }
     return account;
   }
 

@@ -53,4 +53,15 @@ class GeoHousingApplicationIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(content().string(containsString("UP")));
   }
+
+  /**
+   * The security chain must fail closed: an unauthenticated request to any non-health path is
+   * rejected by the resource-server filter (401) before it can reach a handler. This guards the
+   * chunk-5 {@code SecurityConfiguration} against silently permitting anonymous access; end-to-end
+   * authenticated behavior arrives with chunk 6's endpoints.
+   */
+  @Test
+  void protectedPathRejectsAnonymousRequests() throws Exception {
+    mockMvc.perform(get("/api/me")).andExpect(status().isUnauthorized());
+  }
 }

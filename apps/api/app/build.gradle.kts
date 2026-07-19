@@ -35,3 +35,10 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation(libs.archunit.junit5)
 }
+
+tasks.withType<Test> {
+    // Fixed, non-secret pepper so the Spring context boots in tests (a blank pepper fails fast by
+    // design). This is a test value only, never a production secret — production injects the real
+    // pepper via the IDENTITY_AUTH_SUBJECT_PEPPER environment variable.
+    environment("IDENTITY_AUTH_SUBJECT_PEPPER", "test-only-auth-subject-pepper-not-for-production")
+}

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
 import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
 import java.time.Instant;
@@ -130,6 +131,45 @@ class AccountProvisioningServiceTest {
     assertThat(provisioning.account).isNull();
   }
 
+  @Test
+  void returnsTheRaceWinnerWhenCreateReportsAConcurrentProvision() {
+    InMemoryAccountRepository accounts = new InMemoryAccountRepository();
+    Account winner =
+        Account.provision(AccountId.of(java.util.UUID.randomUUID()), "hash", null, CLOCK);
+    // The concurrent request that lost the unique-constraint race sees no account when it looks up,
+    // then create() rejects its insert; on re-read the winner's account is now visible.
+    RacingProvisioningRepository provisioning =
+        new RacingProvisioningRepository(() -> accounts.byHash.put("hash", winner));
+    AccountProvisioningService service =
+        service(
+            accounts,
+            new InMemoryProfileRepository(Set.of()),
+            provisioning,
+            ignored -> "hash",
+            () -> "a1b2");
+
+    Account result = service.provision("issuer|subject", null, "en");
+
+    assertThat(result).isSameAs(winner);
+    assertThat(provisioning.attempts).isEqualTo(1);
+  }
+
+  @Test
+  void propagatesTheRaceExceptionIfTheWinnerCannotBeReread() {
+    InMemoryAccountRepository accounts = new InMemoryAccountRepository();
+    RacingProvisioningRepository provisioning = new RacingProvisioningRepository(() -> {});
+    AccountProvisioningService service =
+        service(
+            accounts,
+            new InMemoryProfileRepository(Set.of()),
+            provisioning,
+            ignored -> "hash",
+            () -> "a1b2");
+
+    assertThatThrownBy(() -> service.provision("issuer|subject", null, "en"))
+        .isInstanceOf(AuthSubjectAlreadyProvisionedException.class);
+  }
+
   private static AccountProvisioningService service(
       AccountRepository accounts,
       PublicProfileRepository profiles,
@@ -196,6 +236,25 @@ class AccountProvisioningServiceTest {
     public void create(Account account, PublicProfile profile) {
       this.account = account;
       this.profile = profile;
+    }
+  }
+
+  /** Rejects every create as a lost auth-subject race, running a side effect first. */
+  private static final class RacingProvisioningRepository
+      implements IdentityProvisioningRepository {
+
+    private final Runnable onCreate;
+    private int attempts;
+
+    private RacingProvisioningRepository(Runnable onCreate) {
+      this.onCreate = onCreate;
+    }
+
+    @Override
+    public void create(Account account, PublicProfile profile) {
+      attempts++;
+      onCreate.run();
+      throw new AuthSubjectAlreadyProvisionedException("concurrent provision");
     }
   }
 }
