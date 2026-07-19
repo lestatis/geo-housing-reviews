@@ -1,14 +1,21 @@
 package com.example.geohousing.identity.infrastructure.web;
 
+import com.example.geohousing.identity.application.AccountDataExportService;
+import com.example.geohousing.identity.application.AccountDeletionService;
+import com.example.geohousing.identity.application.AccountExport;
 import com.example.geohousing.identity.application.ProfileService;
+import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PublicProfile;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,9 +32,16 @@ public class MeController {
   private static final String ROLE_PREFIX = "ROLE_";
 
   private final ProfileService profileService;
+  private final AccountDataExportService accountDataExportService;
+  private final AccountDeletionService accountDeletionService;
 
-  public MeController(ProfileService profileService) {
+  public MeController(
+      ProfileService profileService,
+      AccountDataExportService accountDataExportService,
+      AccountDeletionService accountDeletionService) {
     this.profileService = profileService;
+    this.accountDataExportService = accountDataExportService;
+    this.accountDeletionService = accountDeletionService;
   }
 
   @GetMapping
@@ -49,6 +63,21 @@ public class MeController {
             request.locale(),
             request.version());
     return MeResponse.from(accountId, role(authentication), updated);
+  }
+
+  @PostMapping("/export")
+  AccountExport export(
+      Authentication authentication, @RequestHeader("Idempotency-Key") String idempotencyKey) {
+    return accountDataExportService.export(
+        WebAuthentication.accountId(authentication), idempotencyKey);
+  }
+
+  @DeleteMapping
+  DeletionResponse delete(
+      Authentication authentication, @RequestHeader("Idempotency-Key") String idempotencyKey) {
+    Account closed =
+        accountDeletionService.delete(WebAuthentication.accountId(authentication), idempotencyKey);
+    return DeletionResponse.from(closed);
   }
 
   private static String role(Authentication authentication) {

@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.infrastructure.persistence;
 
+import com.example.geohousing.identity.application.AccountDeletionRepository;
 import com.example.geohousing.identity.application.AccountRepository;
 import com.example.geohousing.identity.application.IdentityProvisioningRepository;
 import com.example.geohousing.identity.application.PublicProfileRepository;
@@ -21,7 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 /** JPA implementation of identity's application persistence ports. */
 @Repository
 public class JpaIdentityPersistenceAdapter
-    implements AccountRepository, PublicProfileRepository, IdentityProvisioningRepository {
+    implements AccountRepository,
+        PublicProfileRepository,
+        IdentityProvisioningRepository,
+        AccountDeletionRepository {
 
   /** Renamed from its Postgres-generated name by V2.4 to match the column it now constrains. */
   private static final String AUTH_SUBJECT_HASH_UNIQUE_CONSTRAINT = "account_auth_subject_hash_key";
@@ -64,6 +68,29 @@ public class JpaIdentityPersistenceAdapter
     } catch (DataIntegrityViolationException exception) {
       throw translateUniqueViolation(exception, profile.pseudonym());
     }
+  }
+
+  @Override
+  @Transactional
+  public void applyDeletion(Account closedAccount, PublicProfile anonymizedProfile) {
+    AccountJpaEntity account =
+        accountRepository
+            .findById(closedAccount.id().value())
+            .orElseThrow(() -> new AccountNotFoundException(closedAccount.id()));
+    account.applyClosure(
+        closedAccount
+            .closedAt()
+            .orElseThrow(
+                () -> new IllegalArgumentException("closed account must have a closedAt")));
+
+    PublicProfileJpaEntity profile =
+        publicProfileRepository
+            .findById(anonymizedProfile.accountId().value())
+            .orElseThrow(() -> new AccountNotFoundException("public profile not found"));
+    PublicProfileJpaMapper.copyMutableFields(anonymizedProfile, profile);
+
+    accountRepository.saveAndFlush(account);
+    publicProfileRepository.saveAndFlush(profile);
   }
 
   @Override

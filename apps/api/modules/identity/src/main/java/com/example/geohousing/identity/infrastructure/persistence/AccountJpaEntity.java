@@ -98,4 +98,15 @@ class AccountJpaEntity {
   long version() {
     return version;
   }
+
+  /**
+   * Applies account closure: CLOSED status, the closure timestamp, and a scrubbed email. Mirrors
+   * the domain {@code Account.close}; the auth-subject hash is intentionally retained (no
+   * resurrection).
+   */
+  void applyClosure(Instant closedAt) {
+    this.status = AccountStatus.CLOSED;
+    this.closedAt = closedAt;
+    this.email = null;
+  }
 }

@@ -1,5 +1,8 @@
 package com.example.geohousing.identity.infrastructure;
 
+import com.example.geohousing.identity.application.AccountDataExportService;
+import com.example.geohousing.identity.application.AccountDeletionRepository;
+import com.example.geohousing.identity.application.AccountDeletionService;
 import com.example.geohousing.identity.application.AccountProvisioningService;
 import com.example.geohousing.identity.application.AccountRepository;
 import com.example.geohousing.identity.application.AdminAccountService;
@@ -9,6 +12,8 @@ import com.example.geohousing.identity.application.IdentityProvisioningRepositor
 import com.example.geohousing.identity.application.ProfileService;
 import com.example.geohousing.identity.application.PseudonymAllocator;
 import com.example.geohousing.identity.application.PublicProfileRepository;
+import com.example.geohousing.identity.application.SelfServiceRequestRegistrar;
+import com.example.geohousing.identity.application.SelfServiceRequestRepository;
 import com.example.geohousing.identity.application.UserRestrictionRepository;
 import com.example.geohousing.identity.infrastructure.security.HmacAuthSubjectHasher;
 import com.example.geohousing.identity.infrastructure.security.IdentityJwtAuthenticationConverter;
@@ -79,6 +84,36 @@ public class IdentityBeanConfiguration {
       AdminAuditEventRepository adminAuditEventRepository,
       Clock identityClock) {
     return new AdminAccountService(accountRepository, adminAuditEventRepository, identityClock);
+  }
+
+  @Bean
+  SelfServiceRequestRegistrar selfServiceRequestRegistrar(
+      SelfServiceRequestRepository selfServiceRequestRepository, Clock identityClock) {
+    return new SelfServiceRequestRegistrar(selfServiceRequestRepository, identityClock);
+  }
+
+  @Bean
+  AccountDataExportService accountDataExportService(
+      AccountRepository accountRepository,
+      PublicProfileRepository publicProfileRepository,
+      SelfServiceRequestRegistrar selfServiceRequestRegistrar) {
+    return new AccountDataExportService(
+        accountRepository, publicProfileRepository, selfServiceRequestRegistrar);
+  }
+
+  @Bean
+  AccountDeletionService accountDeletionService(
+      AccountRepository accountRepository,
+      PublicProfileRepository publicProfileRepository,
+      AccountDeletionRepository accountDeletionRepository,
+      SelfServiceRequestRegistrar selfServiceRequestRegistrar,
+      Clock identityClock) {
+    return new AccountDeletionService(
+        accountRepository,
+        publicProfileRepository,
+        accountDeletionRepository,
+        selfServiceRequestRegistrar,
+        identityClock);
   }
 
   @Bean

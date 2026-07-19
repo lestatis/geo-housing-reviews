@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.infrastructure.web;
 
+import com.example.geohousing.identity.application.IdempotencyKeyConflictException;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
 import com.example.geohousing.identity.domain.AccountRestrictedException;
@@ -8,6 +9,7 @@ import com.example.geohousing.identity.domain.OptimisticLockConflictException;
 import com.example.geohousing.identity.domain.PseudonymAlreadyInUseException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -70,6 +72,31 @@ class IdentityExceptionHandler {
         "Account not found",
         "ACCOUNT_NOT_FOUND",
         "No profile was found for this account.");
+  }
+
+  @ExceptionHandler(IdempotencyKeyConflictException.class)
+  ProblemDetail handleIdempotencyConflict(IdempotencyKeyConflictException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Idempotency key conflict",
+        "IDEMPOTENCY_KEY_CONFLICT",
+        "This idempotency key was already used for a different request.");
+  }
+
+  @ExceptionHandler(MissingRequestHeaderException.class)
+  ProblemDetail handleMissingHeader(MissingRequestHeaderException exception) {
+    if ("Idempotency-Key".equalsIgnoreCase(exception.getHeaderName())) {
+      return problem(
+          HttpStatus.BAD_REQUEST,
+          "Idempotency key required",
+          "IDEMPOTENCY_KEY_REQUIRED",
+          "This operation requires an Idempotency-Key header.");
+    }
+    return problem(
+        HttpStatus.BAD_REQUEST,
+        "Missing request header",
+        "MISSING_HEADER",
+        "A required request header was missing.");
   }
 
   @ExceptionHandler(IllegalArgumentException.class)

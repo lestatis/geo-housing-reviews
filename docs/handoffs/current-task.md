@@ -6,7 +6,7 @@ Complete the identity backend module described in `docs/plans/002-identity-modul
 
 ## Active branch
 
-`feat/002-identity-chunk7-admin-audit` (branched from `main` at `1851e62`, after chunk 6 merged)
+`feat/002-identity-chunk8-export-delete` (branched from `main` at `7161919`, after chunk 7 merged)
 
 ## Related issue or plan
 
@@ -14,7 +14,7 @@ No issue. See `docs/plans/002-identity-module.md`.
 
 ## Current status
 
-chunk7_implemented — ready for fresh independent review and human review before merge
+chunk8_implemented — **final chunk**; ready for fresh independent review and merge. After it merges, plan `002` is complete (8/8).
 
 ## Completed work
 
@@ -28,11 +28,35 @@ Observable committed work on `main`:
 - Chunk 4 persistence in `ebdcaea`: `V2.3` migration, JPA entities/mappers/repositories, `JpaIdentityPersistenceAdapter`, migration and adapter integration tests.
 - Chunk 3–4 review fix merged to `main` as `b0eaf2e` (spotless, `V2.4` hash-format CHECK + constraint rename, adapter constraint translation, docs). CI green again.
 - Chunk 5 security wiring merged to `main` as `1922d71` (JWT converter with DB-derived role, HMAC hasher, real filter chain, provisioning-race retry).
-- Chunk 6 `/api/me` endpoints merged to `main` as `1851e62` (GET/PATCH, RFC 7807 handler, restriction enforcement). Both merged out-of-band during the next chunk's planning; this handoff trusts their fresh independent reviews happened (git shows them on `main`).
+- Chunk 6 `/api/me` endpoints merged to `main` as `1851e62` (GET/PATCH, RFC 7807 handler, restriction enforcement).
+- Chunk 7 admin RBAC + audit merged to `main` as `7161919` (`/api/admin/accounts/{id}` gated by `hasRole('ADMIN')`, append-only `admin_audit_event`, `Account`→DTO). Chunks 5–7 were each merged out-of-band during the next chunk's planning; this handoff trusts their fresh independent reviews happened (git shows them on `main`).
 
 Chunks 3 and 4 were merged and pushed to `origin/main` **before** independent review, contrary to the per-chunk process in the plan (self-check → independent review → human review → merge).
 
-### Chunk 7 — admin RBAC + audit (this branch, not yet reviewed)
+### Chunk 8 — export & deletion (this branch, not yet reviewed)
+
+The final chunk. `POST /api/me/export` and `DELETE /api/me`, both requiring an `Idempotency-Key`.
+- Reuses the existing domain primitives `Account.close` (scrubs email, retains the non-reversible
+  hash) and `PublicProfile.anonymize` (tombstone pseudonym, drops avatar) — no rewrite.
+- `V2.6` `identity.self_service_request` (unique `(account_id, idempotency_key)`) records DSRs and
+  gates key reuse. `SelfServiceRequestRegistrar` returns FIRST/REPLAY and throws
+  `IdempotencyKeyConflictException` on same-key/different-type; it translates the concurrent-insert
+  race by constraint name, like chunks 4–5.
+- **Key design point:** `close`/`anonymize` are idempotent, so the mutation always runs and needs no
+  transaction shared with the idempotency record — the application services stay framework-free.
+- Export **includes the user's own email** (its purpose); the auth-subject hash is still excluded.
+  `AccountExport` lives in the application layer (a DSR data format), returned directly by the
+  controller. Deletion returns a `DeletionResponse` (id/status/closedAt).
+- `applyDeletion` on `JpaIdentityPersistenceAdapter` persists closure + anonymization atomically
+  (`AccountJpaEntity.applyClosure` + the existing `PublicProfileJpaMapper.copyMutableFields`).
+- Handler additions: `IdempotencyKeyConflictException` → 409 `IDEMPOTENCY_KEY_CONFLICT`;
+  `MissingRequestHeaderException` → 400 `IDEMPOTENCY_KEY_REQUIRED`.
+- **No-resurrection is proven end-to-end:** after `DELETE`, the same bearer on `GET /api/me` → 401
+  (chunk 5 refuses the closed account at auth). A consequence: a *repeated DELETE through the
+  endpoint is unreachable* (401 at auth), so DELETE idempotency is asserted at the service layer;
+  the reachable endpoint replay is export.
+
+### Chunk 7 — admin RBAC + audit (merged to `main`)
 
 First admin capability and the module's audit trail.
 - `GET /api/admin/accounts/{id}` gated by `/api/admin/** → hasRole('ADMIN')` in the app
@@ -102,14 +126,19 @@ On this fix branch, after an independent read-only review of `72d6c94..ebdcaea` 
 
 ## Remaining work
 
-Chunk 8 remains (see the plan): export/delete with idempotency (`V2.6` `identity.self_service_request`); deletion must block re-provisioning of a deleted subject (chunk 5 already 401s closed accounts at auth via `DisabledException`).
+**Plan `002` is code-complete (8/8).** No identity chunks remain. Once chunk 8 is reviewed and
+merged, close the plan. Items intentionally left for later work (beyond this plan):
+- MFA/step-up for admins/moderators (SECURITY_PRIVACY.md §4), pending a chosen IdP (ADR-0005).
+- Audit-log **retention policy** and **read-restriction** beyond DB grants (SECURITY_PRIVACY.md).
+- Access-denied (403) auditing; the global `@RestControllerAdvice` scope should be re-checked when a
+  second module adds controllers.
+- Rate limiting on `/api/me` and `/api/admin` (API_GUIDELINES general concern).
+- Cross-module DSR orchestration once other modules hold data (this module's export/delete is
+  identity-local only).
 
-Carry-forward notes for chunk 8 / later:
-- The `IdentityExceptionHandler` (`@RestControllerAdvice`) is global; when other modules add controllers, confirm the mapping scope is still correct or narrow it.
-- Access-denied (403) requests are blocked at the filter and are **not** audited; if failed-authorization auditing is wanted, add it (out of scope for chunk 7).
-- MFA/step-up for admins (SECURITY_PRIVACY.md §4) is still deferred to a chosen IdP (ADR-0005).
-
-Accepted, unfixed nits (unchanged): provisioning `create()` issues `merge` rather than `persist` (an extra SELECT); the pseudonym-collision-on-create path is translated but not retried (only the auth-subject race is). Correctness is unaffected.
+Accepted, unfixed nits (unchanged): provisioning `create()` issues `merge` rather than `persist` (an
+extra SELECT); the pseudonym-collision-on-create path is translated but not retried. Correctness
+unaffected.
 
 ## Decisions made
 
@@ -128,36 +157,35 @@ Accepted, unfixed nits (unchanged): provisioning `create()` issues `merge` rathe
 - ADR-0006's claim that no production account data exists is taken at face value; `V2.4` is written so that if it is wrong, the migration fails loudly rather than corrupting data silently.
 - No environment has applied `V2.3` with account rows present. If one has, `V2.4` will fail there and the remediation SQL in the migration file applies.
 
-## Files changed on this branch (chunk 7)
+## Files changed on this branch (chunk 8)
 
 New:
-- `db/migration/identity/V2.5__create_admin_audit_event.sql`
-- `modules/identity/.../domain/AdminAuditEvent.java`, `AdminAuditAction.java`, `AdminAuditOutcome.java`
-- `modules/identity/.../application/AdminAuditEventRepository.java`, `AdminAccountService.java`
-- `modules/identity/.../infrastructure/persistence/AdminAuditEventJpaEntity.java`, `AdminAuditEventJpaMapper.java`, `SpringDataAdminAuditEventRepository.java`, `JpaAdminAuditEventRepository.java`
-- `modules/identity/.../infrastructure/web/AdminAccountController.java`, `AdminAccountView.java`, `WebAuthentication.java`
-- `modules/identity/.../application/AdminAccountServiceTest.java`
-- `app/.../identity/AdminAccountEndpointIntegrationTest.java`
-
-Removed: `AdminAccountLookupService.java` + `AdminAccountLookupServiceTest.java` (replaced by `AdminAccountService`).
+- `db/migration/identity/V2.6__create_self_service_request.sql`
+- `modules/identity/.../domain/SelfServiceRequest.java`, `SelfServiceRequestType.java`, `SelfServiceRequestAlreadyExistsException.java`
+- `modules/identity/.../application/SelfServiceRequestRepository.java`, `AccountDeletionRepository.java`, `SelfServiceRequestRegistrar.java`, `AccountDataExportService.java`, `AccountDeletionService.java`, `AccountExport.java`, `IdempotencyKeyConflictException.java`
+- `modules/identity/.../infrastructure/persistence/SelfServiceRequestJpaEntity.java`, `SelfServiceRequestJpaMapper.java`, `SpringDataSelfServiceRequestRepository.java`, `JpaSelfServiceRequestRepository.java`
+- `modules/identity/.../infrastructure/web/DeletionResponse.java`
+- Tests: `SelfServiceRequestRegistrarTest.java`, `AccountDeletionServiceTest.java`, `AccountDataExportServiceTest.java`, `app/.../identity/SelfServiceEndpointIntegrationTest.java`
 
 Edited:
-- `app/.../config/SecurityConfiguration.java` (`/api/admin/** → hasRole('ADMIN')`)
-- `modules/identity/.../infrastructure/web/MeController.java` (use `WebAuthentication`)
-- `modules/identity/.../infrastructure/IdentityBeanConfiguration.java` (bean swap)
+- `modules/identity/.../infrastructure/persistence/JpaIdentityPersistenceAdapter.java` (+`applyDeletion`, implements `AccountDeletionRepository`)
+- `modules/identity/.../infrastructure/persistence/AccountJpaEntity.java` (+`applyClosure`)
+- `modules/identity/.../infrastructure/web/MeController.java` (export + delete endpoints)
+- `modules/identity/.../infrastructure/web/IdentityExceptionHandler.java` (409 conflict, 400 missing-key)
+- `modules/identity/.../infrastructure/IdentityBeanConfiguration.java` (3 beans)
 - `docs/plans/002-identity-module.md`, `docs/handoffs/current-task.md`
 
-No new dependency; one migration (`V2.5`).
+No new dependency; one migration (`V2.6`); no app-module change.
 
 ## Tests and verification
 
 Run on this branch, 2026-07-15:
 
-- `./gradlew :modules:identity:check` — passed. `AdminAccountServiceTest` (3): FOUND audit, NOT_FOUND audit, audit-failure propagation.
-- `./gradlew :app:test` — passed, incl. ArchUnit (new domain types framework-free; `web`/`persistence` in `infrastructure`). `AdminAccountEndpointIntegrationTest` (4): anon→401, USER→403, ADMIN→200 with no `authSubjectHash` in the body + a `FOUND` audit row, unknown→404 with a `NOT_FOUND` audit row.
+- `./gradlew :modules:identity:check` — passed. `SelfServiceRequestRegistrarTest` (5: FIRST/REPLAY/conflict/blank-key/race), `AccountDeletionServiceTest` (2: close+anonymize+record, idempotent replay), `AccountDataExportServiceTest` (1: data incl. email, records EXPORT).
+- `./gradlew :app:test` — passed, incl. ArchUnit. `SelfServiceEndpointIntegrationTest` (6): export (email in body, EXPORT row), delete (DB-verified CLOSED + null email + `del-` tombstone + null avatar), no-resurrection (post-delete `GET /api/me` → 401), key-reuse conflict (409), missing key (400), reachable export replay (one EXPORT row).
 - `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped).
 
-First cut of `V2.5` had a foreign key on `target_account_id`, which rejected auditing a lookup of a non-existent account; caught by the NOT_FOUND integration test, fixed by dropping that FK (kept on `admin_account_id`). ADMIN role in tests is set by direct SQL `update`, mirroring the manual first-admin bootstrap.
+The constraint name `self_service_request_account_id_idempotency_key_key` was verified against Postgres before wiring the adapter's race translation. My first endpoint test asserted a *repeated DELETE* → 200; it failed because a deleted account is 401'd at auth (the no-resurrection rule) — corrected to assert that behavior (via the no-resurrection test) and to use export for the reachable-replay test.
 
 ## Known failures
 
@@ -171,11 +199,11 @@ None.
 
 ## Human actions required
 
-Review and merge `feat/002-identity-chunk7-admin-audit` into `main` after a fresh independent review (this branch was implemented by Claude Code; the review must be a fresh independent pass — e.g. Codex — not self-review). The branch is local and not pushed; there is no credential path to push from this environment.
+Review and merge `feat/002-identity-chunk8-export-delete` into `main` after a fresh independent review (this branch was implemented by Claude Code; the review must be a fresh independent pass — e.g. Codex — not self-review). The branch is local and not pushed; there is no credential path to push from this environment. This is the last chunk of plan `002`.
 
 ## Recommended next action
 
-Obtain a fresh independent review of `feat/002-identity-chunk7-admin-audit`, address only actionable findings in a separate fix phase, then merge to `main`. Do not start Chunk 8 automatically; it is the last chunk (export/delete, `V2.6`).
+Obtain a fresh independent review of `feat/002-identity-chunk8-export-delete`, address only actionable findings in a separate fix phase, then merge to `main`. That closes plan `002` (mark its **Final outcome** as done). The next unit of work is a **new** module (properties/reviews/verification/…), which starts with its own plan — not a continuation of this one.
 
 ## Last updated
 
