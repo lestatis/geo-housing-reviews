@@ -2,7 +2,8 @@ package com.example.geohousing.identity.infrastructure;
 
 import com.example.geohousing.identity.application.AccountProvisioningService;
 import com.example.geohousing.identity.application.AccountRepository;
-import com.example.geohousing.identity.application.AdminAccountLookupService;
+import com.example.geohousing.identity.application.AdminAccountService;
+import com.example.geohousing.identity.application.AdminAuditEventRepository;
 import com.example.geohousing.identity.application.AuthSubjectHasher;
 import com.example.geohousing.identity.application.IdentityProvisioningRepository;
 import com.example.geohousing.identity.application.ProfileService;
@@ -73,8 +74,11 @@ public class IdentityBeanConfiguration {
   }
 
   @Bean
-  AdminAccountLookupService adminAccountLookupService(AccountRepository accountRepository) {
-    return new AdminAccountLookupService(accountRepository);
+  AdminAccountService adminAccountService(
+      AccountRepository accountRepository,
+      AdminAuditEventRepository adminAuditEventRepository,
+      Clock identityClock) {
+    return new AdminAccountService(accountRepository, adminAuditEventRepository, identityClock);
   }
 
   @Bean

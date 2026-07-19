@@ -36,6 +36,8 @@ public class SecurityConfiguration {
                 registry
                     .requestMatchers("/actuator/health")
                     .permitAll()
+                    .requestMatchers("/api/admin/**")
+                    .hasRole("ADMIN")
                     .anyRequest()
                     .authenticated())
         .sessionManagement(

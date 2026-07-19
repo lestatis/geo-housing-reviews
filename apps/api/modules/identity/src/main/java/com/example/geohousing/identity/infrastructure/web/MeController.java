@@ -4,7 +4,6 @@ import com.example.geohousing.identity.application.ProfileService;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PublicProfile;
-import java.util.UUID;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,7 +32,7 @@ public class MeController {
 
   @GetMapping
   MeResponse me(Authentication authentication) {
-    AccountId accountId = accountId(authentication);
+    AccountId accountId = WebAuthentication.accountId(authentication);
     PublicProfile profile = profileService.getProfile(accountId);
     return MeResponse.from(accountId, role(authentication), profile);
   }
@@ -41,7 +40,7 @@ public class MeController {
   @PatchMapping("/profile")
   MeResponse updateProfile(
       Authentication authentication, @RequestBody UpdateProfileRequest request) {
-    AccountId accountId = accountId(authentication);
+    AccountId accountId = WebAuthentication.accountId(authentication);
     PublicProfile updated =
         profileService.updateProfile(
             accountId,
@@ -50,10 +49,6 @@ public class MeController {
             request.locale(),
             request.version());
     return MeResponse.from(accountId, role(authentication), updated);
-  }
-
-  private static AccountId accountId(Authentication authentication) {
-    return AccountId.of(UUID.fromString(authentication.getName()));
   }
 
   private static String role(Authentication authentication) {

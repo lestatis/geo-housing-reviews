@@ -6,7 +6,7 @@ Complete the identity backend module described in `docs/plans/002-identity-modul
 
 ## Active branch
 
-`feat/002-identity-chunk6-me-endpoints` (branched from `main` at `1922d71`, after chunk 5 merged)
+`feat/002-identity-chunk7-admin-audit` (branched from `main` at `1851e62`, after chunk 6 merged)
 
 ## Related issue or plan
 
@@ -14,7 +14,7 @@ No issue. See `docs/plans/002-identity-module.md`.
 
 ## Current status
 
-chunk6_implemented — ready for fresh independent review and human review before merge
+chunk7_implemented — ready for fresh independent review and human review before merge
 
 ## Completed work
 
@@ -27,11 +27,35 @@ Observable committed work on `main`:
 - Chunk 3 application layer in `0c5c3af`: repository/hasher ports, `PseudonymAllocator`, provisioning/profile/admin services, in-memory-fake unit tests.
 - Chunk 4 persistence in `ebdcaea`: `V2.3` migration, JPA entities/mappers/repositories, `JpaIdentityPersistenceAdapter`, migration and adapter integration tests.
 - Chunk 3–4 review fix merged to `main` as `b0eaf2e` (spotless, `V2.4` hash-format CHECK + constraint rename, adapter constraint translation, docs). CI green again.
-- Chunk 5 security wiring merged to `main` as `1922d71` (JWT converter with DB-derived role, HMAC hasher, real filter chain, provisioning-race retry). Merged out-of-band during chunk 6 planning; this handoff trusts that its fresh independent review happened (git shows it on `main`/`origin/main`).
+- Chunk 5 security wiring merged to `main` as `1922d71` (JWT converter with DB-derived role, HMAC hasher, real filter chain, provisioning-race retry).
+- Chunk 6 `/api/me` endpoints merged to `main` as `1851e62` (GET/PATCH, RFC 7807 handler, restriction enforcement). Both merged out-of-band during the next chunk's planning; this handoff trusts their fresh independent reviews happened (git shows them on `main`).
 
 Chunks 3 and 4 were merged and pushed to `origin/main` **before** independent review, contrary to the per-chunk process in the plan (self-check → independent review → human review → merge).
 
-### Chunk 6 — `/api/me` self-service endpoints (this branch, not yet reviewed)
+### Chunk 7 — admin RBAC + audit (this branch, not yet reviewed)
+
+First admin capability and the module's audit trail.
+- `GET /api/admin/accounts/{id}` gated by `/api/admin/** → hasRole('ADMIN')` in the app
+  `SecurityConfiguration` (URL-based; no method security in the codebase). Role comes from
+  `account.role` via chunk 5's converter, so a spoofed claim cannot elevate. `USER`→403, anon→401.
+- `V2.5` adds append-only `identity.admin_audit_event`. **`target_account_id` is deliberately not a
+  foreign key** so a lookup of a non-existent id is still auditable (`NOT_FOUND`); the first cut had
+  the FK and it rejected exactly that insert — the integration test now guards it. `admin_account_id`
+  keeps its FK (the acting admin always exists).
+- Domain `AdminAuditEvent` + `AdminAuditAction`/`AdminAuditOutcome` (framework-free); port
+  `AdminAuditEventRepository` + `JpaAdminAuditEventRepository` adapter.
+- `AdminAccountService` **replaces** `AdminAccountLookupService` (which only its own test used, and
+  whose Javadoc anticipated this): it looks up the target and records an audit event on every call,
+  returning `Optional` (empty → controller throws `AccountNotFoundException` → 404) so the audit is
+  on the committing path. **Fail-closed:** an audit-write failure propagates, so no account data is
+  returned unaudited.
+- `AdminAccountView` DTO omits `authSubjectHash` **and** email (the review carry-forward; the
+  integration test asserts `authSubjectHash` never appears in the body). Shared
+  `WebAuthentication.accountId(Authentication)` helper now used by both `MeController` and
+  `AdminAccountController`.
+- First-ADMIN promotion is a manual SQL `UPDATE` by design (no self-service role escalation).
+
+### Chunk 6 — `/api/me` self-service endpoints (merged to `main`)
 
 First REST surface in the app; establishes the RFC 7807 error pattern. All new code is in
 `identity.infrastructure.web` (`MeController`, `MeResponse`, `UpdateProfileRequest`,
@@ -78,13 +102,14 @@ On this fix branch, after an independent read-only review of `72d6c94..ebdcaea` 
 
 ## Remaining work
 
-Chunks 7–8 remain (see the plan). Carry-forward items:
+Chunk 8 remains (see the plan): export/delete with idempotency (`V2.6` `identity.self_service_request`); deletion must block re-provisioning of a deleted subject (chunk 5 already 401s closed accounts at auth via `DisabledException`).
 
-- **Chunk 7 must not serialize the domain `Account`.** `AdminAccountLookupService.findAccount` returns the whole object, including `authSubjectHash`; the admin controller needs a DTO that omits it. Chunk 6's `MeResponse` is the DTO pattern to follow. `V2.5` is reserved for the admin audit table.
-- **Chunk 8** (`V2.6` self-service-request table) owns export/delete with idempotency; deletion must block re-provisioning of a deleted subject (chunk 5 already 401s closed accounts at auth via `DisabledException`).
-- The `IdentityExceptionHandler` (`@RestControllerAdvice`) is currently global; when other modules add controllers, confirm the mapping scope is still correct or narrow it.
+Carry-forward notes for chunk 8 / later:
+- The `IdentityExceptionHandler` (`@RestControllerAdvice`) is global; when other modules add controllers, confirm the mapping scope is still correct or narrow it.
+- Access-denied (403) requests are blocked at the filter and are **not** audited; if failed-authorization auditing is wanted, add it (out of scope for chunk 7).
+- MFA/step-up for admins (SECURITY_PRIVACY.md §4) is still deferred to a chosen IdP (ADR-0005).
 
-Accepted, unfixed nits (unchanged from earlier chunks): provisioning `create()` issues `merge` rather than `persist` (an extra SELECT); the pseudonym-collision-on-create path is translated but not retried (only the auth-subject race is). Correctness is unaffected.
+Accepted, unfixed nits (unchanged): provisioning `create()` issues `merge` rather than `persist` (an extra SELECT); the pseudonym-collision-on-create path is translated but not retried (only the auth-subject race is). Correctness is unaffected.
 
 ## Decisions made
 
@@ -103,32 +128,36 @@ Accepted, unfixed nits (unchanged from earlier chunks): provisioning `create()` 
 - ADR-0006's claim that no production account data exists is taken at face value; `V2.4` is written so that if it is wrong, the migration fails loudly rather than corrupting data silently.
 - No environment has applied `V2.3` with account rows present. If one has, `V2.4` will fail there and the remediation SQL in the migration file applies.
 
-## Files changed on this branch (chunk 6)
+## Files changed on this branch (chunk 7)
 
 New:
-- `modules/identity/.../application/UserRestrictionRepository.java`
-- `modules/identity/.../infrastructure/persistence/JpaUserRestrictionRepository.java`
-- `modules/identity/.../infrastructure/web/MeController.java`, `MeResponse.java`, `UpdateProfileRequest.java`, `IdentityExceptionHandler.java`
-- `app/.../identity/MeEndpointIntegrationTest.java`
+- `db/migration/identity/V2.5__create_admin_audit_event.sql`
+- `modules/identity/.../domain/AdminAuditEvent.java`, `AdminAuditAction.java`, `AdminAuditOutcome.java`
+- `modules/identity/.../application/AdminAuditEventRepository.java`, `AdminAccountService.java`
+- `modules/identity/.../infrastructure/persistence/AdminAuditEventJpaEntity.java`, `AdminAuditEventJpaMapper.java`, `SpringDataAdminAuditEventRepository.java`, `JpaAdminAuditEventRepository.java`
+- `modules/identity/.../infrastructure/web/AdminAccountController.java`, `AdminAccountView.java`, `WebAuthentication.java`
+- `modules/identity/.../application/AdminAccountServiceTest.java`
+- `app/.../identity/AdminAccountEndpointIntegrationTest.java`
+
+Removed: `AdminAccountLookupService.java` + `AdminAccountLookupServiceTest.java` (replaced by `AdminAccountService`).
 
 Edited:
-- `modules/identity/.../application/ProfileService.java` (restriction dependency + `isActiveAt` check)
-- `modules/identity/.../application/ProfileServiceTest.java` (restriction fake + active/expired cases)
-- `modules/identity/.../infrastructure/persistence/SpringDataUserRestrictionRepository.java` (`findActive` query)
-- `modules/identity/.../infrastructure/IdentityBeanConfiguration.java` (`profileService` dependency)
+- `app/.../config/SecurityConfiguration.java` (`/api/admin/** → hasRole('ADMIN')`)
+- `modules/identity/.../infrastructure/web/MeController.java` (use `WebAuthentication`)
+- `modules/identity/.../infrastructure/IdentityBeanConfiguration.java` (bean swap)
 - `docs/plans/002-identity-module.md`, `docs/handoffs/current-task.md`
 
-No app-module main-source change, no migration, no new dependency.
+No new dependency; one migration (`V2.5`).
 
 ## Tests and verification
 
 Run on this branch, 2026-07-15:
 
-- `./gradlew :modules:identity:check` — passed. `ProfileServiceTest` (7, incl. active-restriction→403 and expired-restriction→allowed).
-- `./gradlew :app:test` — passed, incl. ArchUnit (`web`/`persistence` stay in `infrastructure`; domain/application acquire no Spring dependency). `MeEndpointIntegrationTest` (7) drives the full matrix end-to-end through the real chain via a stub `JwtDecoder`: anonymous→401, first request auto-provisions, update bumps version, stale version→409, duplicate pseudonym→422, malformed pseudonym→422, active restriction→403.
+- `./gradlew :modules:identity:check` — passed. `AdminAccountServiceTest` (3): FOUND audit, NOT_FOUND audit, audit-failure propagation.
+- `./gradlew :app:test` — passed, incl. ArchUnit (new domain types framework-free; `web`/`persistence` in `infrastructure`). `AdminAccountEndpointIntegrationTest` (4): anon→401, USER→403, ADMIN→200 with no `authSubjectHash` in the body + a `FOUND` audit row, unknown→404 with a `NOT_FOUND` audit row.
 - `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped).
 
-The stub-`JwtDecoder` approach is what makes the converter run for real in tests (a `jwt()` post-processor would bypass it). No live-IdP smoke test is possible (ADR-0005).
+First cut of `V2.5` had a foreign key on `target_account_id`, which rejected auditing a lookup of a non-existent account; caught by the NOT_FOUND integration test, fixed by dropping that FK (kept on `admin_account_id`). ADMIN role in tests is set by direct SQL `update`, mirroring the manual first-admin bootstrap.
 
 ## Known failures
 
@@ -137,16 +166,16 @@ None.
 ## Risks and unresolved questions
 
 - The real pepper must be provisioned in every non-test environment via `IDENTITY_AUTH_SUBJECT_PEPPER`, and per ADR-0006 it cannot be rotated without invalidating existing lookups. A blank value fails startup by design.
-- Earlier chunks (3–4) reached `origin/main` before independent review. If that sequencing must hold, it needs a branch-protection guard, not just plan text. Chunks 5 and 6 followed the process (branched from `main`, awaiting review before merge).
-- No rate limiting on `/api/me` yet (API_GUIDELINES lists it as a general concern; not in this plan's scope).
+- Earlier chunks (3–4) reached `origin/main` before independent review. If that sequencing must hold, it needs a branch-protection guard, not just plan text. Chunks 5–7 followed the process (branched from `main`, awaiting review before merge).
+- Audit log has no retention/rotation or restricted-read enforcement yet beyond DB grants (SECURITY_PRIVACY.md wants "restricted access" and a retention policy — a later, cross-cutting concern).
 
 ## Human actions required
 
-Review and merge `feat/002-identity-chunk6-me-endpoints` into `main` after a fresh independent review (this branch was implemented by Claude Code; the review must be a fresh independent pass — e.g. Codex — not self-review). The branch is local and not pushed; there is no credential path to push from this environment.
+Review and merge `feat/002-identity-chunk7-admin-audit` into `main` after a fresh independent review (this branch was implemented by Claude Code; the review must be a fresh independent pass — e.g. Codex — not self-review). The branch is local and not pushed; there is no credential path to push from this environment.
 
 ## Recommended next action
 
-Obtain a fresh independent review of `feat/002-identity-chunk6-me-endpoints`, address only actionable findings in a separate fix phase, then merge to `main`. Do not start Chunk 7 automatically; when it starts, fold in the admin `Account`→DTO carry-forward item above and reserve `V2.5` for the audit table.
+Obtain a fresh independent review of `feat/002-identity-chunk7-admin-audit`, address only actionable findings in a separate fix phase, then merge to `main`. Do not start Chunk 8 automatically; it is the last chunk (export/delete, `V2.6`).
 
 ## Last updated
 
