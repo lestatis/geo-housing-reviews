@@ -8,6 +8,7 @@ import com.example.geohousing.identity.application.IdentityProvisioningRepositor
 import com.example.geohousing.identity.application.ProfileService;
 import com.example.geohousing.identity.application.PseudonymAllocator;
 import com.example.geohousing.identity.application.PublicProfileRepository;
+import com.example.geohousing.identity.application.UserRestrictionRepository;
 import com.example.geohousing.identity.infrastructure.security.HmacAuthSubjectHasher;
 import com.example.geohousing.identity.infrastructure.security.IdentityJwtAuthenticationConverter;
 import java.security.SecureRandom;
@@ -65,8 +66,10 @@ public class IdentityBeanConfiguration {
   ProfileService profileService(
       AccountRepository accountRepository,
       PublicProfileRepository publicProfileRepository,
+      UserRestrictionRepository userRestrictionRepository,
       Clock identityClock) {
-    return new ProfileService(accountRepository, publicProfileRepository, identityClock);
+    return new ProfileService(
+        accountRepository, publicProfileRepository, userRestrictionRepository, identityClock);
   }
 
   @Bean

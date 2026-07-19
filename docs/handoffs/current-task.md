@@ -6,7 +6,7 @@ Complete the identity backend module described in `docs/plans/002-identity-modul
 
 ## Active branch
 
-`feat/002-identity-chunk5-security` (branched from `main` at `b0eaf2e`, after the chunk 3–4 review fix merged)
+`feat/002-identity-chunk6-me-endpoints` (branched from `main` at `1922d71`, after chunk 5 merged)
 
 ## Related issue or plan
 
@@ -14,7 +14,7 @@ No issue. See `docs/plans/002-identity-module.md`.
 
 ## Current status
 
-chunk5_implemented — ready for fresh independent review and human review before merge
+chunk6_implemented — ready for fresh independent review and human review before merge
 
 ## Completed work
 
@@ -27,10 +27,37 @@ Observable committed work on `main`:
 - Chunk 3 application layer in `0c5c3af`: repository/hasher ports, `PseudonymAllocator`, provisioning/profile/admin services, in-memory-fake unit tests.
 - Chunk 4 persistence in `ebdcaea`: `V2.3` migration, JPA entities/mappers/repositories, `JpaIdentityPersistenceAdapter`, migration and adapter integration tests.
 - Chunk 3–4 review fix merged to `main` as `b0eaf2e` (spotless, `V2.4` hash-format CHECK + constraint rename, adapter constraint translation, docs). CI green again.
+- Chunk 5 security wiring merged to `main` as `1922d71` (JWT converter with DB-derived role, HMAC hasher, real filter chain, provisioning-race retry). Merged out-of-band during chunk 6 planning; this handoff trusts that its fresh independent review happened (git shows it on `main`/`origin/main`).
 
 Chunks 3 and 4 were merged and pushed to `origin/main` **before** independent review, contrary to the per-chunk process in the plan (self-check → independent review → human review → merge).
 
-### Chunk 5 — security wiring (this branch, not yet reviewed)
+### Chunk 6 — `/api/me` self-service endpoints (this branch, not yet reviewed)
+
+First REST surface in the app; establishes the RFC 7807 error pattern. All new code is in
+`identity.infrastructure.web` (`MeController`, `MeResponse`, `UpdateProfileRequest`,
+`IdentityExceptionHandler`) plus a `UserRestrictionRepository` port and `JpaUserRestrictionRepository`
+adapter.
+- `GET /api/me` → 200 `{ accountId, role, pseudonym, avatarUrl?, locale, version }`. Self-scoped:
+  the account id is read from `authentication.getName()` (the opaque id chunk 5's converter set),
+  so there is no client-supplied identifier and no way to address another user. `role` comes from
+  the granted authority (no DB hit). **Email deliberately omitted** (least exposure).
+- `PATCH /api/me/profile` → `ProfileService.updateProfile`; `version` carries optimistic concurrency.
+- **Restriction enforcement wired** (the review's reassigned "403 restricted"): `ProfileService`
+  gained a `UserRestrictionRepository` dependency and throws `AccountRestrictedException` when a
+  restriction `isActiveAt(now)`. The domain's `isActiveAt` is the authoritative gate; the adapter's
+  `@Query` (`start_at <= :asOf and (end_at is null or end_at > :asOf)`, on the existing index) is an
+  index-friendly pre-filter. This finally uses chunk 4's dormant `UserRestrictionJpaMapper` /
+  `SpringDataUserRestrictionRepository`.
+- `IdentityExceptionHandler` maps: `AccountRestrictedException`→403 `ACCOUNT_RESTRICTED`,
+  `AccountClosedException`→403 `ACCOUNT_CLOSED`, `OptimisticLockConflictException`→409
+  `PROFILE_VERSION_CONFLICT`, `PseudonymAlreadyInUseException`→422 `PSEUDONYM_TAKEN`,
+  `InvalidPseudonymException`→422 `INVALID_PSEUDONYM`, `AccountNotFoundException`→404
+  `ACCOUNT_NOT_FOUND`, `IllegalArgumentException`→400 `INVALID_REQUEST`. 401 stays with the
+  resource-server entry point. No stack traces / SQL / internal state leak.
+- No migration, no app-module change, no new dependency. `ProfileService` bean wiring updated in
+  `IdentityBeanConfiguration`.
+
+### Chunk 5 — security wiring (merged to `main`)
 
 Turns a request into an authenticated account. New in `identity.infrastructure`:
 - `security/HmacAuthSubjectHasher` — HMAC-SHA256(subject, pepper) as 64 lowercase hex chars (satisfies `V2.4`'s `account_auth_subject_hash_format_check`; a base64 rendering would be rejected). Blank pepper → `IllegalArgumentException` at construction, so the context fails fast rather than hashing with an empty key.
@@ -51,13 +78,13 @@ On this fix branch, after an independent read-only review of `72d6c94..ebdcaea` 
 
 ## Remaining work
 
-Chunks 6–8 remain (see the plan). Carry-forward items for those chunks:
+Chunks 7–8 remain (see the plan). Carry-forward items:
 
-- **Restriction enforcement is owned by Chunk 6.** It is an acceptance criterion ("403 restricted") that no chunk originally claimed. `AccountRestrictedException` is never thrown, there is no `UserRestrictionRepository` port, and `ProfileService.updateProfile` checks for a closed account but not an active restriction. Chunk 4 shipped the table, JPA entity, mapper and Spring Data repository for restrictions, but no port, so they are currently **unused code** — Chunk 6 should wire them rather than add more.
-- **Chunk 6 also owns the end-to-end auth status codes.** Chunk 5 unit-tests the converter and adds one app-level fail-closed guard (anonymous → 401), but the full 401/403/409/422 matrix lands with the `/api/me` endpoints and their `ProblemDetail` mapping. A `MockMvc` test with the `jwt()` post-processor belongs there; note that `jwt()` bypasses the real converter/decoder, so to exercise `IdentityJwtAuthenticationConverter` end-to-end a stubbed `JwtDecoder` is needed.
-- **Chunk 7 must not serialize the domain `Account`.** `AdminAccountLookupService.findAccount` returns the whole object, including `authSubjectHash`; the admin controller needs a DTO that omits it.
+- **Chunk 7 must not serialize the domain `Account`.** `AdminAccountLookupService.findAccount` returns the whole object, including `authSubjectHash`; the admin controller needs a DTO that omits it. Chunk 6's `MeResponse` is the DTO pattern to follow. `V2.5` is reserved for the admin audit table.
+- **Chunk 8** (`V2.6` self-service-request table) owns export/delete with idempotency; deletion must block re-provisioning of a deleted subject (chunk 5 already 401s closed accounts at auth via `DisabledException`).
+- The `IdentityExceptionHandler` (`@RestControllerAdvice`) is currently global; when other modules add controllers, confirm the mapping scope is still correct or narrow it.
 
-Accepted, unfixed nits: `create()` uses `JpaRepository.save()` on entities with an assigned id and a primitive `@Version`, so Spring Data issues `merge` rather than `persist` — an extra SELECT per provisioning. The pseudonym-collision-on-create path is translated to a domain exception but not retried (astronomically unlikely with a random hex suffix); only the auth-subject race is retried. Correctness is unaffected in both.
+Accepted, unfixed nits (unchanged from earlier chunks): provisioning `create()` issues `merge` rather than `persist` (an extra SELECT); the pseudonym-collision-on-create path is translated but not retried (only the auth-subject race is). Correctness is unaffected.
 
 ## Decisions made
 
@@ -76,35 +103,32 @@ Accepted, unfixed nits: `create()` uses `JpaRepository.save()` on entities with 
 - ADR-0006's claim that no production account data exists is taken at face value; `V2.4` is written so that if it is wrong, the migration fails loudly rather than corrupting data silently.
 - No environment has applied `V2.3` with account rows present. If one has, `V2.4` will fail there and the remediation SQL in the migration file applies.
 
-## Files changed on this branch (chunk 5)
+## Files changed on this branch (chunk 6)
 
 New:
-- `modules/identity/.../infrastructure/security/HmacAuthSubjectHasher.java`
-- `modules/identity/.../infrastructure/security/IdentityJwtAuthenticationConverter.java`
-- `modules/identity/.../infrastructure/IdentitySecurityProperties.java`
-- `modules/identity/.../infrastructure/IdentityBeanConfiguration.java`
-- `modules/identity/.../infrastructure/security/HmacAuthSubjectHasherTest.java`
-- `modules/identity/.../infrastructure/security/IdentityJwtAuthenticationConverterTest.java`
+- `modules/identity/.../application/UserRestrictionRepository.java`
+- `modules/identity/.../infrastructure/persistence/JpaUserRestrictionRepository.java`
+- `modules/identity/.../infrastructure/web/MeController.java`, `MeResponse.java`, `UpdateProfileRequest.java`, `IdentityExceptionHandler.java`
+- `app/.../identity/MeEndpointIntegrationTest.java`
 
 Edited:
-- `modules/identity/.../application/AccountProvisioningService.java` (race retry, `requireActive` helper)
-- `modules/identity/.../application/AccountProvisioningServiceTest.java` (two race tests + `RacingProvisioningRepository`)
-- `app/.../config/SecurityConfiguration.java` (real JWT chain)
-- `app/.../GeoHousingApplicationIntegrationTest.java` (fail-closed guard)
-- `app/src/main/resources/application.yml` (pepper placeholder)
-- `app/build.gradle.kts` (test pepper on the test task)
+- `modules/identity/.../application/ProfileService.java` (restriction dependency + `isActiveAt` check)
+- `modules/identity/.../application/ProfileServiceTest.java` (restriction fake + active/expired cases)
+- `modules/identity/.../infrastructure/persistence/SpringDataUserRestrictionRepository.java` (`findActive` query)
+- `modules/identity/.../infrastructure/IdentityBeanConfiguration.java` (`profileService` dependency)
 - `docs/plans/002-identity-module.md`, `docs/handoffs/current-task.md`
+
+No app-module main-source change, no migration, no new dependency.
 
 ## Tests and verification
 
 Run on this branch, 2026-07-15:
 
-- `./gradlew :modules:identity:check` — passed (compile, unit tests, spotless, checkstyle). New: `HmacAuthSubjectHasherTest` (6), `IdentityJwtAuthenticationConverterTest` (6), `AccountProvisioningServiceTest` (7, incl. the two race tests).
-- `./gradlew :app:test` — passed; the context boots with the real security chain and the `jwk-set-uri` placeholder is not dereferenced at startup (ADR-0005 confirmed). `GeoHousingApplicationIntegrationTest` (3, incl. fail-closed `/api/me` → 401).
-- `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped). One spotless miss on the app module was caught by the gate and fixed before this entry.
-- The anti-spoofing invariant is asserted directly: `derivesRoleFromTheAccountAndIgnoresSpoofedClaims` builds a JWT with `roles`/`scope`/`authorities` all claiming ADMIN over a DB account of role USER, and the resulting authorities are exactly `[ROLE_USER]`.
+- `./gradlew :modules:identity:check` — passed. `ProfileServiceTest` (7, incl. active-restriction→403 and expired-restriction→allowed).
+- `./gradlew :app:test` — passed, incl. ArchUnit (`web`/`persistence` stay in `infrastructure`; domain/application acquire no Spring dependency). `MeEndpointIntegrationTest` (7) drives the full matrix end-to-end through the real chain via a stub `JwtDecoder`: anonymous→401, first request auto-provisions, update bumps version, stale version→409, duplicate pseudonym→422, malformed pseudonym→422, active restriction→403.
+- `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped).
 
-No live-IdP smoke test is possible yet (no vendor; ADR-0005 defers it). `jwt()`-post-processor end-to-end tests arrive with chunk 6.
+The stub-`JwtDecoder` approach is what makes the converter run for real in tests (a `jwt()` post-processor would bypass it). No live-IdP smoke test is possible (ADR-0005).
 
 ## Known failures
 
@@ -112,17 +136,17 @@ None.
 
 ## Risks and unresolved questions
 
-- Restriction enforcement does not exist yet; until Chunk 6 lands, a restricted account is not actually prevented from editing its profile.
 - The real pepper must be provisioned in every non-test environment via `IDENTITY_AUTH_SUBJECT_PEPPER`, and per ADR-0006 it cannot be rotated without invalidating existing lookups. A blank value fails startup by design.
-- Chunks 3–4 reached `origin/main` before independent review. If that sequencing must hold, it needs a branch-protection guard, not just plan text. Chunk 5 followed the process: branched from `main` after the fix merged, awaiting review before merge.
+- Earlier chunks (3–4) reached `origin/main` before independent review. If that sequencing must hold, it needs a branch-protection guard, not just plan text. Chunks 5 and 6 followed the process (branched from `main`, awaiting review before merge).
+- No rate limiting on `/api/me` yet (API_GUIDELINES lists it as a general concern; not in this plan's scope).
 
 ## Human actions required
 
-Review and merge `feat/002-identity-chunk5-security` into `main` after a fresh independent review (this branch was implemented by Claude Code; review must be a fresh independent pass, not self-review). The branch is local and not pushed; there is no credential path to push from this environment.
+Review and merge `feat/002-identity-chunk6-me-endpoints` into `main` after a fresh independent review (this branch was implemented by Claude Code; the review must be a fresh independent pass — e.g. Codex — not self-review). The branch is local and not pushed; there is no credential path to push from this environment.
 
 ## Recommended next action
 
-Obtain a fresh independent review of `feat/002-identity-chunk5-security`, address only actionable findings in a separate fix phase, then merge to `main`. Do not start Chunk 6 automatically; when it starts, fold in the restriction-enforcement, auth-status-code, and admin-DTO carry-forward items above.
+Obtain a fresh independent review of `feat/002-identity-chunk6-me-endpoints`, address only actionable findings in a separate fix phase, then merge to `main`. Do not start Chunk 7 automatically; when it starts, fold in the admin `Account`→DTO carry-forward item above and reserve `V2.5` for the audit table.
 
 ## Last updated
 

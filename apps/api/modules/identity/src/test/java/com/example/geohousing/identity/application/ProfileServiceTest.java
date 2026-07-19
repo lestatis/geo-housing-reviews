@@ -6,16 +6,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AccountRestrictedException;
 import com.example.geohousing.identity.domain.AccountRole;
 import com.example.geohousing.identity.domain.AccountStatus;
+import com.example.geohousing.identity.domain.AppealStatus;
 import com.example.geohousing.identity.domain.OptimisticLockConflictException;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PseudonymAlreadyInUseException;
 import com.example.geohousing.identity.domain.PublicProfile;
+import com.example.geohousing.identity.domain.RestrictionScope;
+import com.example.geohousing.identity.domain.UserRestriction;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -28,13 +33,16 @@ class ProfileServiceTest {
       Clock.fixed(Instant.parse("2026-07-14T10:00:00Z"), ZoneOffset.UTC);
   private static final AccountId ACCOUNT_ID = AccountId.of(UUID.randomUUID());
 
+  // Returns nothing, so an unrestricted account is never blocked.
+  private static final UserRestrictionRepository NO_RESTRICTIONS = (accountId, asOf) -> List.of();
+
   @Test
   void updatesProfileWhenAccountIsActivePseudonymIsFreeAndVersionMatches() {
     Account account = activeAccount();
     PublicProfile profile = profile(3L);
     InMemoryAccountRepository accounts = new InMemoryAccountRepository(account);
     InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile, Set.of());
-    ProfileService service = new ProfileService(accounts, profiles, CLOCK);
+    ProfileService service = new ProfileService(accounts, profiles, NO_RESTRICTIONS, CLOCK);
 
     PublicProfile result =
         service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "ka", 3L);
@@ -49,7 +57,8 @@ class ProfileServiceTest {
   void rejectsStaleProfileUpdateBeforeMutatingOrSaving() {
     InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
     ProfileService service =
-        new ProfileService(new InMemoryAccountRepository(activeAccount()), profiles, CLOCK);
+        new ProfileService(
+            new InMemoryAccountRepository(activeAccount()), profiles, NO_RESTRICTIONS, CLOCK);
 
     assertThatThrownBy(
             () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "en", 2L))
@@ -64,7 +73,8 @@ class ProfileServiceTest {
     InMemoryProfileRepository profiles =
         new InMemoryProfileRepository(profile(3L), Set.of("Already used"));
     ProfileService service =
-        new ProfileService(new InMemoryAccountRepository(activeAccount()), profiles, CLOCK);
+        new ProfileService(
+            new InMemoryAccountRepository(activeAccount()), profiles, NO_RESTRICTIONS, CLOCK);
 
     assertThatThrownBy(
             () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("Already used"), null, "en", 3L))
@@ -79,7 +89,7 @@ class ProfileServiceTest {
     closed.close(CLOCK);
     InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
     ProfileService service =
-        new ProfileService(new InMemoryAccountRepository(closed), profiles, CLOCK);
+        new ProfileService(new InMemoryAccountRepository(closed), profiles, NO_RESTRICTIONS, CLOCK);
 
     assertThatThrownBy(
             () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "en", 3L))
@@ -89,10 +99,48 @@ class ProfileServiceTest {
   }
 
   @Test
+  void rejectsProfileUpdateWhileAnActiveRestrictionIsInForce() {
+    InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
+    UserRestrictionRepository restrictions =
+        (accountId, asOf) -> List.of(restriction(Instant.parse("2026-07-01T00:00:00Z"), null));
+    ProfileService service =
+        new ProfileService(
+            new InMemoryAccountRepository(activeAccount()), profiles, restrictions, CLOCK);
+
+    assertThatThrownBy(
+            () -> service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "en", 3L))
+        .isInstanceOf(AccountRestrictedException.class);
+
+    assertThat(profiles.savedExpectedVersion).isNull();
+  }
+
+  @Test
+  void allowsProfileUpdateWhenTheOnlyRestrictionHasExpired() {
+    InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
+    // The repository returns the restriction unfiltered; ProfileService must apply isActiveAt and
+    // see that it ended before the clock, so the update proceeds.
+    UserRestrictionRepository restrictions =
+        (accountId, asOf) ->
+            List.of(
+                restriction(
+                    Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-07-01T00:00:00Z")));
+    ProfileService service =
+        new ProfileService(
+            new InMemoryAccountRepository(activeAccount()), profiles, restrictions, CLOCK);
+
+    PublicProfile result =
+        service.updateProfile(ACCOUNT_ID, new Pseudonym("New name"), null, "en", 3L);
+
+    assertThat(result.pseudonym().value()).isEqualTo("New name");
+    assertThat(profiles.savedExpectedVersion).isEqualTo(3L);
+  }
+
+  @Test
   void rejectsMissingPseudonymBeforeRepositoryCalls() {
     InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
     ProfileService service =
-        new ProfileService(new InMemoryAccountRepository(activeAccount()), profiles, CLOCK);
+        new ProfileService(
+            new InMemoryAccountRepository(activeAccount()), profiles, NO_RESTRICTIONS, CLOCK);
 
     assertThatThrownBy(() -> service.updateProfile(ACCOUNT_ID, null, null, "en", 3L))
         .isInstanceOf(NullPointerException.class)
@@ -122,6 +170,19 @@ class ProfileServiceTest {
         Instant.parse("2026-07-01T00:00:00Z"),
         Instant.parse("2026-07-01T00:00:00Z"),
         version);
+  }
+
+  private static UserRestriction restriction(Instant startAt, Instant endAt) {
+    return UserRestriction.reconstitute(
+        UUID.randomUUID(),
+        ACCOUNT_ID,
+        RestrictionScope.ACCOUNT_WIDE,
+        "abuse",
+        startAt,
+        endAt,
+        null,
+        AppealStatus.NONE,
+        Instant.parse("2026-06-01T00:00:00Z"));
   }
 
   private static final class InMemoryAccountRepository implements AccountRepository {

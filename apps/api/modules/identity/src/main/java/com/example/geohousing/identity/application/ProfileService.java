@@ -4,11 +4,13 @@ import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
+import com.example.geohousing.identity.domain.AccountRestrictedException;
 import com.example.geohousing.identity.domain.OptimisticLockConflictException;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PseudonymAlreadyInUseException;
 import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -18,15 +20,19 @@ public final class ProfileService {
 
   private final AccountRepository accountRepository;
   private final PublicProfileRepository publicProfileRepository;
+  private final UserRestrictionRepository userRestrictionRepository;
   private final Clock clock;
 
   public ProfileService(
       AccountRepository accountRepository,
       PublicProfileRepository publicProfileRepository,
+      UserRestrictionRepository userRestrictionRepository,
       Clock clock) {
     this.accountRepository = Objects.requireNonNull(accountRepository, "accountRepository");
     this.publicProfileRepository =
         Objects.requireNonNull(publicProfileRepository, "publicProfileRepository");
+    this.userRestrictionRepository =
+        Objects.requireNonNull(userRestrictionRepository, "userRestrictionRepository");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
 
@@ -49,6 +55,14 @@ public final class ProfileService {
             .orElseThrow(() -> new AccountNotFoundException(accountId));
     if (account.isClosed()) {
       throw new AccountClosedException("closed accounts cannot update a public profile");
+    }
+
+    Instant now = clock.instant();
+    boolean restricted =
+        userRestrictionRepository.findActiveRestrictions(accountId, now).stream()
+            .anyMatch(restriction -> restriction.isActiveAt(now));
+    if (restricted) {
+      throw new AccountRestrictedException("restricted accounts cannot update a public profile");
     }
 
     PublicProfile profile = getProfile(accountId);
