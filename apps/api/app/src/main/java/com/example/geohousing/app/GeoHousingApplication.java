@@ -6,8 +6,16 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = "com.example.geohousing")
-@EntityScan(basePackages = "com.example.geohousing.identity.infrastructure.persistence")
-@EnableJpaRepositories(basePackages = "com.example.geohousing.identity.infrastructure.persistence")
+@EntityScan(
+    basePackages = {
+      "com.example.geohousing.identity.infrastructure.persistence",
+      "com.example.geohousing.properties.infrastructure.persistence"
+    })
+@EnableJpaRepositories(
+    basePackages = {
+      "com.example.geohousing.identity.infrastructure.persistence",
+      "com.example.geohousing.properties.infrastructure.persistence"
+    })
 public class GeoHousingApplication {
 
   public static void main(String[] args) {

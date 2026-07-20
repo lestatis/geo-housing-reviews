@@ -79,6 +79,17 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 4 (persistence adapters) implemented on `feat/004-properties-chunk4-persistence`,
+  branched from `main` after chunk 3 (`a07a220`). JPA entities for the four `V3.1` tables mapped as
+  a single aggregate: `PropertyJpaEntity` with a cascaded `@ManyToOne` address and cascaded
+  unidirectional `@OneToMany` aliases/sources keyed by `property_id`, so saving the root writes the
+  whole graph. `PropertyJpaMapper` generates the surrogate row ids (the domain value objects have
+  none) and converts `confidence` Double↔`BigDecimal` (NUMERIC) and coordinates↔lat/lng columns.
+  `JpaPropertyRepository` (`@Repository`) implements the `PropertyRepository` port; the app's
+  `@EntityScan`/`@EnableJpaRepositories` now include the properties persistence package. Because
+  `spring.jpa.hibernate.ddl-auto=validate`, the passing `@SpringBootTest` proves the mappings match
+  the schema exactly. `PropertyPersistenceIntegrationTest` (3): full-aggregate round-trip (address,
+  coordinates, two aliases, one source), a bare property, and not-found. `./scripts/check.sh` passes.
 - 2026-07-20: Chunk 3 (application layer) implemented on `feat/004-properties-chunk3-application`,
   branched from `main` after chunk 2 (`af8ed3d`). Framework-free `properties.application`:
   `PropertyRepository` port (`findById`, `create`), `DuplicateCandidateFinder` port +
