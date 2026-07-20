@@ -4,6 +4,9 @@
 
 - JSON over HTTPS.
 - OpenAPI is the source of truth for mobile/admin clients.
+- The generated OpenAPI document is public at `/v3/api-docs` (JSON) and `/v3/api-docs.yaml`;
+  interactive Swagger UI is public at `/swagger-ui/index.html`. These documentation routes do not
+  make any application or actuator endpoint public.
 - Version by compatible evolution first; use explicit major version only for unavoidable breaking changes.
 - Use opaque IDs, not sequential identifiers exposed as authority.
 - Server is authoritative for permissions, moderation and ranking.

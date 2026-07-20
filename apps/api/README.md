@@ -39,7 +39,19 @@ docker compose -f ../../infra/docker/docker-compose.yml up -d
 curl http://localhost:8080/actuator/health   # expect {"status":"UP", ...}
 ```
 
-Only `/actuator/health` is exposed publicly (see `app/src/main/resources/application.yml`) — no other actuator endpoints.
+Only `/actuator/health` is exposed publicly among actuator endpoints (see
+`app/src/main/resources/application.yml`) — no other actuator endpoints.
+
+## API documentation
+
+The generated OpenAPI document and Swagger UI are intentionally public API documentation:
+
+- JSON: `http://localhost:8080/v3/api-docs`
+- YAML: `http://localhost:8080/v3/api-docs.yaml`
+- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+
+Swagger UI supports HTTP bearer JWT authorization for trying protected operations. Publishing the
+documentation does not make `/api/**` endpoints public.
 
 ## Module layout
 
