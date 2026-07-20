@@ -79,6 +79,16 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 3 (application layer) implemented on `feat/004-properties-chunk3-application`,
+  branched from `main` after chunk 2 (`af8ed3d`). Framework-free `properties.application`:
+  `PropertyRepository` port (`findById`, `create`), `DuplicateCandidateFinder` port +
+  `DuplicateCandidate` record, `PropertyCreationService`, `PropertyQueryService`. Creation surfaces
+  duplicates as a **result**, not an exception: a `PropertyCreationResult` sealed type is either
+  `Created(property)` or `DuplicatesFound(candidates)` — on a plain attempt with candidates present
+  the property is not created; the caller re-submits with `allowDuplicate=true` to create anyway
+  (finder is then skipped). `PropertyNotFoundException` added to the domain. The deterministic
+  duplicate detection itself is still chunk 5; chunk 3 only defines the port and the flow around it.
+  5 in-memory-fake unit tests; `./scripts/check.sh` passes.
 - 2026-07-20: Chunk 2 (domain model) implemented on `feat/004-properties-chunk2-domain`, branched
   from `main` after chunk 1 (`293da3d`) and the Swagger feature (`6d9096b`) merged. Framework-free
   `properties.domain`: `PropertyId`, `CreatorId` (opaque creator account id — no identity

@@ -3,27 +3,42 @@
 ## Objective
 
 Build the `properties` backend module (plan `docs/plans/004-properties-module.md`): the canonical
-catalogue of reviewable objects. This is chunk 2 (domain model). The identity module (plan `002`) is
-complete; the Swagger/OpenAPI feature and properties chunk 1 are merged to `main`.
+catalogue of reviewable objects. This is chunk 3 (application layer). Identity (plan `002`),
+Swagger/OpenAPI, and properties chunks 1–2 are merged to `main`.
 
 ## Active branch
 
-`feat/004-properties-chunk2-domain` (branched from `main` at `6d9096b`)
+`feat/004-properties-chunk3-application` (branched from `main` at `af8ed3d`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/004-properties-module.md` — this is chunk 2 of 8.
+No issue. See `docs/plans/004-properties-module.md` — this is chunk 3 of 8.
 
 ## Current status
 
-chunk2_implemented — ready for fresh independent review and merge before chunk 3.
+chunk3_implemented — ready for fresh independent review and merge before chunk 4.
 
 ## Completed work
 
-On `main`: identity module complete (ends `068e647`), properties chunk 1 schema (`293da3d`), and the
-public Swagger/OpenAPI docs feature (`6d9096b`, Codex-implemented, Claude-Code-finished).
+On `main`: identity module complete (ends `068e647`), properties chunk 1 schema (`293da3d`), the
+public Swagger/OpenAPI docs feature (`6d9096b`, Codex-implemented, Claude-Code-finished), and
+properties chunk 2 domain model (`af8ed3d`).
 
-### Properties chunk 2 — domain model (this branch)
+### Properties chunk 3 — application layer (this branch)
+
+Framework-free `properties.application`:
+- `PropertyRepository` port (`findById`, `create`) and `DuplicateCandidateFinder` port +
+  `DuplicateCandidate` record.
+- `PropertyCreationService`: creates a `DRAFT`, but surfaces possible duplicates as an expected
+  **result**, not an error. `PropertyCreationResult` is a sealed `Created(property)` /
+  `DuplicatesFound(candidates)`. On a plain attempt (`allowDuplicate=false`) with candidates present,
+  nothing is created and the candidates are returned; re-submitting with `allowDuplicate=true`
+  creates anyway and skips the finder. Address/coordinates from the command are applied to the draft.
+- `PropertyQueryService.getById` → `Property` or `PropertyNotFoundException` (new domain exception).
+- Deterministic duplicate detection is **not** here — chunk 3 only defines the port and the flow.
+  Chunk 5 implements the finder (normalized name/address + PostGIS proximity).
+
+### Properties chunk 2 — domain model (merged to `main`)
 
 Framework-free `properties.domain` (no Spring, no JPA — the ArchUnit domain-purity rules now apply
 to it and pass):
@@ -44,40 +59,41 @@ to it and pass):
 
 ## Remaining work
 
-Chunks 3–8 (see the plan): application layer + `DuplicateCandidateFinder` port (3), persistence
-adapters mapping the aggregate to the four tables (4), duplicate detection + PostGIS geo +
-`hibernate-spatial` + ADR-0007 (5), public `/api/properties` endpoints (6), admin merge/status (7),
-`properties.api` contract when reviews needs it (8).
+Chunks 4–8 (see the plan): persistence adapters mapping the aggregate to the four tables + the
+`PropertyRepository` implementation (4), duplicate detection implementing `DuplicateCandidateFinder`
++ PostGIS geo + `hibernate-spatial` + ADR-0007 (5), public `/api/properties` endpoints — where
+`DuplicatesFound` becomes a 409-with-candidates response (6), admin merge/status (7), `properties.api`
+contract when reviews needs it (8).
 
 ## Decisions made
 
-- The creator is modelled as a local `CreatorId(UUID)` rather than importing identity's `AccountId`
-  — modules do not share domain types (ARCHITECTURE boundary rules).
-- `Coordinates` is a plain lat/lng value object; PostGIS geometry is an infrastructure concern for
-  chunk 5, keeping the domain library-free.
-- `MERGED` is terminal and enforced by an `ensureMutable()` guard on every mutator.
-- `AliasSource` is a domain enum even though `V3.1` left `alias.source` un-CHECKed (domain stricter
-  than the DB is fine; a CHECK can be added later if desired).
+- Duplicates are an expected outcome, so `PropertyCreationService` returns a sealed
+  `PropertyCreationResult` (Created / DuplicatesFound) rather than throwing. `PropertyNotFoundException`
+  is thrown (a genuine miss).
+- The creator is a local `CreatorId(UUID)`, not identity's `AccountId` — modules do not share domain
+  types (ARCHITECTURE boundary rules).
+- `Coordinates` is a plain lat/lng value object; PostGIS geometry is chunk 5 infrastructure.
+- `MERGED` is terminal (`ensureMutable()` guard on every mutator).
 
-## Files changed on this branch
+## Files changed on this branch (chunk 3)
 
-- New `properties.domain`: `PropertyId`, `CreatorId`, `PropertyType`, `PropertyStatus`,
-  `AliasSource`, `Coordinates`, `Address`, `PropertyAlias`, `PropertySource`, `Property`,
-  `IllegalPropertyStateTransitionException`.
-- New tests: `PropertyTest`, `PropertyValueObjectsTest`.
+- New `properties.application`: `PropertyRepository`, `DuplicateCandidateFinder`, `DuplicateCandidate`,
+  `CreatePropertyCommand`, `PropertyCreationResult`, `PropertyCreationService`, `PropertyQueryService`.
+- New domain: `PropertyNotFoundException`.
+- New tests: `PropertyCreationServiceTest`, `PropertyQueryServiceTest`.
 - `docs/plans/004-properties-module.md`, `docs/handoffs/current-task.md`.
 
-No migration, no dependency, no app-module change.
+No migration, no dependency, no Spring wiring yet (services are plain classes; the bean wiring +
+`PropertyRepository` adapter arrive with chunk 4, as identity did).
 
 ## Tests and verification
 
 Run on this branch, 2026-07-20:
 
 - `./gradlew :modules:properties:check` — passed (compile, unit tests, spotless, checkstyle).
-- `./gradlew :app:test` (via the full gate) — passed, incl. `ModuleBoundaryArchitectureTest`: the
-  `domain_packages_should_not_depend_on_spring` and `..infrastructure..` rules now run against real
-  `properties.domain` classes and pass.
-- `./scripts/check.sh` — passed. Domain tests: `PropertyTest` (12), `PropertyValueObjectsTest` (4).
+- `./scripts/check.sh` — passed, incl. ArchUnit (application classes stay framework-free).
+  `PropertyCreationServiceTest` (3: creates when clean, returns candidates when not allowed, creates
+  when allowed), `PropertyQueryServiceTest` (2: found / not-found).
 
 ## Known failures
 
@@ -85,21 +101,22 @@ None.
 
 ## Risks and unresolved questions
 
-- Whether `hide` should be reversible (HIDDEN→ACTIVE) is not modelled yet; add an `unhide`/`restore`
-  transition if a use case appears (chunk 6/7).
-- `reconstitute` does not re-validate value-object internals (they were validated when first
-  constructed); persistence in chunk 4 must rebuild them through their constructors.
+- The `DuplicateCandidateFinder` port is faked in tests; the real detection (chunk 5) must match this
+  signature or the port evolves. `DuplicateCandidate` is minimal (id + name); chunk 5 may enrich it
+  (distance/score) additively.
+- `reconstitute` does not re-validate value-object internals; chunk 4 persistence must rebuild them
+  through their constructors.
 
 ## Human actions required
 
-Review and merge `feat/004-properties-chunk2-domain` after a fresh independent review (implemented by
-Claude Code; review must be a fresh independent pass). The branch is local and not pushed; there is
-no credential path to push from this environment.
+Review and merge `feat/004-properties-chunk3-application` after a fresh independent review
+(implemented by Claude Code; review must be a fresh independent pass). The branch is local and not
+pushed; there is no credential path to push from this environment.
 
 ## Recommended next action
 
-Independent review of chunk 2, then merge to `main`. Chunk 3 (application ports + services) branches
-from `main` after that.
+Independent review of chunk 3, then merge to `main`. Chunk 4 (JPA persistence adapters + bean wiring)
+branches from `main` after that.
 
 ## Last updated
 
