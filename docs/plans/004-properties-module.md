@@ -41,7 +41,7 @@ verification, and moderation all reference a property.
 |---|---|---|
 | Migration namespace | `properties` schema, `V3.x` (root=1, identity=2, properties=3) | Module owns its tables/migrations (ARCHITECTURE boundary rules) |
 | Cross-module references | `property.created_by` is an opaque `UUID`, never an FK to `identity.account` | No module reads/points at another module's tables |
-| Geo | `latitude`/`longitude` columns now; PostGIS `geography(Point,4326)` + `hibernate-spatial` in the duplicate/geo chunk behind an ADR | Don't add a geo dependency before it's used (AGENTS rule 5) |
+| Geo | `latitude`/`longitude` columns; a generated PostGIS `geography(Point,4326)` column (`V3.2`) queried via native SQL — **no `hibernate-spatial`** (ADR-0007) | Proximity is the only need; native `ST_DWithin` covers it without a new dependency (AGENTS rule 5) |
 | `properties.api` | Minimal/empty until `reviews` needs property lookup | No consumer yet (mirrors `identity.api`) |
 | AuthZ | Create = any authenticated user (DRAFT); merge/hide/status = admin; reads authenticated for now | Reuses the existing security chain; public browsing is a later decision |
 
@@ -50,7 +50,7 @@ verification, and moderation all reference a property.
 | Version | Contents | Chunk |
 |---|---|---|
 | `V3.1` | `properties` schema; `address`, `property`, `property_alias`, `property_source` | 1 |
-| `V3.2` | reserved — duplicate/geo (PostGIS geography column, indexes) | 5 |
+| `V3.2` | generated `geo geography(Point,4326)` column + GiST index + normalized-name index | 5 |
 | `V3.3` | reserved — admin/merge audit table if needed | 7 |
 
 ## Implementation chunks (one branch each: self-check → fresh independent read-only review → merge before the next starts)
@@ -79,6 +79,21 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 5 (duplicate detection + geo) implemented on `feat/004-properties-chunk5-duplicates`,
+  branched from `main` after chunk 4 (`995a665`). **ADR-0007**: PostGIS proximity via a native query,
+  **no `hibernate-spatial`** — the module plan's tentative dependency was dropped because the only
+  need is proximity filtering, which native `ST_DWithin` covers (confirmed with the founder). `V3.2`
+  adds a `GENERATED ALWAYS` `geo geography(Point,4326)` column (from lat/lng), a GiST index, and a
+  normalized-name functional index; verified directly against dev Postgres before wiring the test.
+  `JpaDuplicateCandidateFinder` implements the `DuplicateCandidateFinder` port with a native query
+  matching on normalized `canonical_name` equality OR `ST_DWithin` (75 m default), excluding `MERGED`;
+  address-component matching deferred. `PropertiesBeanConfiguration` wires the application services;
+  the clock is inline (not a bean) to avoid a second `Clock` bean clashing with identity's under a
+  build that lacks `-parameters` — flagged as a small infra follow-up. `PropertyJpaEntity` is
+  unchanged and does not map `geo`, so `ddl-auto=validate` still passes. Tests: finder name/geo/merged
+  paths + the generated column, and a creation-flow integration test proving chunks 3+4+5 compose
+  (second same-named create → `DuplicatesFound`, then `allowDuplicate` → `Created`).
+  `./scripts/check.sh` passes.
 - 2026-07-20: Chunk 4 (persistence adapters) implemented on `feat/004-properties-chunk4-persistence`,
   branched from `main` after chunk 3 (`a07a220`). JPA entities for the four `V3.1` tables mapped as
   a single aggregate: `PropertyJpaEntity` with a cascaded `@ManyToOne` address and cascaded
