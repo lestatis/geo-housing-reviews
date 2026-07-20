@@ -2,80 +2,82 @@
 
 ## Objective
 
-Add generated OpenAPI documentation and Swagger UI to the Spring Boot API while preserving JWT
-protection for all business endpoints.
+Build the `properties` backend module (plan `docs/plans/004-properties-module.md`): the canonical
+catalogue of reviewable objects. This is chunk 2 (domain model). The identity module (plan `002`) is
+complete; the Swagger/OpenAPI feature and properties chunk 1 are merged to `main`.
 
 ## Active branch
 
-`feat/swagger-openapi` (Codex left the work uncommitted on `main`; Claude Code moved it to a branch)
+`feat/004-properties-chunk2-domain` (branched from `main` at `6d9096b`)
 
 ## Related issue or plan
 
-`docs/plans/2026-07-19-swagger-openapi.md`
+No issue. See `docs/plans/004-properties-module.md` — this is chunk 2 of 8.
 
 ## Current status
 
-complete_pending_review — implemented by Codex, finished and verified by Claude Code (distinct
-authors). Ready for review and merge.
+chunk2_implemented — ready for fresh independent review and merge before chunk 3.
 
 ## Completed work
 
-- (Codex) Added the Springdoc 3.0.3 WebMVC UI starter, `OpenApiConfiguration` (metadata + global
-  HTTP bearer JWT scheme), public documentation-route authorization in `SecurityConfiguration`,
-  `SwaggerEndpointIntegrationTest`, and README/API_GUIDELINES updates. Left the checks unrun and the
-  work uncommitted on `main`.
-- (Claude Code takeover, 2026-07-20) Ran the deferred checks and drove the running app. Springdoc
-  3.0.3 resolves and works on Boot 4.1; `/v3/api-docs` (JSON) and `/swagger-ui/index.html` are
-  public, `/api/me` stays 401, and the generated document lists the real identity operations
-  (`/api/me`, `/api/me/export`, `/api/me/profile`, `/api/admin/accounts/{accountId}`).
-- **Fixed a gap:** `/v3/api-docs.yaml` was returning 401 — API_GUIDELINES advertised it as public,
-  but the `/v3/api-docs/**` matcher does not cover the `.yaml` sibling path. Added
-  `/v3/api-docs.yaml` to the permitted matchers plus a regression test. Moved everything to
-  `feat/swagger-openapi`.
+On `main`: identity module complete (ends `068e647`), properties chunk 1 schema (`293da3d`), and the
+public Swagger/OpenAPI docs feature (`6d9096b`, Codex-implemented, Claude-Code-finished).
+
+### Properties chunk 2 — domain model (this branch)
+
+Framework-free `properties.domain` (no Spring, no JPA — the ArchUnit domain-purity rules now apply
+to it and pass):
+- Identifiers/enums: `PropertyId`, `CreatorId` (the creating account, held as an opaque UUID with
+  **no dependency on the identity module** — boundary rule), `PropertyType`
+  (BUILDING/RESIDENTIAL_COMPLEX/BLOCK/PHASE), `PropertyStatus` (DRAFT/ACTIVE/MERGED/HIDDEN),
+  `AliasSource`.
+- Value objects: `Coordinates` (WGS84 range-checked; PostGIS mapping deferred to chunk 5),
+  `Address` (country defaults to GE, 2-letter; other parts optional; original text preserved),
+  `PropertyAlias` (locale/name/source, optional confidence in [0,1]), `PropertySource` (provenance).
+- `Property` aggregate with the lifecycle state machine: `activate` (DRAFT→ACTIVE), `hide`
+  (DRAFT/ACTIVE→HIDDEN), `mergeInto` (any non-merged → MERGED, **terminal** — a merged property
+  rejects all further mutation), plus `rename`/`setAddress`/`setCoordinates`/`setParent`/`addAlias`/
+  `addSource`. `IllegalPropertyStateTransitionException` for state-machine violations;
+  `IllegalArgumentException`/NPE for value validation.
+- Invariants mirror the `V3.1` CHECKs: a merge target is set exactly when status is MERGED; no
+  self-parent; no self-merge; non-blank canonical name. Enforced in both `create` and `reconstitute`.
 
 ## Remaining work
 
-None. Independent review and merge (Codex implemented; a fresh reviewer should look at the security
-matcher change).
+Chunks 3–8 (see the plan): application layer + `DuplicateCandidateFinder` port (3), persistence
+adapters mapping the aggregate to the four tables (4), duplicate detection + PostGIS geo +
+`hibernate-spatial` + ADR-0007 (5), public `/api/properties` endpoints (6), admin merge/status (7),
+`properties.api` contract when reviews needs it (8).
 
 ## Decisions made
 
-- Swagger UI and OpenAPI routes are public documentation only; `/api/**` and actuator policy
-  remain unchanged.
-- The generated contract specifies HTTP bearer JWT authentication globally.
+- The creator is modelled as a local `CreatorId(UUID)` rather than importing identity's `AccountId`
+  — modules do not share domain types (ARCHITECTURE boundary rules).
+- `Coordinates` is a plain lat/lng value object; PostGIS geometry is an infrastructure concern for
+  chunk 5, keeping the domain library-free.
+- `MERGED` is terminal and enforced by an `ensureMutable()` guard on every mutator.
+- `AliasSource` is a domain enum even though `V3.1` left `alias.source` un-CHECKed (domain stricter
+  than the DB is fine; a CHECK can be added later if desired).
 
-## Assumptions
+## Files changed on this branch
 
-- The requested "Swagger" means interactive Swagger UI plus an OpenAPI 3 document, not a static
-  hand-maintained file.
+- New `properties.domain`: `PropertyId`, `CreatorId`, `PropertyType`, `PropertyStatus`,
+  `AliasSource`, `Coordinates`, `Address`, `PropertyAlias`, `PropertySource`, `Property`,
+  `IllegalPropertyStateTransitionException`.
+- New tests: `PropertyTest`, `PropertyValueObjectsTest`.
+- `docs/plans/004-properties-module.md`, `docs/handoffs/current-task.md`.
 
-## Files changed
-
-- `apps/api/gradle/libs.versions.toml`
-- `apps/api/app/build.gradle.kts`
-- `apps/api/app/src/main/java/com/example/geohousing/app/config/OpenApiConfiguration.java`
-- `apps/api/app/src/main/java/com/example/geohousing/app/config/SecurityConfiguration.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/SwaggerEndpointIntegrationTest.java`
-- `apps/api/README.md`
-- `docs/API_GUIDELINES.md`
-- `docs/plans/2026-07-19-swagger-openapi.md`
-- `docs/handoffs/current-task.md`
-- `docs/handoffs/2026-07-19-swagger-openapi.md`
-
-## Commands run
-
-- Read-only repository inspection and Springdoc official documentation lookup.
+No migration, no dependency, no app-module change.
 
 ## Tests and verification
 
-Run on `feat/swagger-openapi`, 2026-07-20:
+Run on this branch, 2026-07-20:
 
-- `./gradlew :app:test --tests '*SwaggerEndpointIntegrationTest*'` — passed, 4/4: OpenAPI JSON public
-  with bearer scheme, Swagger UI public, **YAML doc public (new regression guard)**, `/api/me` still 401.
-- `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped).
-- Live smoke on the running app (dev Postgres): `/v3/api-docs` 200, `/v3/api-docs.yaml` 200 (was 401
-  before the fix), `/swagger-ui/index.html` 200, `/api/me` 401. No actuator route beyond `/health`
-  is public.
+- `./gradlew :modules:properties:check` — passed (compile, unit tests, spotless, checkstyle).
+- `./gradlew :app:test` (via the full gate) — passed, incl. `ModuleBoundaryArchitectureTest`: the
+  `domain_packages_should_not_depend_on_spring` and `..infrastructure..` rules now run against real
+  `properties.domain` classes and pass.
+- `./scripts/check.sh` — passed. Domain tests: `PropertyTest` (12), `PropertyValueObjectsTest` (4).
 
 ## Known failures
 
@@ -83,20 +85,21 @@ None.
 
 ## Risks and unresolved questions
 
-- Public documentation exposes endpoint shapes by design; verified it does not expose an actuator
-  route or bypass `/api/**` JWT authorization.
-- The generated document currently lists only identity operations — `properties` has no controller
-  yet (its module is at chunk 1, schema only), so nothing to document there until its endpoints land.
+- Whether `hide` should be reversible (HIDDEN→ACTIVE) is not modelled yet; add an `unhide`/`restore`
+  transition if a use case appears (chunk 6/7).
+- `reconstitute` does not re-validate value-object internals (they were validated when first
+  constructed); persistence in chunk 4 must rebuild them through their constructors.
 
 ## Human actions required
 
-Review and merge `feat/swagger-openapi`. The security-matcher change should get a fresh independent
-look. The branch is local and not pushed; there is no credential path to push from this environment.
+Review and merge `feat/004-properties-chunk2-domain` after a fresh independent review (implemented by
+Claude Code; review must be a fresh independent pass). The branch is local and not pushed; there is
+no credential path to push from this environment.
 
 ## Recommended next action
 
-Independent review of `feat/swagger-openapi`, then merge to `main`. Afterwards, the paused work is
-properties chunk 2 (domain model) on top of the merged chunk 1.
+Independent review of chunk 2, then merge to `main`. Chunk 3 (application ports + services) branches
+from `main` after that.
 
 ## Last updated
 

@@ -79,6 +79,17 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 2 (domain model) implemented on `feat/004-properties-chunk2-domain`, branched
+  from `main` after chunk 1 (`293da3d`) and the Swagger feature (`6d9096b`) merged. Framework-free
+  `properties.domain`: `PropertyId`, `CreatorId` (opaque creator account id — no identity
+  dependency), `PropertyType`/`PropertyStatus`/`AliasSource` enums, `Coordinates`/`Address`/
+  `PropertyAlias`/`PropertySource` value objects, and the `Property` aggregate with a lifecycle
+  state machine (DRAFT→ACTIVE via `activate`; DRAFT/ACTIVE→HIDDEN via `hide`; any→MERGED via
+  `mergeInto`, terminal) plus `IllegalPropertyStateTransitionException`. Invariants mirror the `V3.1`
+  CHECKs (merge target only when MERGED, no self-parent, no self-merge, non-blank name; coordinate
+  ranges; alias confidence in [0,1]). This activates the properties ArchUnit domain-purity rules for
+  the first time (they pass — the domain uses only `java.time`/`java.util`). 16 unit tests;
+  `./scripts/check.sh` passes.
 - 2026-07-15: Plan approved (plan mode; multi-module/migration/public-API triggers). Chunk 1 started
   on `feat/004-properties-chunk1-foundation`: `V3.1` creates the `properties` schema and the
   `address`/`property`/`property_alias`/`property_source` tables with type/status/merge/name CHECK
