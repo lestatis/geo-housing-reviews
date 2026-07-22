@@ -79,6 +79,35 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-22: Chunk 6 (public endpoints) implemented on `feat/005-reviews-chunk6-endpoints`,
+  **branched from the chunk-5 branch, not `main`** — chunk 5 is still awaiting review, and the
+  endpoints need its persistence. Merge chunk 5 first; the two are stacked.
+  `POST /api/properties/{id}/reviews` (201 + Location), `GET /api/reviews/{id}`,
+  `PUT /api/reviews/{id}` and cursor-paginated `GET /api/properties/{id}/reviews`, with
+  `ReviewsExceptionHandler` scoped to the reviews web package (regression-tested: a missing property
+  under `/api/properties` is still answered by the *properties* mapping).
+  Decisions worth review: (a) **`PUT /api/reviews/{id}` was added beyond the chunk's listed scope** —
+  chunk 3's edit use case existed, was tested, and would otherwise be unreachable, and "review
+  versions" is an MVP must-have that needs a way to make one; (b) **no `Idempotency-Key`** despite
+  API_GUIDELINES listing final review submission: the one-live-review rule already makes a replay
+  safe, and a repeat now returns 409 `REVIEW_ALREADY_EXISTS` with `existingReviewId` *and* a
+  `Location` header, which is what a client that lost the first response needs. A key-and-store
+  mechanism would be a table plus a migration for no behaviour a caller can observe — flagged rather
+  than silently skipped; (c) **administrators get no extra visibility on the public endpoints**
+  (`WebAuthentication.publicViewer` always builds a plain user): elevated reading belongs to the
+  moderation queue, where it is scoped and auditable, and widening the public endpoints would put
+  that access outside any record of it. Tested with a real ADMIN account whose role is *proven* by an
+  admin-only endpoint first; (d) `editReason` is **omitted from the public representation** — it is
+  written for moderators; `versionNumber` already tells a reader the review was edited.
+  The cursor is opaque base64url of `<instant>|<uuid>`, decoded strictly: a mangled cursor is 400
+  `INVALID_CURSOR`, never a silent fall back to page one (which would loop a paging client forever).
+  Sub-second precision is preserved so page boundaries neither repeat nor skip.
+  Note for chunk 7: the endpoint tests publish reviews by direct SQL because moderation endpoints do
+  not exist yet; they should move onto the real transition once chunk 7 lands.
+  **Open product question, not decided here:** every endpoint requires a bearer token, since the
+  security chain has `anyRequest().authenticated()`. Public read access for anonymous visitors is
+  plausible for a review site but is an app-level security change, deliberately not made inside a
+  module chunk. 4 codec unit tests + 13 endpoint integration tests; `./scripts/check.sh` passes.
 - 2026-07-22: Chunk 5 reworked before review (founder call: fix the shape now, not once the
   codebase has grown around it). **The `Review` aggregate holds only its current version.** The full
   history is stored data, not domain state: no state-machine decision consults an old version, so

@@ -4,19 +4,19 @@
 
 Build the `reviews` backend module (plan `docs/plans/005-reviews-module.md`): structured reviews of a
 property with immutable content versions, category ratings, a publication lifecycle, and a
-verified/unverified experience signal. This is chunk 5 (persistence).
+verified/unverified experience signal. This is chunk 6 (public endpoints).
 
 ## Active branch
 
-`feat/005-reviews-chunk5-persistence` (branched from `main` at `6b34ff4`)
+`feat/005-reviews-chunk6-endpoints` (branched from **`feat/005-reviews-chunk5-persistence`**, which is itself branched from `main` at `6b34ff4`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/005-reviews-module.md` — this is chunk 5 of 8.
+No issue. See `docs/plans/005-reviews-module.md` — this is chunk 6 of 8.
 
 ## Current status
 
-chunk5_implemented — ready for fresh independent review and merge before chunk 6.
+chunk6_implemented — **stacked on chunk 5**. Review and merge chunk 5 first, then this.
 
 ## Completed work
 
@@ -31,7 +31,36 @@ abstraction exists (the same reasoning that kept `identity.api` an empty stub). 
 reviews module, so the contract is built in plan `005` chunk 4, against a real caller. Deferred
 properties items are listed in that plan's Final outcome rather than dropped.
 
-### Reviews chunk 5 — persistence (this branch)
+### Reviews chunk 6 — public endpoints (this branch)
+
+`POST /api/properties/{id}/reviews` (201 + Location), `GET /api/reviews/{id}`,
+`PUT /api/reviews/{id}`, cursor-paginated `GET /api/properties/{id}/reviews`, and
+`ReviewsExceptionHandler` scoped to the reviews web package.
+
+**Points a reviewer should push on:**
+- `PUT /api/reviews/{id}` is **beyond the chunk's listed scope**: chunk 3's edit use case existed and
+  was tested, and "review versions" is an MVP must-have that needs a reachable way to make one.
+- **No `Idempotency-Key`**, though API_GUIDELINES lists final review submission. The one-live-review
+  rule already makes replay safe; a repeat returns 409 `REVIEW_ALREADY_EXISTS` with `existingReviewId`
+  and a `Location` header pointing at the existing review. A key-and-store mechanism would add a
+  table and migration for no observable difference. Disagree here if you think the guideline is
+  meant literally.
+- **Administrators get no extra visibility on public endpoints.** `WebAuthentication.publicViewer`
+  always builds a plain user; elevated reading belongs to the moderation queue where it is auditable.
+- `editReason` is omitted from the public representation (written for moderators; `versionNumber`
+  already signals an edit).
+- 403 vs 404 on edit depends on *current* visibility: a stranger editing a published review gets 403,
+  and the same request after that review returns to moderation gets 404. Both are asserted.
+- The cursor is opaque base64url, decoded strictly — a mangled cursor is 400, never a silent restart.
+
+**Note for chunk 7:** endpoint tests publish via direct SQL because moderation endpoints do not exist
+yet. Move them onto the real transition when chunk 7 lands.
+
+**Open product question:** every endpoint requires a bearer token (`anyRequest().authenticated()`).
+Public read access for anonymous visitors is plausible for a review site but is an app-level security
+change, deliberately not made inside a module chunk.
+
+### Reviews chunk 5 — persistence (previous branch in the stack)
 
 JPA for the review/version/rating graph, plus `V4.2` and the module's Spring wiring.
 
@@ -153,7 +182,7 @@ Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it 
 
 ## Remaining work
 
-Chunks 6–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
+Chunks 7–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
 outbound port (3); **`properties.api` + adapter — the first cross-module call, closing plan 004's
 chunk 8** (4); persistence (5); public endpoints with cursor pagination (6); moderation-state
 transitions + audit, `V4.2` (7); helpful signals/ranking inputs, likely deferred (8).
