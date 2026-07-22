@@ -1,6 +1,6 @@
 # Properties Module: Catalogue, Aliases, Addresses, Duplicates, Merge
 
-Status: Complete (7/8; chunk 8 moved to plan 005)
+Status: Complete (8/8; chunk 8 delivered in plan 005 chunk 4, 2026-07-22)
 Owner: Claude Code
 Related issue: none (direct founder request; follows the completed identity module, plan 002)
 Last updated: 2026-07-15
@@ -175,10 +175,19 @@ canonical catalogue that can be created with deterministic duplicate detection, 
 and administered (activate / hide / merge) with optimistic concurrency and an append-only audit
 trail. Every acceptance criterion is met except the last.
 
-**Chunk 8 (`properties.api`) is intentionally not built here.** ARCHITECTURE requires a concrete
-consumer before a cross-module abstraction exists, and there was none — exactly the reasoning that
-kept `identity.api` an empty stub. The consumer arrived with the `reviews` module, so the contract is
-built there, against a real caller: see `docs/plans/005-reviews-module.md` chunk 4.
+**Chunk 8 (`properties.api`) was intentionally not built here, and is now delivered.** ARCHITECTURE
+requires a concrete consumer before a cross-module abstraction exists, and there was none — exactly
+the reasoning that kept `identity.api` an empty stub. The consumer arrived with the `reviews` module,
+so the contract was built there, against a real caller: `PropertyCatalog` / `PropertySummary` /
+`PropertyVisibility`, implemented by `PropertyCatalogService`. Delivered 2026-07-22 in plan 005
+chunk 4 (`feat/005-reviews-chunk4-property-lookup`); the acceptance criterion is met and the module
+is complete at 8/8. Waiting paid off: because the contract was designed against a real caller it is
+three small types rather than a speculative mirror of the aggregate.
+
+**One defect found while building it, not fixed here:** `Property.mergeInto` does not check that its
+target exists or is itself unmerged, so an administrator can merge A into B and later B into A. The
+catalogue resolver caps its hops and raises `UnresolvableMergeChainException` rather than looping, but
+the admin path should reject the second merge. Recorded as a properties follow-up.
 
 Deferred, recorded in the handoffs rather than silently dropped: editing a property's
 name/address/aliases (the lifecycle update path covers status only); auditing *rejected* admin

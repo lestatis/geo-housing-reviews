@@ -4,19 +4,19 @@
 
 Build the `reviews` backend module (plan `docs/plans/005-reviews-module.md`): structured reviews of a
 property with immutable content versions, category ratings, a publication lifecycle, and a
-verified/unverified experience signal. This is chunk 3 (application layer).
+verified/unverified experience signal. This is chunk 4 (properties.api + adapter).
 
 ## Active branch
 
-`feat/005-reviews-chunk3-application` (branched from `main` at `48e798e`)
+`feat/005-reviews-chunk4-property-lookup` (branched from `main` at `0ee9f75`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/005-reviews-module.md` — this is chunk 3 of 8.
+No issue. See `docs/plans/005-reviews-module.md` — this is chunk 4 of 8. It also closes plan 004 chunk 8.
 
 ## Current status
 
-chunk3_implemented — ready for fresh independent review and merge before chunk 4.
+chunk4_implemented — ready for fresh independent review and merge before chunk 5.
 
 ## Completed work
 
@@ -31,7 +31,31 @@ abstraction exists (the same reasoning that kept `identity.api` an empty stub). 
 reviews module, so the contract is built in plan `005` chunk 4, against a real caller. Deferred
 properties items are listed in that plan's Final outcome rather than dropped.
 
-### Reviews chunk 3 — application layer (this branch)
+### Reviews chunk 4 — properties.api + adapter (this branch)
+
+The first cross-module call in the codebase; closes plan 004 chunk 8.
+
+- Published `com.example.geohousing.properties.api`: `PropertyCatalog.findSurviving(UUID)`,
+  `PropertySummary(propertyId, canonicalName, visibility)`, `PropertyVisibility{PUBLIC, WITHHELD}`,
+  `UnresolvableMergeChainException`. Implemented by `PropertyCatalogService` (properties.application),
+  wired in `PropertiesBeanConfiguration`.
+- Reviews-side `CatalogPropertyLookup` (`@Component`, reviews.infrastructure.properties) implements
+  the chunk-3 `PropertyLookup` port. `modules/reviews` now depends on `modules:properties`.
+
+**Points a reviewer should push on:**
+- The api resolves merge chains, so no consumer sees a merged property. Deliberate: a merged property
+  is an alias for the survivor, and content should attach to the building that is still real.
+- The api exposes coarse visibility, not the internal 4-state lifecycle. DRAFT and ACTIVE both read
+  as PUBLIC — which matches what the public HTTP API already returns today.
+- "A withheld property takes no new reviews" is decided in **reviews**, not properties. Properties
+  reports availability; the consumer decides what it means.
+- **Defect found, not fixed:** `Property.mergeInto` does not validate its target, so A→B then B→A is
+  possible. The resolver caps at `MAX_MERGE_HOPS = 8` and throws rather than looping or silently
+  dropping the review; guarding the admin merge path is a properties follow-up.
+- The ArchUnit api-only rule was confirmed to fail on a deliberate `properties.domain` import (then
+  reverted) — it is no longer vacuous.
+
+### Reviews chunk 3 — application layer (merged to `main`)
 
 Framework-free use cases and the ports they need:
 - `ReviewRepository` — by id; the live review for an author+property (mirrors `V4.1`'s partial unique
@@ -94,7 +118,7 @@ Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it 
 
 ## Remaining work
 
-Chunks 4–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
+Chunks 5–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
 outbound port (3); **`properties.api` + adapter — the first cross-module call, closing plan 004's
 chunk 8** (4); persistence (5); public endpoints with cursor pagination (6); moderation-state
 transitions + audit, `V4.2` (7); helpful signals/ranking inputs, likely deferred (8).

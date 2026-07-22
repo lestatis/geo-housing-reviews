@@ -79,6 +79,26 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-22: Chunk 4 (`properties.api` + adapter) implemented on
+  `feat/005-reviews-chunk4-property-lookup`. **This closes plan 004 chunk 8** and is the first
+  cross-module call in the codebase. Published contract (properties module): `PropertyCatalog` with a
+  single `findSurviving(UUID)`, `PropertySummary(propertyId, canonicalName, visibility)` and
+  `PropertyVisibility{PUBLIC, WITHHELD}`. Two deliberate narrowings: (a) the api **resolves merges**
+  so no consumer ever sees a merged property or has to follow the chain itself — a merged property is
+  an alias, and content should attach to the building that is still real; (b) the api exposes coarse
+  *visibility* rather than the four-state internal lifecycle, so DRAFT/ACTIVE both read as PUBLIC
+  (matching what the public HTTP API already exposes) and the lifecycle stays free to change.
+  Reviews-side `CatalogPropertyLookup` (`@Component`) maps a summary to `PropertyReviewability`;
+  **the policy "withheld properties take no new reviews" lives in reviews, not properties** — that
+  split is the point of the boundary. Gradle: `modules/reviews` now depends on `modules:properties`.
+  Verified that ArchUnit's api-only rule genuinely bites by adding a deliberate `properties.domain`
+  import and watching `modules_should_only_be_reached_through_their_api_package` fail, then reverting.
+  **Defect found in properties, not fixed here:** `Property.mergeInto` never checks its target, so an
+  A→B / B→A cycle is possible; `PropertyCatalogService` caps at 8 hops and throws
+  `UnresolvableMergeChainException` (loud, not a silently dropped review), with a regression test.
+  Guarding the admin merge path is a properties follow-up. 11 unit tests plus a cross-module
+  integration test on real Postgres (`PropertyLookupIntegrationTest`: real property, merged property
+  resolving to the survivor, absent property); `./scripts/check.sh` passes.
 - 2026-07-20: Chunk 3 (application layer) implemented on `feat/005-reviews-chunk3-application`.
   Ports: `ReviewRepository` (by id, the live review for an author+property mirroring the partial
   unique index, create, save, and a cursor-paginated published listing) and the `PropertyLookup`

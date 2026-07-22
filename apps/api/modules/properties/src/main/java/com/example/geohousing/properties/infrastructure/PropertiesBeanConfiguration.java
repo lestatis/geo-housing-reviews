@@ -1,8 +1,10 @@
 package com.example.geohousing.properties.infrastructure;
 
+import com.example.geohousing.properties.api.PropertyCatalog;
 import com.example.geohousing.properties.application.AdminPropertyService;
 import com.example.geohousing.properties.application.DuplicateCandidateFinder;
 import com.example.geohousing.properties.application.PropertyAdminRepository;
+import com.example.geohousing.properties.application.PropertyCatalogService;
 import com.example.geohousing.properties.application.PropertyCreationService;
 import com.example.geohousing.properties.application.PropertyQueryService;
 import com.example.geohousing.properties.application.PropertyRepository;
@@ -34,6 +36,11 @@ public class PropertiesBeanConfiguration {
   @Bean
   PropertyQueryService propertyQueryService(PropertyRepository propertyRepository) {
     return new PropertyQueryService(propertyRepository);
+  }
+
+  @Bean
+  PropertyCatalog propertyCatalog(PropertyRepository propertyRepository) {
+    return new PropertyCatalogService(propertyRepository);
   }
 
   @Bean
