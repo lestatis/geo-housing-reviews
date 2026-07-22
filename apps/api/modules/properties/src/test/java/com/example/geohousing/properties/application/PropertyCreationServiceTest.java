@@ -119,6 +119,11 @@ class PropertyCreationServiceTest {
     }
 
     @Override
+    public List<Property> findRecent(int limit) {
+      return byId.values().stream().limit(limit).toList();
+    }
+
+    @Override
     public void create(Property property) {
       byId.put(property.id(), property);
     }

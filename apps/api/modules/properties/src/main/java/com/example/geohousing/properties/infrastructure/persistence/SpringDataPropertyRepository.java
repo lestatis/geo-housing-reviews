@@ -2,11 +2,16 @@ package com.example.geohousing.properties.infrastructure.persistence;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, UUID> {
+
+  /** Newest-first page of properties. {@code Limit} keeps the bound in the query, not in memory. */
+  @Query("select p from PropertyJpaEntity p order by p.createdAt desc, p.id desc")
+  List<PropertyJpaEntity> findRecent(Limit limit);
 
   /**
    * Deterministic duplicate candidates: a property whose normalized canonical name equals the given

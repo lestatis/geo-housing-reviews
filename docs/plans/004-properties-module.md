@@ -79,6 +79,22 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 6 (public endpoints) implemented on `feat/004-properties-chunk6-endpoints`,
+  branched from `main` after chunk 5 (`10be962`). `PropertyController` exposes `POST /api/properties`
+  (201 + `Location`, or **409 with `candidates`** and code `PROPERTY_DUPLICATE_CANDIDATES` when the
+  chunk-5 finder matches and the caller has not set `allowDuplicate`), `GET /api/properties/{id}`
+  (404 `PROPERTY_NOT_FOUND`, 400 on a malformed id), and a bounded newest-first `GET /api/properties`
+  (`?limit=`, clamped to [1,50] in `PropertyQueryService`). Deliberately **not** cursor-paginated —
+  rich listing/search is the `search` module's job; a cursor arrives when a real feed needs one.
+  **Advice scoping fixed:** `IdentityExceptionHandler` was a *global* `@RestControllerAdvice` and
+  would have answered for properties' controllers (catching their `IllegalArgumentException`, and
+  leaving `PropertyNotFoundException` as a 500); both advices are now scoped to their own module's
+  web package, with a regression test that identity's endpoints still map their own errors. The
+  module took `spring-boot-starter-web` but **no Spring Security dependency** — the caller is read
+  via the JDK `Principal`, keeping security policy in the app. Responses omit `createdBy` (another
+  user's opaque account id); the test asserts it is persisted via the DB instead. No security-config
+  change was needed (`anyRequest().authenticated()` already covers these routes). 7 endpoint tests +
+  a limit-clamping unit test; `./scripts/check.sh` passes (60 app tests, 22 module tests).
 - 2026-07-20: Chunk 5 (duplicate detection + geo) implemented on `feat/004-properties-chunk5-duplicates`,
   branched from `main` after chunk 4 (`995a665`). **ADR-0007**: PostGIS proximity via a native query,
   **no `hibernate-spatial`** — the module plan's tentative dependency was dropped because the only

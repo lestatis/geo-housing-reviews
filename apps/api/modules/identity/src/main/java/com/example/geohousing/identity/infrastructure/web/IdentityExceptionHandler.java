@@ -17,8 +17,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * Maps identity domain exceptions to RFC 7807 Problem Details (see {@code docs/API_GUIDELINES.md}).
  * Each response carries a stable machine-readable {@code code}; none leak stack traces, SQL or
  * internal state. 401 is handled by the resource-server entry point, not here.
+ *
+ * <p>Scoped to this module's web package: it was previously global, which meant it would answer for
+ * other modules' controllers too (e.g. catching their {@code IllegalArgumentException} and
+ * reporting an identity error code). Each module now owns the mapping for its own controllers.
  */
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.example.geohousing.identity.infrastructure.web")
 class IdentityExceptionHandler {
 
   @ExceptionHandler(AccountRestrictedException.class)

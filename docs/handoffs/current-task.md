@@ -3,28 +3,49 @@
 ## Objective
 
 Build the `properties` backend module (plan `docs/plans/004-properties-module.md`): the canonical
-catalogue of reviewable objects. This is chunk 5 (duplicate detection + geo). Identity (plan `002`),
-Swagger/OpenAPI, and properties chunks 1–4 are merged to `main`.
+catalogue of reviewable objects. This is chunk 6 (public endpoints). Identity (plan `002`),
+Swagger/OpenAPI, and properties chunks 1–5 are merged to `main`.
 
 ## Active branch
 
-`feat/004-properties-chunk5-duplicates` (branched from `main` at `995a665`)
+`feat/004-properties-chunk6-endpoints` (branched from `main` at `10be962`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/004-properties-module.md` — this is chunk 5 of 8. ADR-0007 records the geo
-decision.
+No issue. See `docs/plans/004-properties-module.md` — this is chunk 6 of 8.
 
 ## Current status
 
-chunk5_implemented — ready for fresh independent review and merge before chunk 6.
+chunk6_implemented — ready for fresh independent review and merge before chunk 7.
 
 ## Completed work
 
 On `main`: identity complete (ends `068e647`), the Swagger/OpenAPI feature (`6d9096b`), and properties
-chunks 1–4 — schema (`293da3d`), domain (`af8ed3d`), application (`a07a220`), persistence (`995a665`).
+chunks 1–5 — schema (`293da3d`), domain (`af8ed3d`), application (`a07a220`), persistence (`995a665`),
+duplicates + geo (`10be962`).
 
-### Properties chunk 5 — duplicate detection + PostGIS geo (this branch)
+### Properties chunk 6 — public endpoints (this branch)
+
+The module finally has an HTTP surface.
+- `PropertyController` (`/api/properties`): `POST` → 201 + `Location` + `PropertyResponse`, or
+  **409 with `candidates`** (`code: PROPERTY_DUPLICATE_CANDIDATES`) when chunk 5's finder matches and
+  the caller has not set `allowDuplicate` — this is where the duplicate work becomes user-visible.
+  `GET /{id}` → 200 / 404 `PROPERTY_NOT_FOUND` / 400 on a malformed id. `GET` → bounded newest-first
+  list, `?limit=` clamped to [1,50]; **not** cursor-paginated (rich listing/search is the `search`
+  module's job — a cursor arrives when a real feed needs one).
+- **Advice scoping (the flagged follow-up, settled here):** `IdentityExceptionHandler` was a *global*
+  `@RestControllerAdvice`, so it would have answered for properties' controllers — catching their
+  `IllegalArgumentException` and reporting an identity code, while `PropertyNotFoundException` fell
+  through to a 500. Both advices are now scoped to their own module's web package, with a regression
+  test that identity's endpoints still map their own errors.
+- The module took `spring-boot-starter-web` but **no Spring Security dependency**: the caller is read
+  through the JDK `Principal` (whose name is the opaque account id set by identity's JWT converter),
+  keeping security policy in the app.
+- Responses omit `createdBy` (another user's opaque account id); the test asserts it is persisted
+  correctly via the DB instead. No `SecurityConfiguration` change was needed —
+  `anyRequest().authenticated()` already matches the intended policy.
+
+### Properties chunk 5 — duplicate detection + PostGIS geo (merged to `main`)
 
 - **ADR-0007** — PostGIS proximity via a **native query, no `hibernate-spatial`**. The module plan's
   tentative dependency was dropped (confirmed with the founder): proximity filtering is the only need
@@ -96,11 +117,10 @@ to it and pass):
 
 ## Remaining work
 
-Chunks 6–8 (see the plan): public `/api/properties` endpoints — `POST` (where `DuplicatesFound`
-becomes a 409-with-candidates response), `GET /{id}`, list — with an RFC 7807 handler and MockMvc
-end-to-end (6); admin merge/hide/status under `/api/admin/properties/**` with audit (7);
-`properties.api` cross-module contract when `reviews` needs it (8). The application services are now
-wired beans (chunk 5), so chunk 6 just adds the web layer on top.
+Chunks 7–8 (see the plan): admin merge/hide/status under `/api/admin/properties/**` with audit (7) —
+the `Property` aggregate already has `activate`/`hide`/`mergeInto`, but there is **no persisted update
+path yet** (`PropertyRepository` only has `findById`/`findRecent`/`create`), so chunk 7 must add one;
+`properties.api` cross-module contract when `reviews` needs it (8).
 
 Flagged infra follow-up (not in this chunk): enable `-parameters` in the java-conventions build so
 modules can keep named `Clock` (and other) beans without ambiguity — see the note in
@@ -115,14 +135,17 @@ modules can keep named `Clock` (and other) beans without ambiguity — see the n
 - Aggregate persisted as one JPA graph (chunk 4); duplicates are a sealed `PropertyCreationResult`,
   not an exception (chunk 3); `MERGED` terminal; creator is a local `CreatorId(UUID)`.
 
-## Files changed on this branch (chunk 5)
+## Files changed on this branch (chunk 6)
 
-- New: `db/migration/properties/V3.2__add_property_geography.sql`, `docs/adr/0007-postgis-duplicate-detection.md`.
-- New `properties.infrastructure.persistence`: `JpaDuplicateCandidateFinder`, `PropertyCandidateProjection`;
-  edit `SpringDataPropertyRepository` (native `findDuplicateCandidates` query).
-- New `properties.infrastructure`: `PropertiesBeanConfiguration`.
-- New tests: `app/.../properties/PropertyDuplicateDetectionIntegrationTest.java`,
-  `PropertyCreationFlowIntegrationTest.java`.
+- New `properties.infrastructure.web`: `PropertyController`, `CreatePropertyRequest`,
+  `PropertyResponse`, `PropertyListResponse`, `DuplicateCandidatesProblem`,
+  `PropertiesExceptionHandler`, `WebAuthentication`.
+- Edit: `PropertyRepository` + `JpaPropertyRepository` + `SpringDataPropertyRepository`
+  (`findRecent`), `PropertyQueryService` (`listRecent` with clamping),
+  `modules/properties/build.gradle.kts` (`spring-boot-starter-web`),
+  `IdentityExceptionHandler` (**scoped to identity's web package**).
+- Tests: new `app/.../properties/PropertyEndpointIntegrationTest.java`; updated the chunk-3 fakes for
+  the new port method and added a limit-clamping unit test.
 - `docs/plans/004-properties-module.md`, `docs/handoffs/current-task.md`.
 
 New migration (`V3.2`), no new dependency, no app-module change.
@@ -131,44 +154,43 @@ New migration (`V3.2`), no new dependency, no app-module change.
 
 Run on this branch, 2026-07-20:
 
-- `./gradlew :modules:properties:check` — passed.
-- `./gradlew :app:test` (via the full gate) — passed. `PropertyDuplicateDetectionIntegrationTest`
-  (5): normalized-name match, geo proximity within/outside the radius, `MERGED` excluded, empty when
-  nothing matches, generated `geo` populated only when coordinates exist.
-  `PropertyCreationFlowIntegrationTest` (1): wired service → `Created` → `DuplicatesFound` (same name)
-  → `Created` (allowDuplicate). `PropertyPersistenceIntegrationTest` (3) and
-  `PropertiesMigrationIntegrationTest` (5) still green with `V3.2` applied — the geo column is unmapped
-  so `ddl-validate` is unaffected.
-- `./scripts/check.sh` — passed (governance + full Gradle gate; ArchUnit; frontend skipped).
-- `V3.2` was exercised directly against dev Postgres first: the generated `geo` populates from
-  lat/lng (null when absent) and `ST_DWithin` matches within 75 m / not beyond.
+- `./gradlew :modules:properties:check` — passed (22 module tests, incl. a new limit-clamping test).
+- `./gradlew :app:test` — passed, **60 app tests, 0 failures**, incl. ArchUnit.
+  `PropertyEndpointIntegrationTest` (7): anonymous → 401; create → 201 + `Location` + DRAFT with
+  `created_by` persisted as the caller (asserted via `JdbcTemplate`, since the response omits it);
+  a second same-name create → 409 `PROPERTY_DUPLICATE_CANDIDATES` containing the first property;
+  `allowDuplicate=true` → 201; blank name → 400 `INVALID_REQUEST` (proving the *properties* advice
+  handles it); `GET /{id}` 200 / unknown 404 / malformed 400; list respects `?limit=`; and a
+  regression that identity's endpoints still return their own mapped errors after the advice scoping.
+- `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped).
 
 ## Known failures
 
-None. (Two were caught and fixed during the run: a `Clock`-bean ambiguity — see the chunk-5 note —
-and a test that pointed `merged_into_property_id` at a non-existent id, violating the FK; it now
-merges into a real target.)
+None. (One was caught during the run: adding `findRecent` to the `PropertyRepository` port broke the
+chunk-3 unit-test fakes, which did not implement it; fixed and used as an opportunity to cover the
+new limit clamping.)
 
 ## Risks and unresolved questions
 
-- `-parameters` is not enabled in the convention build, so modules can't safely expose more than one
-  bean of the same type resolved by name (surfaced by the second `Clock` bean). Worth enabling
-  globally as a small follow-up.
-- The finder matches name + geo only; address-component matching (same street/building) is a
-  documented later refinement. `DuplicateCandidate` may gain distance/score additively.
+- The list endpoint is intentionally un-paginated beyond a capped `limit`. Revisit when the `search`
+  module or a real feed needs cursors.
+- `-parameters` is still not enabled in the convention build (see `PropertiesBeanConfiguration`);
+  worth enabling globally so modules can expose same-typed beans resolved by name.
+- Chunk 7 needs a persisted **update** path — the aggregate can `activate`/`hide`/`mergeInto` in
+  memory, but `PropertyRepository` has no `save`/`update`, only `create`.
 
 ## Human actions required
 
-Review and merge `feat/004-properties-chunk5-duplicates` after a fresh independent review
-(implemented by Claude Code; review must be a fresh independent pass — the native SQL query, ADR-0007,
-and the `V3.2` generated column are the parts worth a close look). The branch is local and not pushed;
-there is no credential path to push from this environment.
+Review and merge `feat/004-properties-chunk6-endpoints` after a fresh independent review (implemented
+by Claude Code; review must be a fresh independent pass — the public API shape, the 409-with-candidates
+contract, and the cross-module advice-scoping change are the parts worth close attention). The branch
+is local and not pushed; there is no credential path to push from this environment.
 
 ## Recommended next action
 
-Independent review of chunk 5, then merge to `main`. Chunk 6 (public `/api/properties` endpoints:
-create with 409-and-candidates, get, list; RFC 7807; MockMvc) branches from `main` after that — it
-touches public API + authorization, so it gets its own plan-mode pass.
+Independent review of chunk 6, then merge to `main`. Chunk 7 (admin merge/hide/status with audit)
+branches from `main` after that — it touches authorization and admin mutations, so it gets its own
+plan-mode pass, and must add the missing persisted update path.
 
 ## Last updated
 
