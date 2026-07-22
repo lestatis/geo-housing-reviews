@@ -1,6 +1,6 @@
 # Properties Module: Catalogue, Aliases, Addresses, Duplicates, Merge
 
-Status: Active
+Status: Complete (7/8; chunk 8 moved to plan 005)
 Owner: Claude Code
 Related issue: none (direct founder request; follows the completed identity module, plan 002)
 Last updated: 2026-07-15
@@ -170,4 +170,18 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Final outcome
 
-Not yet complete.
+**Complete at 7 of 8 chunks** (chunks 1–7 merged to `main`, ending at `34d7144`). The module owns a
+canonical catalogue that can be created with deterministic duplicate detection, read over HTTP,
+and administered (activate / hide / merge) with optimistic concurrency and an append-only audit
+trail. Every acceptance criterion is met except the last.
+
+**Chunk 8 (`properties.api`) is intentionally not built here.** ARCHITECTURE requires a concrete
+consumer before a cross-module abstraction exists, and there was none — exactly the reasoning that
+kept `identity.api` an empty stub. The consumer arrived with the `reviews` module, so the contract is
+built there, against a real caller: see `docs/plans/005-reviews-module.md` chunk 4.
+
+Deferred, recorded in the handoffs rather than silently dropped: editing a property's
+name/address/aliases (the lifecycle update path covers status only); auditing *rejected* admin
+attempts; un-hide (`HIDDEN`→`ACTIVE`); address-component duplicate matching; cursor pagination for the
+catalogue list (the `search` module's concern); and enabling `-parameters` in the convention build so
+modules can expose same-typed beans resolved by name.
