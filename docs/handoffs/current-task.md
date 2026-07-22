@@ -4,19 +4,19 @@
 
 Build the `reviews` backend module (plan `docs/plans/005-reviews-module.md`): structured reviews of a
 property with immutable content versions, category ratings, a publication lifecycle, and a
-verified/unverified experience signal. This is chunk 4 (properties.api + adapter).
+verified/unverified experience signal. This is chunk 5 (persistence).
 
 ## Active branch
 
-`feat/005-reviews-chunk4-property-lookup` (branched from `main` at `0ee9f75`)
+`feat/005-reviews-chunk5-persistence` (branched from `main` at `6b34ff4`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/005-reviews-module.md` — this is chunk 4 of 8. It also closes plan 004 chunk 8.
+No issue. See `docs/plans/005-reviews-module.md` — this is chunk 5 of 8.
 
 ## Current status
 
-chunk4_implemented — ready for fresh independent review and merge before chunk 5.
+chunk5_implemented — ready for fresh independent review and merge before chunk 6.
 
 ## Completed work
 
@@ -31,7 +31,33 @@ abstraction exists (the same reasoning that kept `identity.api` an empty stub). 
 reviews module, so the contract is built in plan `005` chunk 4, against a real caller. Deferred
 properties items are listed in that plan's Final outcome rather than dropped.
 
-### Reviews chunk 4 — properties.api + adapter (this branch)
+### Reviews chunk 5 — persistence (this branch)
+
+JPA for the review/version/rating graph, plus `V4.2` and the module's Spring wiring.
+
+- `V4.2__defer_review_current_version_fk.sql` makes `review_current_version_fkey` DEFERRABLE
+  INITIALLY DEFERRED. The review and its versions reference each other, so one FK must be checked at
+  commit. The alternative — insert, flush, then UPDATE `current_version_id` — would bump the
+  optimistic-lock version and make a new review look stale to its own creator.
+- `JpaReviewRepository.save` loads the stored entity and applies changes to it instead of merging a
+  detached copy, and `requireAppendOnly` refuses any write that would rewrite or drop a stored
+  content version. Immutable content is a moderation guarantee; the adapter should not be where it
+  quietly breaks.
+- Listing is keyset pagination in two steps: page ids with the limit in SQL, then fetch-join versions
+  for those ids. A collection fetch join with a limit is paged *in memory* by Hibernate. Ratings use
+  `@BatchSize` rather than a second bag fetch.
+- Services wired in `ReviewsBeanConfiguration`; app `@EntityScan`/`@EnableJpaRepositories` extended.
+
+**Points a reviewer should push on:**
+- Was deferring the FK the right call versus the two-step write? (The optimistic-lock argument is the
+  deciding one.)
+- `requireAppendOnly` throws `IllegalStateException` — is a programming-error signal right, or should
+  it be a domain exception?
+- **Known limitation:** the listing loads *every* version of every review, because
+  `Review.reconstitute` enforces sequential numbering and would reject a partial load. Fine at MVP
+  volumes; the fix is a dedicated read model when ranking needs one.
+
+### Reviews chunk 4 — properties.api + adapter (merged to `main`)
 
 The first cross-module call in the codebase; closes plan 004 chunk 8.
 
@@ -118,7 +144,7 @@ Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it 
 
 ## Remaining work
 
-Chunks 5–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
+Chunks 6–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
 outbound port (3); **`properties.api` + adapter — the first cross-module call, closing plan 004's
 chunk 8** (4); persistence (5); public endpoints with cursor pagination (6); moderation-state
 transitions + audit, `V4.2` (7); helpful signals/ranking inputs, likely deferred (8).

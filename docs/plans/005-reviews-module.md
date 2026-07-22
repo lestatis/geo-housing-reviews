@@ -79,6 +79,30 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-22: Chunk 5 (persistence) implemented on `feat/005-reviews-chunk5-persistence`. JPA for the
+  review/version/rating graph: `ReviewJpaEntity` with cascaded unidirectional `@OneToMany`s
+  (`review_id`, `review_version_id`), `@Version` optimistic locking, and `property_id` /
+  `author_account_id` as plain UUID columns rather than associations.
+  **`V4.2__defer_review_current_version_fk.sql`** — the review and its versions reference each other,
+  so one FK has to be checked at commit; deferring `review_current_version_fkey` lets one flush write
+  the whole aggregate. Without it the adapter would have to insert, flush, then UPDATE
+  `current_version_id`, and that second UPDATE would bump the optimistic-lock version so a freshly
+  created review would look stale to its own creator. Verified against a scratch Postgres before
+  writing any Java: the circular insert is accepted, a dangling `current_version_id` still fails at
+  the deferred check, and `review_version.review_id` stays immediate.
+  `JpaReviewRepository.save` loads the stored entity and *applies* the aggregate's changes rather
+  than merging a detached copy, with a `requireAppendOnly` guard asserting that stored versions are
+  never rewritten or dropped — content immutability is a moderation guarantee, so the adapter
+  refuses to be the place it breaks. Listing uses keyset pagination in two steps (page the ids with
+  the limit in SQL, then fetch-join versions for those ids) because Hibernate pages a collection
+  fetch join in memory; ratings use `@BatchSize` instead of a second bag fetch. Services are now
+  wired (`ReviewsBeanConfiguration`), and `reviews.infrastructure.persistence` is added to the app's
+  `@EntityScan`/`@EnableJpaRepositories`. **Known limitation:** the listing loads every version of
+  every review because `Review.reconstitute` enforces sequential numbering, so a partial load would
+  fail its own invariant; a read model for listings is the right fix once ranking needs one.
+  9 persistence integration tests + 1 migration test on real Postgres (round-trip, edit appends,
+  stale write refused, the partial unique index as backstop, rejected review frees the slot, paging
+  including same-instant ties); `./scripts/check.sh` passes.
 - 2026-07-22: Chunk 4 (`properties.api` + adapter) implemented on
   `feat/005-reviews-chunk4-property-lookup`. **This closes plan 004 chunk 8** and is the first
   cross-module call in the codebase. Published contract (properties module): `PropertyCatalog` with a

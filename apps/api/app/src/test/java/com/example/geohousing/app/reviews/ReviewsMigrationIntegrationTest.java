@@ -37,6 +37,37 @@ class ReviewsMigrationIntegrationTest {
   }
 
   @Test
+  void theCurrentVersionForeignKeyIsDeferredButStillEnforced() {
+    Integer applied =
+        jdbcTemplate.queryForObject(
+            "select count(*) from flyway_schema_history where version = '4.2' and success = true",
+            Integer.class);
+    assertThat(applied).isEqualTo(1);
+
+    // Deferred, so one transaction can write a review and the version it points at in either order.
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select condeferrable and condeferred from pg_constraint"
+                    + " where conname = 'review_current_version_fkey'",
+                Boolean.class))
+        .isTrue();
+
+    // Still a real constraint: a dangling current_version_id fails when the check is made.
+    assertThatThrownBy(
+            () ->
+                jdbcTemplate.execute(
+                    "begin;"
+                        + " insert into reviews.review"
+                        + " (property_id, author_account_id, relationship_type, status,"
+                        + "  current_version_id)"
+                        + " values (gen_random_uuid(), gen_random_uuid(), 'OWNER', 'DRAFT',"
+                        + "         gen_random_uuid());"
+                        + " set constraints reviews.review_current_version_fkey immediate;"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    jdbcTemplate.execute("rollback");
+  }
+
+  @Test
   void reviewTablesExist() {
     for (String table : new String[] {"review", "review_version", "category_rating"}) {
       Integer count =
