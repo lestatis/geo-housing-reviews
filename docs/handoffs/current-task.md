@@ -4,19 +4,19 @@
 
 Build the `reviews` backend module (plan `docs/plans/005-reviews-module.md`): structured reviews of a
 property with immutable content versions, category ratings, a publication lifecycle, and a
-verified/unverified experience signal. This is chunk 1 (foundation + schema).
+verified/unverified experience signal. This is chunk 2 (domain model).
 
 ## Active branch
 
-`feat/005-reviews-chunk1-foundation` (branched from `main` at `34d7144`)
+`feat/005-reviews-chunk2-domain` (branched from `main` at `8142f88`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/005-reviews-module.md` — this is chunk 1 of 8.
+No issue. See `docs/plans/005-reviews-module.md` — this is chunk 2 of 8.
 
 ## Current status
 
-chunk1_implemented — ready for fresh independent review and merge before chunk 2.
+chunk2_implemented — ready for fresh independent review and merge before chunk 3.
 
 ## Completed work
 
@@ -31,7 +31,26 @@ abstraction exists (the same reasoning that kept `identity.api` an empty stub). 
 reviews module, so the contract is built in plan `005` chunk 4, against a real caller. Deferred
 properties items are listed in that plan's Final outcome rather than dropped.
 
-### Reviews chunk 1 — foundation + schema (this branch)
+### Reviews chunk 2 — domain model (this branch)
+
+Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it and pass):
+- Opaque references: `AuthorId` (identity account) and `PropertyRef` (properties module) — no
+  cross-module type or table dependency; the property's reviewability is checked via `properties.api`
+  in chunk 4.
+- The `Review` aggregate holds its immutable `ReviewVersion`s (aggregate-assigned sequential
+  numbers; the current version is the last). State machine: DRAFT → PENDING_MODERATION (submit;
+  empty drafts cannot be submitted) → PUBLISHED / REJECTED(terminal); PUBLISHED ⇄ HIDDEN; any live →
+  REMOVED(terminal). Terminal states reject all mutation, matching the one-live-review index.
+- **Two domain decisions to check in review:** editing a PUBLISHED review returns it to
+  PENDING_MODERATION (pre-publication moderation is the MVP default, MODERATION.md), and
+  `publishedAt` keeps the *first* publication time across re-moderation. Both are documented on the
+  aggregate.
+- The domain is stricter than the schema in one place: every version after the first must state an
+  `editReason` (the schema allows null).
+- `VerificationTier` (UNVERIFIED / RELATIONSHIP_SIGNAL / DOCUMENT_VERIFIED) is a mutable projection
+  updated via `updateVerificationTier`; it never claims the review's statements are true.
+
+### Reviews chunk 1 — foundation + schema (merged to `main`)
 
 - `modules/reviews/build.gradle.kts`: Spring Boot BOM + `spring-boot-starter-data-jpa` + `assertj`
   (web deferred to chunk 6), matching how properties started.
@@ -53,7 +72,7 @@ properties items are listed in that plan's Final outcome rather than dropped.
 
 ## Remaining work
 
-Chunks 2–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
+Chunks 3–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
 outbound port (3); **`properties.api` + adapter — the first cross-module call, closing plan 004's
 chunk 8** (4); persistence (5); public endpoints with cursor pagination (6); moderation-state
 transitions + audit, `V4.2` (7); helpful signals/ranking inputs, likely deferred (8).

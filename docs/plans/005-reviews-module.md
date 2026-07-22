@@ -79,6 +79,24 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 2 (domain model) implemented on `feat/005-reviews-chunk2-domain`, branched from
+  `main` after chunk 1 (`8142f88`). Framework-free `reviews.domain`: `ReviewId`, `AuthorId` and
+  `PropertyRef` (opaque cross-module references — no identity/properties dependency),
+  `RelationshipType` / `ReviewStatus` / `VerificationTier` / `Recommendation` enums,
+  `ResidencePeriod` and `CategoryRating` value objects, the immutable `ReviewVersion` record
+  (aggregate-assigned sequential numbering, non-blank body, unique categories), and the `Review`
+  aggregate. State machine: DRAFT → PENDING_MODERATION (submit; an empty draft cannot be submitted)
+  → PUBLISHED (publish) / REJECTED (terminal); PUBLISHED ⇄ HIDDEN (hide/restore); any live state →
+  REMOVED (terminal). Terminal reviews reject all mutation — the author starts fresh, matching the
+  partial unique index. Two domain decisions worth flagging for review: **editing a published review
+  sends it back to PENDING_MODERATION** (pre-publication moderation is the MVP default per
+  MODERATION.md, so changed content is re-checked before being public again), and **`publishedAt`
+  preserves the first publication time** across re-moderation cycles. The verification tier is a
+  mutable projection (`updateVerificationTier`), defaulting to UNVERIFIED. Invariants mirror `V4.1`
+  (PUBLISHED requires `publishedAt`; sequential version numbers) and are enforced in `create` and
+  `reconstitute`. The domain layer is stricter than the schema in one place: every version after the
+  first must state an edit reason. ArchUnit's domain-purity rules now run against `reviews.domain`
+  and pass. 17 unit tests; `./scripts/check.sh` passes.
 - 2026-07-20: Plan approved (plan mode; new module, migrations, public API). Two product decisions
   confirmed with the founder: one live review per author per property (edits append versions), and the
   four-value relationship vocabulary. Chunk 1 implemented on `feat/005-reviews-chunk1-foundation`:
