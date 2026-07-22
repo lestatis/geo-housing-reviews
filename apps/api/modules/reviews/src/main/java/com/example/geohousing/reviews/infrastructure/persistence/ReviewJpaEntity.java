@@ -3,34 +3,27 @@ package com.example.geohousing.reviews.infrastructure.persistence;
 import com.example.geohousing.reviews.domain.RelationshipType;
 import com.example.geohousing.reviews.domain.ReviewStatus;
 import com.example.geohousing.reviews.domain.VerificationTier;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 /**
- * The review aggregate root. Its content versions are a cascaded unidirectional {@code @OneToMany}
- * keyed by {@code review_id}, so saving the root writes the whole graph in one transaction.
+ * The review aggregate root's own row. Content versions are separate {@link ReviewVersionJpaEntity}
+ * rows written explicitly by the adapter, not a mapped collection: the aggregate carries only its
+ * current version, and mapping the whole history here would drag every edit into every read.
  *
  * <p>{@code property_id} and {@code author_account_id} are plain UUID columns, not associations:
- * they point into other modules, which own their own tables.
- *
- * <p>{@code current_version_id} is likewise a plain column rather than a {@code @OneToOne}. The
- * review and its versions reference each other, so one of the two foreign keys has to be checked at
- * commit rather than at insert; {@code V4.2} defers this one, which lets the whole graph be written
- * in a single flush without a follow-up UPDATE that would bump the optimistic-lock version.
+ * they point into other modules, which own their own tables. {@code current_version_id} is a plain
+ * column too — its foreign key is deferred ({@code V4.2}) because the review and its versions
+ * reference each other, so the review row can be inserted first and the version row it points at
+ * can follow inside the same transaction.
  */
 @Entity
 @Table(schema = "reviews", name = "review")
@@ -76,11 +69,6 @@ class ReviewJpaEntity {
 
   @Version private long version;
 
-  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-  @JoinColumn(name = "review_id", nullable = false)
-  @OrderBy("versionNumber")
-  private List<ReviewVersionJpaEntity> versions = new ArrayList<>();
-
   protected ReviewJpaEntity() {
     // for JPA
   }
@@ -98,8 +86,7 @@ class ReviewJpaEntity {
       Instant publishedAt,
       Instant createdAt,
       Instant updatedAt,
-      long version,
-      List<ReviewVersionJpaEntity> versions) {
+      long version) {
     this.id = id;
     this.propertyId = propertyId;
     this.authorAccountId = authorAccountId;
@@ -113,7 +100,6 @@ class ReviewJpaEntity {
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.version = version;
-    this.versions = new ArrayList<>(versions);
   }
 
   UUID id() {
@@ -144,6 +130,10 @@ class ReviewJpaEntity {
     return status;
   }
 
+  UUID currentVersionId() {
+    return currentVersionId;
+  }
+
   VerificationTier verificationTier() {
     return verificationTier;
   }
@@ -164,24 +154,17 @@ class ReviewJpaEntity {
     return version;
   }
 
-  List<ReviewVersionJpaEntity> versions() {
-    return versions;
-  }
-
-  /** Applies a mutated aggregate's lifecycle fields; content is appended, never rewritten. */
+  /** Applies a mutated aggregate's lifecycle fields; content rows are appended, never rewritten. */
   void apply(
       ReviewStatus newStatus,
       VerificationTier newVerificationTier,
+      UUID newCurrentVersionId,
       Instant newPublishedAt,
-      Instant newUpdatedAt,
-      List<ReviewVersionJpaEntity> appendedVersions) {
+      Instant newUpdatedAt) {
     this.status = newStatus;
     this.verificationTier = newVerificationTier;
+    this.currentVersionId = newCurrentVersionId;
     this.publishedAt = newPublishedAt;
     this.updatedAt = newUpdatedAt;
-    this.versions.addAll(appendedVersions);
-    if (!this.versions.isEmpty()) {
-      this.currentVersionId = this.versions.get(this.versions.size() - 1).id();
-    }
   }
 }

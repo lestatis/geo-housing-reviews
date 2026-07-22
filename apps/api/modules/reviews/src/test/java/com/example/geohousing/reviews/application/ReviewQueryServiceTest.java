@@ -27,7 +27,7 @@ class ReviewQueryServiceTest {
   private final InMemoryReviewRepository repository = new InMemoryReviewRepository();
   private final ReviewQueryService service = new ReviewQueryService(repository);
 
-  private Review store(AuthorId author, PropertyRef property, Instant at) {
+  private Review storePending(AuthorId author, PropertyRef property, Instant at) {
     Clock clock = Clock.fixed(at, ZoneOffset.UTC);
     Review review =
         Review.create(
@@ -44,8 +44,9 @@ class ReviewQueryServiceTest {
   }
 
   private Review storePublished(AuthorId author, PropertyRef property, Instant publishedAt) {
-    Review review = store(author, property, publishedAt);
+    Review review = storePending(author, property, publishedAt);
     review.publish(Clock.fixed(publishedAt, ZoneOffset.UTC));
+    repository.save(review);
     return review;
   }
 
@@ -53,16 +54,18 @@ class ReviewQueryServiceTest {
   void aPublishedReviewIsVisibleToAnyone() {
     Review review = storePublished(AUTHOR, PROPERTY, BASE);
 
-    assertThat(service.getById(review.id(), ReviewViewer.anonymous())).isSameAs(review);
-    assertThat(service.getById(review.id(), ReviewViewer.user(STRANGER))).isSameAs(review);
+    assertThat(service.getById(review.id(), ReviewViewer.anonymous()).id()).isEqualTo(review.id());
+    assertThat(service.getById(review.id(), ReviewViewer.user(STRANGER)).id())
+        .isEqualTo(review.id());
   }
 
   @Test
   void aReviewAwaitingModerationIsVisibleOnlyToItsAuthorAndModerators() {
-    Review review = store(AUTHOR, PROPERTY, BASE);
+    Review review = storePending(AUTHOR, PROPERTY, BASE);
 
-    assertThat(service.getById(review.id(), ReviewViewer.user(AUTHOR))).isSameAs(review);
-    assertThat(service.getById(review.id(), ReviewViewer.moderator(STRANGER))).isSameAs(review);
+    assertThat(service.getById(review.id(), ReviewViewer.user(AUTHOR)).id()).isEqualTo(review.id());
+    assertThat(service.getById(review.id(), ReviewViewer.moderator(STRANGER)).id())
+        .isEqualTo(review.id());
     assertThatThrownBy(() -> service.getById(review.id(), ReviewViewer.user(STRANGER)))
         .isInstanceOf(ReviewNotFoundException.class);
     assertThatThrownBy(() -> service.getById(review.id(), ReviewViewer.anonymous()))
@@ -73,9 +76,11 @@ class ReviewQueryServiceTest {
   void aHiddenReviewDisappearsForEveryoneButItsAuthorAndModerators() {
     Review review = storePublished(AUTHOR, PROPERTY, BASE);
     review.hide(Clock.fixed(BASE, ZoneOffset.UTC));
+    repository.save(review);
 
-    assertThat(service.getById(review.id(), ReviewViewer.user(AUTHOR))).isSameAs(review);
-    assertThat(service.getById(review.id(), ReviewViewer.moderator(STRANGER))).isSameAs(review);
+    assertThat(service.getById(review.id(), ReviewViewer.user(AUTHOR)).id()).isEqualTo(review.id());
+    assertThat(service.getById(review.id(), ReviewViewer.moderator(STRANGER)).id())
+        .isEqualTo(review.id());
     assertThatThrownBy(() -> service.getById(review.id(), ReviewViewer.anonymous()))
         .isInstanceOf(ReviewNotFoundException.class);
   }
@@ -90,11 +95,11 @@ class ReviewQueryServiceTest {
   @Test
   void thePublicListingCarriesOnlyPublishedReviewsEvenForAModerator() {
     Review published = storePublished(AUTHOR, PROPERTY, BASE);
-    store(STRANGER, PROPERTY, BASE); // still awaiting moderation
+    storePending(STRANGER, PROPERTY, BASE); // still awaiting moderation
 
     ReviewPage page = service.listPublished(PROPERTY, null, null);
 
-    assertThat(page.reviews()).containsExactly(published);
+    assertThat(page.reviews()).extracting(Review::id).containsExactly(published.id());
     assertThat(page.next()).isEmpty();
   }
 
@@ -103,7 +108,9 @@ class ReviewQueryServiceTest {
     Review here = storePublished(AUTHOR, PROPERTY, BASE);
     storePublished(AUTHOR, PropertyRef.of(UUID.randomUUID()), BASE);
 
-    assertThat(service.listPublished(PROPERTY, null, null).reviews()).containsExactly(here);
+    assertThat(service.listPublished(PROPERTY, null, null).reviews())
+        .extracting(Review::id)
+        .containsExactly(here.id());
   }
 
   @Test
@@ -113,11 +120,11 @@ class ReviewQueryServiceTest {
     Review newest = storePublished(AuthorId.of(UUID.randomUUID()), PROPERTY, BASE.plusSeconds(120));
 
     ReviewPage first = service.listPublished(PROPERTY, null, 2);
-    assertThat(first.reviews()).containsExactly(newest, middle);
+    assertThat(first.reviews()).extracting(Review::id).containsExactly(newest.id(), middle.id());
     assertThat(first.next()).isPresent();
 
     ReviewPage second = service.listPublished(PROPERTY, first.nextCursor(), 2);
-    assertThat(second.reviews()).containsExactly(oldest);
+    assertThat(second.reviews()).extracting(Review::id).containsExactly(oldest.id());
     assertThat(second.next()).isEmpty();
   }
 

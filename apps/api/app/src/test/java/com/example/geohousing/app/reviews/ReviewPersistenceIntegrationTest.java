@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -38,6 +39,10 @@ import org.testcontainers.utility.DockerImageName;
  * The review aggregate against a real database. Because the application boots with {@code
  * ddl-auto=validate}, every mapping here is checked against the migrated schema before a single
  * assertion runs.
+ *
+ * <p>The aggregate carries only its current version, so the append-only edit trail — a moderation
+ * guarantee about stored data — is asserted where it lives: in the {@code reviews.review_version}
+ * rows, via SQL.
  */
 @Testcontainers
 @SpringBootTest
@@ -52,6 +57,7 @@ class ReviewPersistenceIntegrationTest {
           DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
 
   @Autowired private ReviewRepository reviews;
+  @Autowired private JdbcTemplate jdbcTemplate;
 
   private static Review draft(PropertyRef property, AuthorId author, Clock clock) {
     return Review.create(
@@ -85,6 +91,14 @@ class ReviewPersistenceIntegrationTest {
     review.publish(clock);
     reviews.create(review);
     return review;
+  }
+
+  private List<String> storedTrail(ReviewId reviewId) {
+    return jdbcTemplate.queryForList(
+        "select version_number || ':' || body from reviews.review_version"
+            + " where review_id = ? order by version_number",
+        String.class,
+        reviewId.value());
   }
 
   @Test
@@ -121,27 +135,33 @@ class ReviewPersistenceIntegrationTest {
   }
 
   @Test
-  void anEditAppendsAVersionAndLeavesTheEarlierOneUntouched() {
+  void anEditAppendsAVersionRowAndLeavesTheEarlierOneUntouched() {
     Review review =
         storePublished(
             PropertyRef.of(UUID.randomUUID()), AuthorId.of(UUID.randomUUID()), CREATED_AT);
     Review loaded = reviews.findById(review.id()).orElseThrow();
-    ReviewVersion original = loaded.currentVersion().orElseThrow();
+    UUID originalVersionId = loaded.currentVersion().orElseThrow().id();
 
     Clock later = Clock.fixed(CREATED_AT.plusSeconds(3600), ZoneOffset.UTC);
     addContent(loaded, "განახლებული აღწერა", "დავაზუსტე დეტალები", later);
     reviews.save(loaded);
 
     Review reloaded = reviews.findById(review.id()).orElseThrow();
-    assertThat(reloaded.versions()).hasSize(2);
-    assertThat(reloaded.versions().get(0).id()).isEqualTo(original.id());
-    assertThat(reloaded.versions().get(0).body()).isEqualTo(original.body());
     assertThat(reloaded.currentVersion().orElseThrow().versionNumber()).isEqualTo(2);
     assertThat(reloaded.currentVersion().orElseThrow().editReason())
         .isEqualTo("დავაზუსტე დეტალები");
     // Editing a published review sends it back for re-moderation, but keeps the first publication.
     assertThat(reloaded.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
     assertThat(reloaded.publishedAt()).contains(CREATED_AT);
+
+    // The trail in the store: both versions, the first byte-for-byte as written.
+    assertThat(storedTrail(review.id())).containsExactly("1:კარგი შენობა", "2:განახლებული აღწერა");
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select id from reviews.review_version where review_id = ? and version_number = 1",
+                UUID.class,
+                review.id().value()))
+        .isEqualTo(originalVersionId);
   }
 
   @Test
@@ -162,8 +182,54 @@ class ReviewPersistenceIntegrationTest {
         .isInstanceOf(ReviewVersionConflictException.class);
 
     Review reloaded = reviews.findById(review.id()).orElseThrow();
-    assertThat(reloaded.versions()).hasSize(2);
     assertThat(reloaded.currentVersion().orElseThrow().editReason()).isEqualTo("first");
+    assertThat(storedTrail(review.id())).hasSize(2);
+  }
+
+  @Test
+  void aDoctoredAggregateCannotRewriteOrSkipStoredHistory() {
+    Review review =
+        storePublished(
+            PropertyRef.of(UUID.randomUUID()), AuthorId.of(UUID.randomUUID()), CREATED_AT);
+    Review loaded = reviews.findById(review.id()).orElseThrow();
+
+    // Same version number, different content — an attempt to rewrite history in place. (Spring's
+    // @Repository exception translation wraps the adapter's IllegalStateException; the loud
+    // refusal and its reason are the contract, not the wrapper type.)
+    Review rewrite = withDoctoredVersion(loaded, 1);
+    assertThatThrownBy(() -> reviews.save(rewrite)).hasMessageContaining("rewritten");
+
+    // A number that skips ahead — history the store never saw.
+    Review skip = withDoctoredVersion(loaded, 5);
+    assertThatThrownBy(() -> reviews.save(skip)).hasMessageContaining("skip");
+
+    assertThat(storedTrail(review.id())).containsExactly("1:კარგი შენობა");
+  }
+
+  private static Review withDoctoredVersion(Review base, int versionNumber) {
+    return Review.reconstitute(
+        base.id(),
+        base.propertyRef(),
+        base.authorId(),
+        base.relationshipType(),
+        base.residencePeriod().orElse(null),
+        base.status(),
+        new ReviewVersion(
+            UUID.randomUUID(),
+            versionNumber,
+            "ka",
+            "გაყალბებული",
+            null,
+            null,
+            Recommendation.NEUTRAL,
+            List.of(),
+            versionNumber == 1 ? null : "forged",
+            CREATED_AT),
+        base.verificationTier(),
+        base.publishedAt().orElse(null),
+        base.createdAt(),
+        base.updatedAt(),
+        base.version());
   }
 
   @Test
@@ -233,6 +299,9 @@ class ReviewPersistenceIntegrationTest {
 
     ReviewPage first = reviews.findPublishedByProperty(property, null, 2);
     assertThat(first.reviews()).extracting(Review::id).containsExactly(newest.id(), middle.id());
+    // The listing carries each review's current content.
+    assertThat(first.reviews().get(0).currentVersion().orElseThrow().body())
+        .isEqualTo("კარგი შენობა");
     assertThat(first.next()).isPresent();
 
     ReviewCursor cursor = first.nextCursor();

@@ -19,13 +19,17 @@ import org.hibernate.annotations.BatchSize;
 /**
  * One immutable content version of a review, with its category ratings as a cascaded unidirectional
  * {@code @OneToMany}. Nothing here is ever updated after it is written — an edit appends another
- * version.
+ * version. The adapter writes these rows explicitly ({@code review_id} is a plain column, not a
+ * mapped association), because the aggregate carries only its current version.
  */
 @Entity
 @Table(schema = "reviews", name = "review_version")
 class ReviewVersionJpaEntity {
 
   @Id private UUID id;
+
+  @Column(name = "review_id", nullable = false)
+  private UUID reviewId;
 
   @Column(name = "version_number", nullable = false)
   private int versionNumber;
@@ -66,6 +70,7 @@ class ReviewVersionJpaEntity {
 
   ReviewVersionJpaEntity(
       UUID id,
+      UUID reviewId,
       int versionNumber,
       String locale,
       String body,
@@ -76,6 +81,7 @@ class ReviewVersionJpaEntity {
       Instant createdAt,
       List<CategoryRatingJpaEntity> ratings) {
     this.id = id;
+    this.reviewId = reviewId;
     this.versionNumber = versionNumber;
     this.locale = locale;
     this.body = body;

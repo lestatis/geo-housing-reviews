@@ -57,11 +57,4 @@ interface SpringDataReviewRepository extends JpaRepository<ReviewJpaEntity, UUID
       @Param("cursorPublishedAt") Instant cursorPublishedAt,
       @Param("cursorId") UUID cursorId,
       Limit limit);
-
-  /**
-   * Loads whole aggregates for an already-paged set of ids. The versions are fetch-joined because
-   * every one of them is needed to rebuild the aggregate; the ratings underneath are batched.
-   */
-  @Query("select distinct r from ReviewJpaEntity r left join fetch r.versions where r.id in :ids")
-  List<ReviewJpaEntity> findAllWithVersions(@Param("ids") List<UUID> ids);
 }

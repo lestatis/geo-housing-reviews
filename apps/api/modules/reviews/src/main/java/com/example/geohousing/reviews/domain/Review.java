@@ -2,7 +2,6 @@ package com.example.geohousing.reviews.domain;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -12,11 +11,20 @@ import java.util.UUID;
  * A structured review of a property (see {@code docs/DOMAIN_MODEL.md} Review context).
  *
  * <p>Content lives in immutable {@link ReviewVersion}s: an edit appends a version rather than
- * changing one, so the edit trail survives for moderation. The publication state machine is {@code
- * DRAFT → PENDING_MODERATION → PUBLISHED}, with {@code PUBLISHED ⇄ HIDDEN} for temporary withdrawal
- * and two terminal states — {@code REJECTED} (from moderation) and {@code REMOVED}. A terminal
- * review rejects all further mutation; the author starts a fresh review instead (the
- * one-live-review index excludes terminal states).
+ * changing one, so the edit trail survives for moderation. The aggregate holds only the <em>current
+ * version</em> — the full history is stored data, not domain state: no state-machine decision ever
+ * consults an old version, and loading a page of reviews must not drag every edit ever made along
+ * with it. Reading the trail is a moderation read path against the store.
+ *
+ * <p>Version numbers stay dense (1, 2, 3…) through two guards: the aggregate numbers each appended
+ * version from the current one and allows <em>one</em> append per loaded instance, and the
+ * persistence adapter refuses any save whose version number does not follow directly from the
+ * stored one.
+ *
+ * <p>The publication state machine is {@code DRAFT → PENDING_MODERATION → PUBLISHED}, with {@code
+ * PUBLISHED ⇄ HIDDEN} for temporary withdrawal and two terminal states — {@code REJECTED} (from
+ * moderation) and {@code REMOVED}. A terminal review rejects all further mutation; the author
+ * starts a fresh review instead (the one-live-review index excludes terminal states).
  *
  * <p>Editing a published review sends it back to {@code PENDING_MODERATION}: pre-publication
  * moderation is the MVP default (docs/MODERATION.md), so changed content is re-checked before it is
@@ -34,12 +42,13 @@ public final class Review {
   private final RelationshipType relationshipType;
   private final ResidencePeriod residencePeriod;
   private ReviewStatus status;
-  private final List<ReviewVersion> versions;
+  private ReviewVersion currentVersion;
   private VerificationTier verificationTier;
   private Instant publishedAt;
   private final Instant createdAt;
   private Instant updatedAt;
   private final long version;
+  private boolean versionAppended;
 
   private Review(
       ReviewId id,
@@ -48,7 +57,7 @@ public final class Review {
       RelationshipType relationshipType,
       ResidencePeriod residencePeriod,
       ReviewStatus status,
-      List<ReviewVersion> versions,
+      ReviewVersion currentVersion,
       VerificationTier verificationTier,
       Instant publishedAt,
       Instant createdAt,
@@ -60,7 +69,7 @@ public final class Review {
     this.relationshipType = Objects.requireNonNull(relationshipType, "relationshipType");
     this.residencePeriod = residencePeriod;
     this.status = Objects.requireNonNull(status, "status");
-    this.versions = new ArrayList<>(Objects.requireNonNull(versions, "versions"));
+    this.currentVersion = currentVersion;
     this.verificationTier = Objects.requireNonNull(verificationTier, "verificationTier");
     this.publishedAt = publishedAt;
     this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
@@ -86,7 +95,7 @@ public final class Review {
         relationshipType,
         residencePeriod,
         ReviewStatus.DRAFT,
-        List.of(),
+        null,
         VerificationTier.UNVERIFIED,
         null,
         now,
@@ -102,7 +111,7 @@ public final class Review {
       RelationshipType relationshipType,
       ResidencePeriod residencePeriod,
       ReviewStatus status,
-      List<ReviewVersion> versions,
+      ReviewVersion currentVersion,
       VerificationTier verificationTier,
       Instant publishedAt,
       Instant createdAt,
@@ -115,7 +124,7 @@ public final class Review {
         relationshipType,
         residencePeriod,
         status,
-        versions,
+        currentVersion,
         verificationTier,
         publishedAt,
         createdAt,
@@ -127,6 +136,10 @@ public final class Review {
    * Appends a new immutable content version and makes it current. The first version needs no edit
    * reason; every later one must say why it exists. Editing a published review returns it to {@code
    * PENDING_MODERATION} so the changed content is re-checked before being public again.
+   *
+   * <p>One append per loaded instance: the aggregate no longer carries its history, so a second
+   * in-memory append would silently discard the first from the stored trail. Save and reload to
+   * append again.
    */
   public void appendVersion(
       String locale,
@@ -138,22 +151,27 @@ public final class Review {
       String editReason,
       Clock clock) {
     ensureMutable();
-    if (!versions.isEmpty() && (editReason == null || editReason.isBlank())) {
+    if (versionAppended) {
+      throw new IllegalStateException(
+          "a review appends at most one version per loaded instance; save it first");
+    }
+    boolean firstVersion = currentVersion == null;
+    if (!firstVersion && (editReason == null || editReason.isBlank())) {
       throw new IllegalArgumentException("an edit must state its reason");
     }
-    ReviewVersion next =
+    currentVersion =
         new ReviewVersion(
             UUID.randomUUID(),
-            versions.size() + 1,
+            firstVersion ? 1 : currentVersion.versionNumber() + 1,
             locale,
             body,
             pros,
             cons,
             recommendation,
             ratings,
-            versions.isEmpty() ? null : editReason.trim(),
+            firstVersion ? null : editReason.trim(),
             clock.instant());
-    versions.add(next);
+    versionAppended = true;
     if (status == ReviewStatus.PUBLISHED) {
       status = ReviewStatus.PENDING_MODERATION;
     }
@@ -166,7 +184,7 @@ public final class Review {
       throw new IllegalReviewStateTransitionException(
           "only a DRAFT review can be submitted, was " + status);
     }
-    if (versions.isEmpty()) {
+    if (currentVersion == null) {
       throw new IllegalReviewStateTransitionException(
           "a review without content cannot be submitted");
     }
@@ -234,7 +252,7 @@ public final class Review {
   }
 
   public Optional<ReviewVersion> currentVersion() {
-    return versions.isEmpty() ? Optional.empty() : Optional.of(versions.get(versions.size() - 1));
+    return Optional.ofNullable(currentVersion);
   }
 
   public ReviewId id() {
@@ -259,10 +277,6 @@ public final class Review {
 
   public ReviewStatus status() {
     return status;
-  }
-
-  public List<ReviewVersion> versions() {
-    return List.copyOf(versions);
   }
 
   public VerificationTier verificationTier() {
@@ -296,10 +310,12 @@ public final class Review {
     if (status == ReviewStatus.PUBLISHED && publishedAt == null) {
       throw new IllegalArgumentException("a published review must record when it was published");
     }
-    for (int i = 0; i < versions.size(); i++) {
-      if (versions.get(i).versionNumber() != i + 1) {
-        throw new IllegalArgumentException("review versions must be numbered sequentially from 1");
-      }
+    boolean requiresContent =
+        status == ReviewStatus.PENDING_MODERATION
+            || status == ReviewStatus.PUBLISHED
+            || status == ReviewStatus.HIDDEN;
+    if (requiresContent && currentVersion == null) {
+      throw new IllegalArgumentException("a " + status + " review must have content");
     }
   }
 

@@ -79,6 +79,25 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-22: Chunk 5 reworked before review (founder call: fix the shape now, not once the
+  codebase has grown around it). **The `Review` aggregate holds only its current version.** The full
+  history is stored data, not domain state: no state-machine decision consults an old version, so
+  carrying the list only forced every read to load every edit — the limitation flagged in the first
+  chunk-5 entry. Now a listing page is `review` rows + exactly their current `review_version` rows
+  (two bulk queries), and the known-limitation paragraph below is obsolete. The append-only trail —
+  a moderation guarantee about *stored* data — is protected where it lives: the aggregate allows one
+  `appendVersion` per loaded instance (a second in-memory append would silently drop the first from
+  the trail), and the adapter compares against the stored current version on save, refusing rewrites
+  (same number, different id) and skips (number ≠ stored+1) loudly. A doctored-aggregate integration
+  test proves both refusals against Postgres, and the trail itself is asserted via SQL — the first
+  version stays byte-identical after an edit. `reconstitute` now takes the current version;
+  invariants got *stronger*: PENDING_MODERATION/PUBLISHED/HIDDEN must have content. The JPA side
+  dropped the versions `@OneToMany` entirely — version rows are written explicitly (the deferred
+  `V4.2` FK still enables review-row-first inserts) and never updated. The in-memory fake now
+  snapshots on write and reconstitutes on read like a real repository, which surfaced and fixed a
+  latent test smell: tests mutating stored state without saving it. Reading the full trail becomes a
+  moderation-module read path, added when that consumer exists (same rule as `properties.api`).
+  43 module tests + 10 persistence integration tests; `./scripts/check.sh` passes.
 - 2026-07-22: Chunk 5 (persistence) implemented on `feat/005-reviews-chunk5-persistence`. JPA for the
   review/version/rating graph: `ReviewJpaEntity` with cascaded unidirectional `@OneToMany`s
   (`review_id`, `review_version_id`), `@Version` optimistic locking, and `property_id` /

@@ -43,13 +43,38 @@ class ReviewTest {
     return review;
   }
 
+  /**
+   * What a repository does between two units of work: rebuilds the aggregate from its persisted
+   * state. Editing always starts from a reloaded instance — an aggregate appends at most one
+   * version per load.
+   */
+  private static Review reloaded(Review review) {
+    return Review.reconstitute(
+        review.id(),
+        review.propertyRef(),
+        review.authorId(),
+        review.relationshipType(),
+        review.residencePeriod().orElse(null),
+        review.status(),
+        review.currentVersion().orElse(null),
+        review.verificationTier(),
+        review.publishedAt().orElse(null),
+        review.createdAt(),
+        review.updatedAt(),
+        review.version());
+  }
+
+  private static void append(Review review, String body, String editReason, Clock clock) {
+    review.appendVersion(
+        "ka", body, null, null, Recommendation.NEUTRAL, List.of(), editReason, clock);
+  }
+
   @Test
   void createsAnEmptyDraftAsUnverified() {
     Review review = draft();
 
     assertThat(review.status()).isEqualTo(ReviewStatus.DRAFT);
     assertThat(review.verificationTier()).isEqualTo(VerificationTier.UNVERIFIED);
-    assertThat(review.versions()).isEmpty();
     assertThat(review.currentVersion()).isEmpty();
     assertThat(review.publishedAt()).isEmpty();
     assertThat(review.version()).isZero();
@@ -61,16 +86,28 @@ class ReviewTest {
     assertThat(review.currentVersion().orElseThrow().versionNumber()).isEqualTo(1);
     assertThat(review.currentVersion().orElseThrow().editReason()).isNull();
 
-    assertThatThrownBy(
-            () ->
-                review.appendVersion(
-                    "ka", "განახლებული", null, null, Recommendation.NEUTRAL, List.of(), " ", LATER))
+    Review edited = reloaded(review);
+    assertThatThrownBy(() -> append(edited, "განახლებული", " ", LATER))
         .isInstanceOf(IllegalArgumentException.class);
 
-    review.appendVersion(
-        "ka", "განახლებული", null, null, Recommendation.NEUTRAL, List.of(), "fixed typos", LATER);
-    assertThat(review.currentVersion().orElseThrow().versionNumber()).isEqualTo(2);
-    assertThat(review.currentVersion().orElseThrow().editReason()).isEqualTo("fixed typos");
+    append(edited, "განახლებული", "fixed typos", LATER);
+    assertThat(edited.currentVersion().orElseThrow().versionNumber()).isEqualTo(2);
+    assertThat(edited.currentVersion().orElseThrow().editReason()).isEqualTo("fixed typos");
+  }
+
+  @Test
+  void aLoadedReviewAppendsAtMostOneVersion() {
+    // The aggregate no longer carries its history, so a second in-memory append would silently
+    // drop the first from the stored trail. It must be saved and reloaded instead.
+    Review review = draftWithContent();
+
+    assertThatThrownBy(() -> append(review, "მეორე", "again", LATER))
+        .isInstanceOf(IllegalStateException.class);
+
+    Review edited = reloaded(review);
+    append(edited, "მეორე", "again", LATER);
+    assertThatThrownBy(() -> append(edited, "მესამე", "and again", LATER))
+        .isInstanceOf(IllegalStateException.class);
   }
 
   @Test
@@ -102,20 +139,14 @@ class ReviewTest {
     review.submit(LATER);
     review.publish(LATER);
 
-    review.appendVersion(
-        "ka",
-        "დამატებული დეტალები",
-        null,
-        null,
-        Recommendation.RECOMMEND,
-        List.of(),
-        "added details",
-        EVEN_LATER);
-    assertThat(review.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
+    Review edited = reloaded(review);
+    append(edited, "დამატებული დეტალები", "added details", EVEN_LATER);
+    assertThat(edited.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
+    assertThat(edited.currentVersion().orElseThrow().versionNumber()).isEqualTo(2);
 
-    review.publish(EVEN_LATER);
+    edited.publish(EVEN_LATER);
     // The first publication time is preserved across the re-moderation cycle.
-    assertThat(review.publishedAt()).contains(LATER.instant());
+    assertThat(edited.publishedAt()).contains(LATER.instant());
   }
 
   @Test
@@ -150,15 +181,13 @@ class ReviewTest {
     review.submit(LATER);
     review.reject(LATER);
 
-    assertThatThrownBy(
-            () ->
-                review.appendVersion(
-                    "ka", "x", null, null, Recommendation.NEUTRAL, List.of(), "why", LATER))
+    Review terminal = reloaded(review);
+    assertThatThrownBy(() -> append(terminal, "x", "why", LATER))
         .isInstanceOf(IllegalReviewStateTransitionException.class);
-    assertThatThrownBy(() -> review.remove(LATER))
+    assertThatThrownBy(() -> terminal.remove(LATER))
         .isInstanceOf(IllegalReviewStateTransitionException.class);
     assertThatThrownBy(
-            () -> review.updateVerificationTier(VerificationTier.DOCUMENT_VERIFIED, LATER))
+            () -> terminal.updateVerificationTier(VerificationTier.DOCUMENT_VERIFIED, LATER))
         .isInstanceOf(IllegalReviewStateTransitionException.class);
   }
 
@@ -184,6 +213,8 @@ class ReviewTest {
 
   @Test
   void reconstituteRejectsAPublishedReviewWithoutAPublicationTime() {
+    ReviewVersion content = contentVersion(1);
+
     assertThatThrownBy(
             () ->
                 Review.reconstitute(
@@ -193,7 +224,7 @@ class ReviewTest {
                     RelationshipType.OWNER,
                     null,
                     ReviewStatus.PUBLISHED,
-                    List.of(),
+                    content,
                     VerificationTier.UNVERIFIED,
                     null,
                     CREATED.instant(),
@@ -203,20 +234,7 @@ class ReviewTest {
   }
 
   @Test
-  void reconstituteRejectsNonSequentialVersionNumbers() {
-    ReviewVersion second =
-        new ReviewVersion(
-            UUID.randomUUID(),
-            2,
-            "en",
-            "content",
-            null,
-            null,
-            Recommendation.NEUTRAL,
-            List.of(),
-            "reason",
-            CREATED.instant());
-
+  void reconstituteRejectsAModeratedReviewWithoutContent() {
     assertThatThrownBy(
             () ->
                 Review.reconstitute(
@@ -225,8 +243,8 @@ class ReviewTest {
                     AuthorId.of(UUID.randomUUID()),
                     RelationshipType.OWNER,
                     null,
-                    ReviewStatus.DRAFT,
-                    List.of(second),
+                    ReviewStatus.PENDING_MODERATION,
+                    null,
                     VerificationTier.UNVERIFIED,
                     null,
                     CREATED.instant(),
@@ -235,10 +253,17 @@ class ReviewTest {
         .isInstanceOf(IllegalArgumentException.class);
   }
 
-  @Test
-  void versionsListIsAnUnmodifiableCopy() {
-    Review review = draftWithContent();
-    assertThatThrownBy(() -> review.versions().clear())
-        .isInstanceOf(UnsupportedOperationException.class);
+  private static ReviewVersion contentVersion(int number) {
+    return new ReviewVersion(
+        UUID.randomUUID(),
+        number,
+        "en",
+        "content",
+        null,
+        null,
+        Recommendation.NEUTRAL,
+        List.of(),
+        number == 1 ? null : "reason",
+        CREATED.instant());
   }
 }

@@ -48,14 +48,23 @@ JPA for the review/version/rating graph, plus `V4.2` and the module's Spring wir
   `@BatchSize` rather than a second bag fetch.
 - Services wired in `ReviewsBeanConfiguration`; app `@EntityScan`/`@EnableJpaRepositories` extended.
 
+**Reworked before review (second commit on this branch):** the aggregate now holds only its
+current version — the every-version-on-every-read limitation is gone, and listings load exactly the
+rows they show. Guards keeping the stored trail append-only: one `appendVersion` per loaded
+instance (domain), and the adapter refuses rewrites (same number, different id) and skipped numbers
+against the stored current version. Version rows are written explicitly; the versions `@OneToMany`
+is gone. The in-memory fake snapshots on write and reconstitutes on read, like a real repository.
+
 **Points a reviewer should push on:**
 - Was deferring the FK the right call versus the two-step write? (The optimistic-lock argument is the
   deciding one.)
-- `requireAppendOnly` throws `IllegalStateException` — is a programming-error signal right, or should
-  it be a domain exception?
-- **Known limitation:** the listing loads *every* version of every review, because
-  `Review.reconstitute` enforces sequential numbering and would reject a partial load. Fine at MVP
-  volumes; the fix is a dedicated read model when ranking needs one.
+- The adapter's trail guards throw `IllegalStateException` (surfaced through Spring's `@Repository`
+  translation as `InvalidDataAccessApiUsageException`) — programming-error signal, deliberately not
+  a domain exception.
+- The one-append-per-loaded-instance rule: is the `IllegalStateException` message clear enough for
+  the next developer who hits it?
+- Reading the full trail is deliberately absent — it is a moderation read path, added when the
+  moderation module consumes it (the properties.api rule).
 
 ### Reviews chunk 4 — properties.api + adapter (merged to `main`)
 

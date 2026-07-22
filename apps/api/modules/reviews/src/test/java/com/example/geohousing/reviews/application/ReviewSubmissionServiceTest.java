@@ -61,6 +61,14 @@ class ReviewSubmissionServiceTest {
     return serviceSeeing(ref -> Optional.of(new PropertyReviewability(ref, true)));
   }
 
+  /** Applies a stored-state change the way an admin/moderation path would: load, mutate, save. */
+  private Review storedAfter(ReviewId reviewId, java.util.function.Consumer<Review> change) {
+    Review loaded = repository.findById(reviewId).orElseThrow();
+    change.accept(loaded);
+    repository.save(loaded);
+    return loaded;
+  }
+
   @Test
   void aSubmittedReviewGoesToModerationNotStraightToThePublicListing() {
     Review review = service().submit(submission());
@@ -68,7 +76,7 @@ class ReviewSubmissionServiceTest {
     assertThat(review.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
     assertThat(review.publishedAt()).isEmpty();
     assertThat(review.verificationTier()).isEqualTo(VerificationTier.UNVERIFIED);
-    assertThat(review.versions()).hasSize(1);
+    assertThat(review.currentVersion().orElseThrow().versionNumber()).isEqualTo(1);
     assertThat(review.currentVersion().orElseThrow().editReason()).isNull();
     assertThat(repository.byId).containsKey(review.id());
   }
@@ -135,7 +143,7 @@ class ReviewSubmissionServiceTest {
   void aRejectedReviewFreesTheSlotForAFreshOne() {
     ReviewSubmissionService service = service();
     Review first = service.submit(submission());
-    first.reject(CLOCK);
+    storedAfter(first.id(), review -> review.reject(CLOCK));
 
     Review second = service.submit(submission());
 
@@ -147,16 +155,22 @@ class ReviewSubmissionServiceTest {
   void anEditAppendsAVersionAndReturnsAPublishedReviewToModeration() {
     ReviewSubmissionService service = service();
     Review review = service.submit(submission());
-    review.publish(CLOCK);
+    storedAfter(review.id(), stored -> stored.publish(CLOCK));
+    int savesBefore = repository.saveCount;
 
-    service.edit(
-        new EditReviewCommand(
-            review.id(), AUTHOR, content("დაზუსტებული აღწერა"), "fixed a detail"));
+    Review edited =
+        service.edit(
+            new EditReviewCommand(
+                review.id(), AUTHOR, content("დაზუსტებული აღწერა"), "fixed a detail"));
 
-    assertThat(review.versions()).hasSize(2);
-    assertThat(review.currentVersion().orElseThrow().editReason()).isEqualTo("fixed a detail");
-    assertThat(review.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
-    assertThat(repository.saveCount).isEqualTo(1);
+    assertThat(edited.currentVersion().orElseThrow().versionNumber()).isEqualTo(2);
+    assertThat(edited.currentVersion().orElseThrow().editReason()).isEqualTo("fixed a detail");
+    assertThat(edited.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
+    assertThat(repository.saveCount).isEqualTo(savesBefore + 1);
+
+    Review stored = repository.findById(review.id()).orElseThrow();
+    assertThat(stored.status()).isEqualTo(ReviewStatus.PENDING_MODERATION);
+    assertThat(stored.currentVersion().orElseThrow().versionNumber()).isEqualTo(2);
   }
 
   @Test
@@ -172,14 +186,21 @@ class ReviewSubmissionServiceTest {
   void aStrangerCannotEditSomeoneElsesPublishedReview() {
     ReviewSubmissionService service = service();
     Review review = service.submit(submission());
-    review.publish(CLOCK);
+    storedAfter(review.id(), stored -> stored.publish(CLOCK));
 
     assertThatThrownBy(
             () ->
                 service.edit(
                     new EditReviewCommand(review.id(), STRANGER, content("rewritten"), "because")))
         .isInstanceOf(ReviewAccessDeniedException.class);
-    assertThat(review.versions()).hasSize(1);
+    assertThat(
+            repository
+                .findById(review.id())
+                .orElseThrow()
+                .currentVersion()
+                .orElseThrow()
+                .versionNumber())
+        .isEqualTo(1);
   }
 
   @Test
@@ -211,23 +232,29 @@ class ReviewSubmissionServiceTest {
   void anAuthorCannotQuietlyRewriteAReviewAModeratorHidThenHaveItRepublished() {
     ReviewSubmissionService service = service();
     Review review = service.submit(submission());
-    review.publish(CLOCK);
-    review.hide(CLOCK);
+    storedAfter(
+        review.id(),
+        stored -> {
+          stored.publish(CLOCK);
+          stored.hide(CLOCK);
+        });
 
     assertThatThrownBy(
             () ->
                 service.edit(
                     new EditReviewCommand(review.id(), AUTHOR, content("softened"), "appeal")))
         .isInstanceOf(IllegalReviewStateTransitionException.class);
-    assertThat(review.status()).isEqualTo(ReviewStatus.HIDDEN);
-    assertThat(review.versions()).hasSize(1);
+
+    Review stored = repository.findById(review.id()).orElseThrow();
+    assertThat(stored.status()).isEqualTo(ReviewStatus.HIDDEN);
+    assertThat(stored.currentVersion().orElseThrow().versionNumber()).isEqualTo(1);
   }
 
   @Test
   void aRemovedReviewCannotBeEditedBackToLife() {
     ReviewSubmissionService service = service();
     Review review = service.submit(submission());
-    review.remove(CLOCK);
+    storedAfter(review.id(), stored -> stored.remove(CLOCK));
 
     assertThatThrownBy(
             () ->

@@ -15,9 +15,6 @@ final class ReviewJpaMapper {
   private ReviewJpaMapper() {}
 
   static ReviewJpaEntity toEntity(Review review) {
-    List<ReviewVersionJpaEntity> versions =
-        review.versions().stream().map(ReviewJpaMapper::toEntity).toList();
-    UUID currentVersionId = versions.isEmpty() ? null : versions.get(versions.size() - 1).id();
     return new ReviewJpaEntity(
         review.id().value(),
         review.propertyRef().value(),
@@ -26,16 +23,15 @@ final class ReviewJpaMapper {
         review.residencePeriod().map(ResidencePeriod::from).orElse(null),
         review.residencePeriod().map(ResidencePeriod::to).orElse(null),
         review.status(),
-        currentVersionId,
+        review.currentVersion().map(ReviewVersion::id).orElse(null),
         review.verificationTier(),
         review.publishedAt().orElse(null),
         review.createdAt(),
         review.updatedAt(),
-        review.version(),
-        versions);
+        review.version());
   }
 
-  static ReviewVersionJpaEntity toEntity(ReviewVersion version) {
+  static ReviewVersionJpaEntity toVersionEntity(UUID reviewId, ReviewVersion version) {
     // Category ratings are value objects with no identity of their own; the surrogate row id is a
     // persistence detail generated here, as in the properties module.
     List<CategoryRatingJpaEntity> ratings =
@@ -53,6 +49,7 @@ final class ReviewJpaMapper {
             .toList();
     return new ReviewVersionJpaEntity(
         version.id(),
+        reviewId,
         version.versionNumber(),
         version.locale(),
         version.body(),
@@ -64,14 +61,11 @@ final class ReviewJpaMapper {
         ratings);
   }
 
-  static Review toDomain(ReviewJpaEntity entity) {
+  static Review toDomain(ReviewJpaEntity entity, ReviewVersionJpaEntity currentVersion) {
     ResidencePeriod residencePeriod =
         entity.residenceFrom() == null && entity.residenceTo() == null
             ? null
             : ResidencePeriod.of(entity.residenceFrom(), entity.residenceTo());
-
-    List<ReviewVersion> versions =
-        entity.versions().stream().map(ReviewJpaMapper::toDomain).toList();
 
     return Review.reconstitute(
         ReviewId.of(entity.id()),
@@ -80,7 +74,7 @@ final class ReviewJpaMapper {
         entity.relationshipType(),
         residencePeriod,
         entity.status(),
-        versions,
+        currentVersion == null ? null : toDomain(currentVersion),
         entity.verificationTier(),
         entity.publishedAt(),
         entity.createdAt(),
@@ -88,7 +82,7 @@ final class ReviewJpaMapper {
         entity.version());
   }
 
-  private static ReviewVersion toDomain(ReviewVersionJpaEntity entity) {
+  static ReviewVersion toDomain(ReviewVersionJpaEntity entity) {
     List<CategoryRating> ratings =
         entity.ratings().stream()
             .map(

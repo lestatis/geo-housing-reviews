@@ -14,6 +14,7 @@ import com.example.geohousing.reviews.domain.ReviewVersionConflictException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -22,39 +23,56 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-/** JPA implementation of the {@link ReviewRepository} port. */
+/**
+ * JPA implementation of the {@link ReviewRepository} port. Reads load the review row plus its
+ * current version only; the older versions stay where they are, as the stored moderation trail.
+ *
+ * <p>Version rows are written explicitly and never updated. The adapter is the last line of defence
+ * for two invariants the aggregate can no longer see (it carries only its current version): version
+ * numbers must follow the stored one directly, and a stored version must never be replaced by a
+ * different one under the same number.
+ */
 @Repository
 public class JpaReviewRepository implements ReviewRepository {
 
   private final SpringDataReviewRepository reviews;
+  private final SpringDataReviewVersionRepository versions;
 
-  public JpaReviewRepository(SpringDataReviewRepository reviews) {
+  public JpaReviewRepository(
+      SpringDataReviewRepository reviews, SpringDataReviewVersionRepository versions) {
     this.reviews = reviews;
+    this.versions = versions;
   }
 
   @Override
   @Transactional(readOnly = true)
   public Optional<Review> findById(ReviewId reviewId) {
-    return reviews.findById(reviewId.value()).map(ReviewJpaMapper::toDomain);
+    return reviews.findById(reviewId.value()).map(this::toDomainWithCurrentVersion);
   }
 
   @Override
   @Transactional(readOnly = true)
   public Optional<Review> findLiveByAuthorAndProperty(AuthorId authorId, PropertyRef propertyRef) {
-    return reviews.findLive(authorId.value(), propertyRef.value()).map(ReviewJpaMapper::toDomain);
+    return reviews
+        .findLive(authorId.value(), propertyRef.value())
+        .map(this::toDomainWithCurrentVersion);
   }
 
+  /**
+   * The review row is inserted first, pointing at a version row that does not exist yet — {@code
+   * V4.2} defers that foreign key to commit, by which time the version row is in place.
+   */
   @Override
   @Transactional
   public void create(Review review) {
     reviews.save(ReviewJpaMapper.toEntity(review));
+    review
+        .currentVersion()
+        .ifPresent(
+            current ->
+                versions.save(ReviewJpaMapper.toVersionEntity(review.id().value(), current)));
   }
 
-  /**
-   * Loads the stored review and applies the aggregate's changes to it, rather than merging a
-   * detached copy: content versions are append-only, so writing back a whole graph could only ever
-   * rewrite history that is meant to be immutable.
-   */
   @Override
   @Transactional
   public void save(Review review) {
@@ -67,37 +85,57 @@ public class JpaReviewRepository implements ReviewRepository {
           "review " + review.id().value() + " was modified concurrently");
     }
 
-    List<ReviewVersionJpaEntity> appended =
-        review.versions().stream()
-            .skip(entity.versions().size())
-            .map(ReviewJpaMapper::toEntity)
-            .toList();
-    requireAppendOnly(review, entity, appended);
+    ReviewVersionJpaEntity storedCurrent =
+        entity.currentVersionId() == null
+            ? null
+            : versions.findById(entity.currentVersionId()).orElseThrow();
+    ReviewVersion appended = appendedVersion(review, storedCurrent);
+    if (appended != null) {
+      versions.save(ReviewJpaMapper.toVersionEntity(review.id().value(), appended));
+    }
 
     entity.apply(
         review.status(),
         review.verificationTier(),
+        review.currentVersion().map(ReviewVersion::id).orElse(null),
         review.publishedAt().orElse(null),
-        review.updatedAt(),
-        appended);
+        review.updatedAt());
   }
 
-  private static void requireAppendOnly(
-      Review review, ReviewJpaEntity entity, List<ReviewVersionJpaEntity> appended) {
-    if (review.versions().size() < entity.versions().size()) {
-      throw new IllegalStateException(
-          "a review cannot lose content versions: " + review.id().value());
-    }
-    List<ReviewVersion> retained = review.versions().subList(0, entity.versions().size());
-    for (int i = 0; i < retained.size(); i++) {
-      if (!retained.get(i).id().equals(entity.versions().get(i).id())) {
+  /**
+   * The version to insert, or null when the content did not change. Anything other than "same
+   * version as stored" or "exactly the next number" means the caller manufactured history the store
+   * never saw — refused loudly, because the stored trail is a moderation guarantee.
+   */
+  private static ReviewVersion appendedVersion(
+      Review review, ReviewVersionJpaEntity storedCurrent) {
+    int storedNumber = storedCurrent == null ? 0 : storedCurrent.versionNumber();
+    ReviewVersion current = review.currentVersion().orElse(null);
+    int number = current == null ? 0 : current.versionNumber();
+
+    if (number == storedNumber) {
+      boolean sameVersion =
+          (current == null && storedCurrent == null)
+              || (current != null
+                  && storedCurrent != null
+                  && Objects.equals(current.id(), storedCurrent.id()));
+      if (!sameVersion) {
         throw new IllegalStateException(
             "stored content versions cannot be rewritten: " + review.id().value());
       }
+      return null;
     }
-    if (appended.size() != review.versions().size() - entity.versions().size()) {
-      throw new IllegalStateException("unexpected version count for " + review.id().value());
+    if (number == storedNumber + 1 && current != null) {
+      return current;
     }
+    throw new IllegalStateException(
+        "review "
+            + review.id().value()
+            + " went from version "
+            + storedNumber
+            + " to "
+            + number
+            + "; the stored trail must not skip or lose versions");
   }
 
   @Override
@@ -128,21 +166,42 @@ public class JpaReviewRepository implements ReviewRepository {
     return new ReviewPage(page, new ReviewCursor(last.publishedAt().orElseThrow(), last.id()));
   }
 
-  /** {@code in (:ids)} does not preserve order, so the paged order is restored here. */
+  /**
+   * Loads a page of reviews and their current versions in two bulk queries, restoring the paged
+   * order ({@code in (:ids)} does not preserve it).
+   */
   private List<Review> loadInOrder(List<UUID> ids) {
     if (ids.isEmpty()) {
       return List.of();
     }
     Map<UUID, ReviewJpaEntity> byId =
-        reviews.findAllWithVersions(ids).stream()
+        reviews.findAllById(ids).stream()
             .collect(Collectors.toMap(ReviewJpaEntity::id, Function.identity()));
+    Map<UUID, ReviewVersionJpaEntity> currentById =
+        versions
+            .findAllById(
+                byId.values().stream()
+                    .map(ReviewJpaEntity::currentVersionId)
+                    .filter(Objects::nonNull)
+                    .toList())
+            .stream()
+            .collect(Collectors.toMap(ReviewVersionJpaEntity::id, Function.identity()));
+
     List<Review> ordered = new ArrayList<>(ids.size());
     for (UUID id : ids) {
       ReviewJpaEntity entity = byId.get(id);
       if (entity != null) {
-        ordered.add(ReviewJpaMapper.toDomain(entity));
+        ordered.add(ReviewJpaMapper.toDomain(entity, currentById.get(entity.currentVersionId())));
       }
     }
     return List.copyOf(ordered);
+  }
+
+  private Review toDomainWithCurrentVersion(ReviewJpaEntity entity) {
+    ReviewVersionJpaEntity current =
+        entity.currentVersionId() == null
+            ? null
+            : versions.findById(entity.currentVersionId()).orElseThrow();
+    return ReviewJpaMapper.toDomain(entity, current);
   }
 }
