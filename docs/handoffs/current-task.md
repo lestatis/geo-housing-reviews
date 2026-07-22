@@ -75,7 +75,7 @@ under `/api/admin/reviews` — including `GET /{id}`, the one place elevated vis
 yet. Move them onto the real transition when chunk 7 lands.
 
 **Resolved (founder, 2026-07-22):** public read access is now live — `GET /api/properties/**` and
-`GET /api/reviews/**` are anonymous-friendly (DECISION_LOG P-010); writes, `/api/me` and
+`GET /api/reviews/**` are anonymous-friendly (DECISION_LOG P-011); writes, `/api/me` and
 `/api/admin/**` still require auth. And the `Idempotency-Key` guideline was amended rather than
 implemented: natural idempotency with a self-identifying conflict response satisfies it
 (API_GUIDELINES, Idempotency).

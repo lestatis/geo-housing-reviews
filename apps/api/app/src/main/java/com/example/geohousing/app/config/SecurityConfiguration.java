@@ -47,7 +47,7 @@ public class SecurityConfiguration {
                     .requestMatchers("/api/admin/**")
                     .hasRole("ADMIN")
                     // The catalogue and published reviews are publicly readable (DECISION_LOG
-                    // P-010): reading needs no account, and the modules' visibility rules already
+                    // P-011): reading needs no account, and the modules' visibility rules already
                     // treat the anonymous viewer as a normal case — unpublished content stays
                     // hidden. Writing anywhere still requires an authenticated account.
                     .requestMatchers(HttpMethod.GET, "/api/properties/**", "/api/reviews/**")

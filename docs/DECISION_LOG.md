@@ -24,7 +24,7 @@ Use ADRs for technical decisions. This file tracks founder/product decisions and
 | P-007 | Aggregate score: hybrid — categories always shown; single overall number displayed only once a minimum review-count threshold is met | 2026-07-09 | matches PRD's data-sufficiency requirement and reduces manipulation risk on low-review properties |
 | P-008 | Auth provider: managed OIDC/IdP provider (specific vendor pending ADR) | 2026-07-09 | offloads security-critical auth/session/MFA handling appropriate for a team just starting; requires a follow-up ADR before integration |
 | P-009 | Map/geocoding provider: OpenStreetMap-based stack | 2026-07-09 | fits the existing PostGIS-first architecture and avoids a paid dependency before demand is proven |
-| P-010 | Public read access: the property catalogue and published reviews are readable without an account; all writes, self-service and admin endpoints require authentication | 2026-07-22 | a review platform must be browsable to be trusted (and indexed); module visibility rules already treat the anonymous viewer as a normal case, so unpublished content stays hidden either way |
+| P-011 | Public read access: the property catalogue and published reviews are readable without an account; all writes, self-service and admin endpoints require authentication | 2026-07-22 | a review platform must be browsable to be trusted (and indexed); module visibility rules already treat the anonymous viewer as a normal case, so unpublished content stays hidden either way |
 
 ## How to update
 

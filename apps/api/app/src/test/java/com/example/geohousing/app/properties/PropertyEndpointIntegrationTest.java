@@ -65,7 +65,7 @@ class PropertyEndpointIntegrationTest {
 
   @Test
   void anonymousVisitorsCanReadTheCatalogueButNotWriteToIt() throws Exception {
-    // Reading is public (DECISION_LOG P-010); contributing requires an account.
+    // Reading is public (DECISION_LOG P-011); contributing requires an account.
     mockMvc.perform(get("/api/properties")).andExpect(status().isOk());
     mockMvc
         .perform(

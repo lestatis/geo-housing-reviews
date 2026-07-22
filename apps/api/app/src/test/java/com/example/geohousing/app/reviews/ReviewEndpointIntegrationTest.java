@@ -66,7 +66,7 @@ class ReviewEndpointIntegrationTest {
 
   @Test
   void anonymousVisitorsCanReadButNeverWrite() throws Exception {
-    // Reading is public (DECISION_LOG P-010) …
+    // Reading is public (DECISION_LOG P-011) …
     String bearer = bearer("subject-anon-read");
     String propertyId = createProperty(bearer, "Anon Read Tower " + UUID.randomUUID());
     String publishedId = submitReview(bearer, propertyId, "საჯაროდ წასაკითხი");

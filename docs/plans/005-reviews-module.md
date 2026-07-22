@@ -104,7 +104,7 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 - 2026-07-22: Chunk 6 open items reviewed with the founder and closed (second commit on the chunk-6
   branch). **Resolved by explicit founder decision:** (a) the catalogue and published reviews are now
   publicly readable — `SecurityConfiguration` permits `GET /api/properties/**` and
-  `GET /api/reviews/**`, everything else still authenticated; recorded as **DECISION_LOG P-010**.
+  `GET /api/reviews/**`, everything else still authenticated; recorded as **DECISION_LOG P-011**.
   The reviews web layer maps a null principal to `ReviewViewer.anonymous()`, which the visibility
   rules already treated as a normal case, so unpublished content stays hidden to visitors — asserted
   end-to-end (anonymous reads a published review 200, an unpublished one 404, and both writes 401).
