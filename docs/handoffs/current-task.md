@@ -3,28 +3,47 @@
 ## Objective
 
 Build the `properties` backend module (plan `docs/plans/004-properties-module.md`): the canonical
-catalogue of reviewable objects. This is chunk 6 (public endpoints). Identity (plan `002`),
-Swagger/OpenAPI, and properties chunks 1–5 are merged to `main`.
+catalogue of reviewable objects. This is chunk 7 (admin lifecycle + audit). Identity (plan `002`),
+Swagger/OpenAPI, and properties chunks 1–6 are merged to `main`.
 
 ## Active branch
 
-`feat/004-properties-chunk6-endpoints` (branched from `main` at `10be962`)
+`feat/004-properties-chunk7-admin` (branched from `main` at `44ed465`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/004-properties-module.md` — this is chunk 6 of 8.
+No issue. See `docs/plans/004-properties-module.md` — this is chunk 7 of 8.
 
 ## Current status
 
-chunk6_implemented — ready for fresh independent review and merge before chunk 7.
+chunk7_implemented — ready for fresh independent review and merge before chunk 8 (the last one).
 
 ## Completed work
 
 On `main`: identity complete (ends `068e647`), the Swagger/OpenAPI feature (`6d9096b`), and properties
-chunks 1–5 — schema (`293da3d`), domain (`af8ed3d`), application (`a07a220`), persistence (`995a665`),
-duplicates + geo (`10be962`).
+chunks 1–6 — schema (`293da3d`), domain (`af8ed3d`), application (`a07a220`), persistence (`995a665`),
+duplicates + geo (`10be962`), public endpoints (`44ed465`).
 
-### Properties chunk 6 — public endpoints (this branch)
+### Properties chunk 7 — admin lifecycle + audit (this branch)
+
+- `AdminPropertyController` (`/api/admin/properties`, already ROLE_ADMIN-gated): `POST
+  /{id}/activate|hide|merge` — action sub-resources rather than a `PATCH status`, so only transitions
+  the state machine allows are expressible. Each carries the `version` the admin saw; stale → 409
+  `PROPERTY_VERSION_CONFLICT` (API_GUIDELINES: conflict when a moderator acts on stale content).
+- **First persisted update path in the module.** Before this chunk the aggregate could transition in
+  memory but nothing could save it. `PropertyJpaEntity.applyLifecycleChange` writes only
+  status/merge-target/updated-at; name, address, aliases and sources still need their own update path.
+- **Audit atomicity:** an admin mutation must never be applied unaudited, and the application layer is
+  framework-free (no `@Transactional` there), so `PropertyAdminRepository` takes the mutated property
+  *and* the audit event, and `JpaPropertyAdminRepository` writes both in one `@Transactional` method.
+- `V3.3` adds the append-only `property_admin_audit_event`. Neither id column is a foreign key:
+  `admin_account_id` because identity owns accounts (no cross-module FK), and `property_id` because an
+  action against a missing property must still be auditable — the same lesson already learned in
+  identity's `V2.5`.
+- A missing property records `NOT_FOUND` and returns `Optional.empty()` (controller → 404), keeping
+  the audit on the committing path instead of losing it to a throw.
+
+### Properties chunk 6 — public endpoints (merged to `main`)
 
 The module finally has an HTTP surface.
 - `PropertyController` (`/api/properties`): `POST` → 201 + `Location` + `PropertyResponse`, or
@@ -117,10 +136,14 @@ to it and pass):
 
 ## Remaining work
 
-Chunks 7–8 (see the plan): admin merge/hide/status under `/api/admin/properties/**` with audit (7) —
-the `Property` aggregate already has `activate`/`hide`/`mergeInto`, but there is **no persisted update
-path yet** (`PropertyRepository` only has `findById`/`findRecent`/`create`), so chunk 7 must add one;
-`properties.api` cross-module contract when `reviews` needs it (8).
+Chunk 8 only (see the plan): the `properties.api` cross-module contract, built when `reviews` needs
+property lookup — it may reasonably stay a stub until then, in which case the module is effectively
+complete at chunk 7.
+
+Known gaps, deliberately deferred: editing a property's name/address/aliases (a separate update path
+from the lifecycle one); auditing *rejected* admin attempts (version conflicts / illegal transitions
+are not recorded, matching identity's precedent); un-hide (`HIDDEN→ACTIVE`); address-component
+duplicate matching; cursor pagination; enabling `-parameters` in the convention build.
 
 Flagged infra follow-up (not in this chunk): enable `-parameters` in the java-conventions build so
 modules can keep named `Clock` (and other) beans without ambiguity — see the note in
@@ -135,62 +158,65 @@ modules can keep named `Clock` (and other) beans without ambiguity — see the n
 - Aggregate persisted as one JPA graph (chunk 4); duplicates are a sealed `PropertyCreationResult`,
   not an exception (chunk 3); `MERGED` terminal; creator is a local `CreatorId(UUID)`.
 
-## Files changed on this branch (chunk 6)
+## Files changed on this branch (chunk 7)
 
-- New `properties.infrastructure.web`: `PropertyController`, `CreatePropertyRequest`,
-  `PropertyResponse`, `PropertyListResponse`, `DuplicateCandidatesProblem`,
-  `PropertiesExceptionHandler`, `WebAuthentication`.
-- Edit: `PropertyRepository` + `JpaPropertyRepository` + `SpringDataPropertyRepository`
-  (`findRecent`), `PropertyQueryService` (`listRecent` with clamping),
-  `modules/properties/build.gradle.kts` (`spring-boot-starter-web`),
-  `IdentityExceptionHandler` (**scoped to identity's web package**).
-- Tests: new `app/.../properties/PropertyEndpointIntegrationTest.java`; updated the chunk-3 fakes for
-  the new port method and added a limit-clamping unit test.
-- `docs/plans/004-properties-module.md`, `docs/handoffs/current-task.md`.
+- New: `db/migration/properties/V3.3__create_property_admin_audit_event.sql`
+- New domain: `AdminId`, `PropertyAdminAction`, `PropertyAdminOutcome`, `PropertyAdminAuditEvent`,
+  `PropertyVersionConflictException`
+- New application: `PropertyAdminRepository`, `AdminPropertyService`
+- New persistence: `PropertyAdminAuditEventJpaEntity`, `PropertyAdminAuditEventJpaMapper`,
+  `SpringDataPropertyAdminAuditEventRepository`, `JpaPropertyAdminRepository`
+- New web: `AdminPropertyController`, `AdminLifecycleRequest`
+- Edit: `PropertyJpaEntity` (+`applyLifecycleChange`), `PropertiesExceptionHandler` (+409
+  `PROPERTY_VERSION_CONFLICT`), `PropertiesBeanConfiguration` (+`adminPropertyService`),
+  `WebAuthentication` (+`adminId`)
+- New tests: `AdminPropertyServiceTest`, `app/.../properties/AdminPropertyEndpointIntegrationTest.java`
+- `docs/plans/004-properties-module.md`, `docs/handoffs/current-task.md`
 
-New migration (`V3.2`), no new dependency, no app-module change.
+New migration (`V3.3`), no new dependency, no app-module or security-config change.
 
 ## Tests and verification
 
 Run on this branch, 2026-07-20:
 
-- `./gradlew :modules:properties:check` — passed (22 module tests, incl. a new limit-clamping test).
-- `./gradlew :app:test` — passed, **60 app tests, 0 failures**, incl. ArchUnit.
-  `PropertyEndpointIntegrationTest` (7): anonymous → 401; create → 201 + `Location` + DRAFT with
-  `created_by` persisted as the caller (asserted via `JdbcTemplate`, since the response omits it);
-  a second same-name create → 409 `PROPERTY_DUPLICATE_CANDIDATES` containing the first property;
-  `allowDuplicate=true` → 201; blank name → 400 `INVALID_REQUEST` (proving the *properties* advice
-  handles it); `GET /{id}` 200 / unknown 404 / malformed 400; list respects `?limit=`; and a
-  regression that identity's endpoints still return their own mapped errors after the advice scoping.
+- `./gradlew :modules:properties:check` — passed (**28 module tests**). `AdminPropertyServiceTest` (6):
+  activate/hide/merge apply and audit `APPLIED`; unknown property records `NOT_FOUND` and returns
+  empty; version conflict propagates; a merged property refuses further transitions.
+- `./gradlew :app:test` — passed (**67 app tests, 0 failures**), incl. ArchUnit.
+  `AdminPropertyEndpointIntegrationTest` (7): anonymous → 401; `USER` → 403; ADMIN activate → 200 with
+  DB `ACTIVE` + an `APPLIED` audit row; hide → `HIDDEN`; merge → `MERGED` with `merged_into_property_id`
+  set; **stale version → 409 and the row is unchanged with no audit row**; a merged property → 409
+  `PROPERTY_STATE_CONFLICT`; unknown id → 404 with a `NOT_FOUND` audit row.
 - `./scripts/check.sh` — passed (governance + full Gradle gate; frontend skipped).
+- `V3.3` was applied to a scratch dev-Postgres DB first, including inserting an audit row for a
+  non-existent property — confirming the deliberate absence of a foreign key on `property_id`.
 
 ## Known failures
 
-None. (One was caught during the run: adding `findRecent` to the `PropertyRepository` port broke the
-chunk-3 unit-test fakes, which did not implement it; fixed and used as an opportunity to cover the
-new limit clamping.)
+None.
 
 ## Risks and unresolved questions
 
-- The list endpoint is intentionally un-paginated beyond a capped `limit`. Revisit when the `search`
-  module or a real feed needs cursors.
-- `-parameters` is still not enabled in the convention build (see `PropertiesBeanConfiguration`);
-  worth enabling globally so modules can expose same-typed beans resolved by name.
-- Chunk 7 needs a persisted **update** path — the aggregate can `activate`/`hide`/`mergeInto` in
-  memory, but `PropertyRepository` has no `save`/`update`, only `create`.
+- Rejected admin attempts (version conflict, illegal transition) are not audited — only `APPLIED` and
+  `NOT_FOUND`. For a moderation trail this is a real gap; recording them needs the mutation and audit
+  to be in separate transactions, which was judged out of scope here.
+- The merge target must be an existing property (`merged_into_property_id` has an FK from `V3.1`), and
+  the target is not itself validated as non-merged — merging into an already-merged property would
+  create a chain. Worth a guard when merge gets real use.
+- Editing name/address/aliases still has no persisted path.
 
 ## Human actions required
 
-Review and merge `feat/004-properties-chunk6-endpoints` after a fresh independent review (implemented
-by Claude Code; review must be a fresh independent pass — the public API shape, the 409-with-candidates
-contract, and the cross-module advice-scoping change are the parts worth close attention). The branch
-is local and not pushed; there is no credential path to push from this environment.
+Review and merge `feat/004-properties-chunk7-admin` after a fresh independent review (implemented by
+Claude Code; review must be a fresh independent pass — the audit-atomicity design, the optimistic
+concurrency, and the no-FK audit columns are the parts worth close attention). The branch is local and
+not pushed; there is no credential path to push from this environment.
 
 ## Recommended next action
 
-Independent review of chunk 6, then merge to `main`. Chunk 7 (admin merge/hide/status with audit)
-branches from `main` after that — it touches authorization and admin mutations, so it gets its own
-plan-mode pass, and must add the missing persisted update path.
+Independent review of chunk 7, then merge to `main`. Chunk 8 (`properties.api` cross-module contract)
+is the last one and is genuinely optional until `reviews` exists — consider closing plan `004` at
+chunk 7 and building the contract when the consumer arrives.
 
 ## Last updated
 

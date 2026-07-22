@@ -51,7 +51,7 @@ verification, and moderation all reference a property.
 |---|---|---|
 | `V3.1` | `properties` schema; `address`, `property`, `property_alias`, `property_source` | 1 |
 | `V3.2` | generated `geo geography(Point,4326)` column + GiST index + normalized-name index | 5 |
-| `V3.3` | reserved — admin/merge audit table if needed | 7 |
+| `V3.3` | `property_admin_audit_event` (append-only admin action log) | 7 |
 
 ## Implementation chunks (one branch each: self-check → fresh independent read-only review → merge before the next starts)
 
@@ -79,6 +79,24 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 7 (admin lifecycle + audit) implemented on `feat/004-properties-chunk7-admin`,
+  branched from `main` after chunk 6 (`44ed465`). `AdminPropertyController` under
+  `/api/admin/properties` (already ROLE_ADMIN-gated) exposes `POST /{id}/activate|hide|merge` as
+  action sub-resources rather than a `PATCH status`, each carrying the `version` the admin saw
+  (stale → 409 `PROPERTY_VERSION_CONFLICT`, per API_GUIDELINES). This also adds the module's first
+  **persisted update path** — before this chunk the aggregate could transition in memory but nothing
+  could save it. **Audit atomicity:** an admin mutation must never be applied unaudited, and the
+  application layer is framework-free, so the port takes the mutated property *and* the audit event
+  and `JpaPropertyAdminRepository` writes both in one `@Transactional` method. `V3.3` adds the
+  append-only `property_admin_audit_event`; neither `admin_account_id` (identity owns accounts — no
+  cross-module FK) nor `property_id` (a missing-property attempt must stay auditable, the lesson from
+  identity's `V2.5`) is a foreign key. `PropertyJpaEntity.applyLifecycleChange` touches only
+  status/merge-target/updated-at — name, address, aliases and sources need their own update path.
+  Rejected attempts (version conflict, illegal transition) are **not** audited yet, matching identity's
+  precedent; documented. Tests: 6 unit + 7 endpoint (401 anon, 403 USER, activate/hide/merge applied
+  and audited, stale version 409 leaving the row unchanged, merged property refuses further
+  transitions, unknown id 404 with a NOT_FOUND audit row). `./scripts/check.sh` passes (67 app tests,
+  28 module tests).
 - 2026-07-20: Chunk 6 (public endpoints) implemented on `feat/004-properties-chunk6-endpoints`,
   branched from `main` after chunk 5 (`10be962`). `PropertyController` exposes `POST /api/properties`
   (201 + `Location`, or **409 with `candidates`** and code `PROPERTY_DUPLICATE_CANDIDATES` when the

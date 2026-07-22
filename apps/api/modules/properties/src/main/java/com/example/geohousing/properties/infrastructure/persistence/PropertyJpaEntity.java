@@ -167,4 +167,16 @@ class PropertyJpaEntity {
   List<PropertySourceJpaEntity> sources() {
     return sources;
   }
+
+  /**
+   * Applies an admin lifecycle transition: status, merge target and the update timestamp — and
+   * nothing else. Name, address, aliases and sources are deliberately untouched; editing those
+   * needs its own update path.
+   */
+  void applyLifecycleChange(
+      PropertyStatus newStatus, UUID newMergedIntoPropertyId, Instant newUpdatedAt) {
+    this.status = newStatus;
+    this.mergedIntoPropertyId = newMergedIntoPropertyId;
+    this.updatedAt = newUpdatedAt;
+  }
 }

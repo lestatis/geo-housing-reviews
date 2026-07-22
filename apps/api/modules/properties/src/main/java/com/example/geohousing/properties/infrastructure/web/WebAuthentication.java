@@ -1,5 +1,6 @@
 package com.example.geohousing.properties.infrastructure.web;
 
+import com.example.geohousing.properties.domain.AdminId;
 import com.example.geohousing.properties.domain.CreatorId;
 import java.security.Principal;
 import java.util.UUID;
@@ -18,5 +19,9 @@ final class WebAuthentication {
 
   static CreatorId creatorId(Principal principal) {
     return CreatorId.of(UUID.fromString(principal.getName()));
+  }
+
+  static AdminId adminId(Principal principal) {
+    return AdminId.of(UUID.fromString(principal.getName()));
   }
 }

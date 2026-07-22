@@ -2,6 +2,7 @@ package com.example.geohousing.properties.infrastructure.web;
 
 import com.example.geohousing.properties.domain.IllegalPropertyStateTransitionException;
 import com.example.geohousing.properties.domain.PropertyNotFoundException;
+import com.example.geohousing.properties.domain.PropertyVersionConflictException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -32,6 +33,15 @@ class PropertiesExceptionHandler {
         "Property state conflict",
         "PROPERTY_STATE_CONFLICT",
         "The property's current status does not allow this change.");
+  }
+
+  @ExceptionHandler(PropertyVersionConflictException.class)
+  ProblemDetail handleVersionConflict(PropertyVersionConflictException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Property version conflict",
+        "PROPERTY_VERSION_CONFLICT",
+        "The property was modified by another request. Reload and try again.");
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
