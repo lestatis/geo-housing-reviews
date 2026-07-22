@@ -79,6 +79,28 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-22: Chunk 7 (moderation transitions + audit) implemented on
+  `feat/005-reviews-chunk7-moderation`, branched from `main` (chunks 5–6 merged).
+  **`V4.3__create_review_moderation_audit_event.sql`** — append-only, verified constraint-by-
+  constraint on scratch Postgres before any Java; no FKs on `moderator_account_id` (identity's
+  table) or `review_id` (a NOT_FOUND attempt must still be auditable), same reasoning as V2.5/V3.3.
+  Two columns beyond the properties template: **`reason_code` NOT NULL** — MODERATION.md allows no
+  unexplained action, enforced in three layers (service pre-check before any state is touched, audit
+  event constructor, DB CHECK) — and **`review_version_id`**, because a decision about content is
+  meaningless in the trail without the content it judged; null only for NOT_FOUND and for removing an
+  empty draft. `ReviewModerationService` (publish/reject/hide/restore/remove): reasons validated
+  first, expectedVersion mismatch → 409 before the transition runs, missing review → audited
+  NOT_FOUND + 404, transitions delegated to the aggregate. `JpaReviewModerationRepository` writes
+  the mutation **through the existing `ReviewRepository` port** inside its own transaction — the
+  moderation path must not become a way around the optimistic-lock and append-only-trail guards —
+  plus the audit row, atomically. `AdminReviewController` under `/api/admin/reviews` (role gate from
+  the security chain) also carries `GET /{id}`: the one place elevated visibility exists, per the
+  chunk-6 decision that public endpoints grant admins nothing. The chunk-6 endpoint tests now publish
+  through the real moderation endpoint instead of direct SQL (the noted follow-up); direct SQL
+  remains only for granting ADMIN, which no API does. The reason-code taxonomy, reports, appeals and
+  redaction stay with the moderation module. 8 service unit tests + 9 admin endpoint integration
+  tests (role gate, audit row content incl. judged version id, stale 409 with no audit row, state
+  conflict, NOT_FOUND audited, blank reason refused); `./scripts/check.sh` passes.
 - 2026-07-22: Chunk 6 open items reviewed with the founder and closed (second commit on the chunk-6
   branch). **Resolved by explicit founder decision:** (a) the catalogue and published reviews are now
   publicly readable — `SecurityConfiguration` permits `GET /api/properties/**` and

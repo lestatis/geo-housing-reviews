@@ -1,6 +1,8 @@
 package com.example.geohousing.reviews.infrastructure;
 
 import com.example.geohousing.reviews.application.PropertyLookup;
+import com.example.geohousing.reviews.application.ReviewModerationRepository;
+import com.example.geohousing.reviews.application.ReviewModerationService;
 import com.example.geohousing.reviews.application.ReviewQueryService;
 import com.example.geohousing.reviews.application.ReviewRepository;
 import com.example.geohousing.reviews.application.ReviewSubmissionService;
@@ -29,5 +31,11 @@ public class ReviewsBeanConfiguration {
   @Bean
   ReviewQueryService reviewQueryService(ReviewRepository reviewRepository) {
     return new ReviewQueryService(reviewRepository);
+  }
+
+  @Bean
+  ReviewModerationService reviewModerationService(
+      ReviewRepository reviewRepository, ReviewModerationRepository moderationRepository) {
+    return new ReviewModerationService(reviewRepository, moderationRepository, Clock.systemUTC());
   }
 }

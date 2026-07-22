@@ -4,19 +4,19 @@
 
 Build the `reviews` backend module (plan `docs/plans/005-reviews-module.md`): structured reviews of a
 property with immutable content versions, category ratings, a publication lifecycle, and a
-verified/unverified experience signal. This is chunk 6 (public endpoints).
+verified/unverified experience signal. This is chunk 7 (moderation transitions + audit).
 
 ## Active branch
 
-`feat/005-reviews-chunk6-endpoints` (branched from **`feat/005-reviews-chunk5-persistence`**, which is itself branched from `main` at `6b34ff4`)
+`feat/005-reviews-chunk7-moderation` (branched from `main` at `6e0a120` — chunks 5 and 6 are merged)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/005-reviews-module.md` — this is chunk 6 of 8.
+No issue. See `docs/plans/005-reviews-module.md` — this is chunk 7 of 8.
 
 ## Current status
 
-chunk6_implemented (incl. founder-resolved open items) — **stacked on chunk 5**. Review and merge chunk 5 first, then this.
+chunk7_implemented — ready for fresh independent review and merge before chunk 8.
 
 ## Completed work
 
@@ -31,7 +31,28 @@ abstraction exists (the same reasoning that kept `identity.api` an empty stub). 
 reviews module, so the contract is built in plan `005` chunk 4, against a real caller. Deferred
 properties items are listed in that plan's Final outcome rather than dropped.
 
-### Reviews chunk 6 — public endpoints (this branch)
+### Reviews chunk 7 — moderation transitions + audit (this branch)
+
+`V4.3` audit table (verified on scratch Postgres first), `ReviewModerationService`
+(publish/reject/hide/restore/remove), atomic decision+audit adapter, and `AdminReviewController`
+under `/api/admin/reviews` — including `GET /{id}`, the one place elevated visibility exists.
+
+**Points a reviewer should push on:**
+- Every action requires a `reason_code`, enforced three times: service pre-check (before any state is
+  touched), audit-event constructor, DB CHECK. The taxonomy itself waits for the moderation module —
+  codes are free-form for now.
+- The audit records `review_version_id` — the exact content version the decision judged. Null only
+  for NOT_FOUND and for removing an empty draft.
+- The moderation adapter saves the review **through the `ReviewRepository` port**, so the moderation
+  path cannot bypass the optimistic-lock and append-only-trail guards; its transaction wraps both
+  writes.
+- A stale `version` is 409 **before** the transition and leaves no audit row; an action against a
+  missing review is 404 **and** leaves a NOT_FOUND audit row. Asymmetry is deliberate: the first
+  never touched a review, the second is an admin acting on a target worth recording. (Auditing
+  *rejected* attempts — stale/illegal — remains the standing follow-up from properties.)
+- Chunk-6 tests now publish via the real endpoint; direct SQL remains only for granting ADMIN.
+
+### Reviews chunk 6 — public endpoints (merged to `main`)
 
 `POST /api/properties/{id}/reviews` (201 + Location), `GET /api/reviews/{id}`,
 `PUT /api/reviews/{id}`, cursor-paginated `GET /api/properties/{id}/reviews`, and
@@ -181,7 +202,7 @@ Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it 
 
 ## Remaining work
 
-Chunks 7–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
+Chunk 8 (helpful signals — likely deferred beyond MVP; see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
 outbound port (3); **`properties.api` + adapter — the first cross-module call, closing plan 004's
 chunk 8** (4); persistence (5); public endpoints with cursor pagination (6); moderation-state
 transitions + audit, `V4.2` (7); helpful signals/ranking inputs, likely deferred (8).

@@ -266,9 +266,11 @@ class ReviewEndpointIntegrationTest {
     String first = submitReview(bearer("subject-listing-1"), propertyId, "პირველი");
     String second = submitReview(bearer("subject-listing-2"), propertyId, "მეორე");
     String third = submitReview(bearer("subject-listing-3"), propertyId, "მესამე");
-    publishAt(first, "2026-07-20T10:00:00Z");
-    publishAt(second, "2026-07-20T11:00:00Z");
-    publishAt(third, "2026-07-20T12:00:00Z");
+    // Published in order through the real moderation endpoint, so publication times strictly
+    // increase and "newest first" means third, second, first.
+    publish(first);
+    publish(second);
+    publish(third);
     // A fourth review stays in moderation and must not appear.
     submitReview(bearer("subject-listing-4"), propertyId, "მოდერაციაში");
 
@@ -412,19 +414,20 @@ class ReviewEndpointIntegrationTest {
   }
 
   /**
-   * Publishing is a moderation action, and moderation endpoints arrive in the next chunk; until
-   * then a test that needs published content sets the stored state directly.
+   * Publishes through the real moderation endpoint (chunk 7), so these tests exercise the same
+   * transition production uses. Every review here is published straight after submission, so the
+   * expected version is always 0.
    */
-  private void publish(String reviewId) {
-    publishAt(reviewId, "2026-07-20T10:00:00Z");
-  }
-
-  private void publishAt(String reviewId, String publishedAt) {
-    jdbcTemplate.update(
-        "update reviews.review set status = 'PUBLISHED', published_at = ?::timestamptz"
-            + " where id = ?::uuid",
-        publishedAt,
-        reviewId);
+  private void publish(String reviewId) throws Exception {
+    String moderator = bearer("subject-resident-moderator");
+    promoteToAdmin(moderator);
+    mockMvc
+        .perform(
+            post("/api/admin/reviews/" + reviewId + "/publish")
+                .header("Authorization", moderator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":0,\"reasonCode\":\"CLEAN\"}"))
+        .andExpect(status().isOk());
   }
 
   private static String submitBody(String reviewBody) {
