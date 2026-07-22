@@ -79,6 +79,26 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-20: Chunk 3 (application layer) implemented on `feat/005-reviews-chunk3-application`.
+  Ports: `ReviewRepository` (by id, the live review for an author+property mirroring the partial
+  unique index, create, save, and a cursor-paginated published listing) and the `PropertyLookup`
+  outbound port returning `PropertyReviewability(reviewTarget, acceptsNewReviews)` — the smallest
+  question reviews needs answered, and the contract chunk 4 will satisfy from `properties.api`.
+  `ReviewCursor` (publishedAt desc + review id tie-break) and `ReviewPage` are defined here so chunk 6
+  only encodes them for HTTP. Use cases: `ReviewSubmissionService.submit` (property must exist and
+  accept reviews; the review attaches to the **merge-surviving** property; one live review per author
+  per property, refused with the existing review's id) and `.edit` (append a version with a required
+  reason; a published review returns to moderation). `ReviewQueryService.getById` + `listPublished`
+  (clamped to 50). Decisions worth review: (a) **visibility is one shared rule** (`ReviewVisibility`)
+  — only PUBLISHED is public, everything else is author/moderator-only and reported as **not found**
+  rather than forbidden, so a stranger cannot probe whether a person reviewed a building; (b) editing
+  someone else's *visible* review is a 403 while editing an invisible one is a 404 — the distinction
+  never leaks existence; (c) **a HIDDEN review cannot be edited by its author** — a moderator withheld
+  it, and a silent rewrite would make moderation a negotiation it cannot see; appeals belong to the
+  moderation module. Note for chunk 6: API_GUIDELINES requires `Idempotency-Key` on final review
+  submission — the one-live-review rule already makes a replayed submit safe (it is refused with the
+  existing id), so the web layer only has to map that to a stable response. 22 new unit tests against
+  in-memory fakes, including the negative authorization paths; `./scripts/check.sh` passes.
 - 2026-07-20: Chunk 2 (domain model) implemented on `feat/005-reviews-chunk2-domain`, branched from
   `main` after chunk 1 (`8142f88`). Framework-free `reviews.domain`: `ReviewId`, `AuthorId` and
   `PropertyRef` (opaque cross-module references — no identity/properties dependency),

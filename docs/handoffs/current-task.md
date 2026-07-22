@@ -4,19 +4,19 @@
 
 Build the `reviews` backend module (plan `docs/plans/005-reviews-module.md`): structured reviews of a
 property with immutable content versions, category ratings, a publication lifecycle, and a
-verified/unverified experience signal. This is chunk 2 (domain model).
+verified/unverified experience signal. This is chunk 3 (application layer).
 
 ## Active branch
 
-`feat/005-reviews-chunk2-domain` (branched from `main` at `8142f88`)
+`feat/005-reviews-chunk3-application` (branched from `main` at `48e798e`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/005-reviews-module.md` — this is chunk 2 of 8.
+No issue. See `docs/plans/005-reviews-module.md` — this is chunk 3 of 8.
 
 ## Current status
 
-chunk2_implemented — ready for fresh independent review and merge before chunk 3.
+chunk3_implemented — ready for fresh independent review and merge before chunk 4.
 
 ## Completed work
 
@@ -31,7 +31,29 @@ abstraction exists (the same reasoning that kept `identity.api` an empty stub). 
 reviews module, so the contract is built in plan `005` chunk 4, against a real caller. Deferred
 properties items are listed in that plan's Final outcome rather than dropped.
 
-### Reviews chunk 2 — domain model (this branch)
+### Reviews chunk 3 — application layer (this branch)
+
+Framework-free use cases and the ports they need:
+- `ReviewRepository` — by id; the live review for an author+property (mirrors `V4.1`'s partial unique
+  index, so REJECTED/REMOVED do not block a fresh start); create; save; cursor-paginated published
+  listing. `ReviewCursor` (publishedAt desc, review id tie-break) and `ReviewPage` live here; the
+  opaque HTTP cursor encoding is chunk 6's job.
+- `PropertyLookup` outbound port → `PropertyReviewability(reviewTarget, acceptsNewReviews)`. Chunk 4
+  implements it over `properties.api`. `reviewTarget` is the merge-surviving property, so reviews of
+  one building keep landing on one record.
+- `ReviewSubmissionService.submit` / `.edit`, `ReviewQueryService.getById` / `.listPublished`.
+
+**Points a reviewer should push on:**
+- Visibility is a single shared rule (`ReviewVisibility`) applied by every id-based path. Only
+  PUBLISHED is public; anything else is author/moderator-only and reported **not found**, never
+  forbidden — a 403 would confirm that a given person reviewed a given building.
+- Editing another user's *visible* (published) review is 403; editing an invisible one is 404.
+- A HIDDEN review cannot be edited by its author (a moderator withheld it; appeals belong to the
+  moderation module). Terminal states are refused by the aggregate.
+- Chunk 6 note: `Idempotency-Key` on final submission is satisfied in substance by the
+  one-live-review rule — a replay is refused with the existing review's id.
+
+### Reviews chunk 2 — domain model (merged to `main`)
 
 Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it and pass):
 - Opaque references: `AuthorId` (identity account) and `PropertyRef` (properties module) — no
@@ -72,7 +94,7 @@ Framework-free `reviews.domain` (ArchUnit's domain-purity rules now apply to it 
 
 ## Remaining work
 
-Chunks 3–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
+Chunks 4–8 (see the plan): domain model + state machine (2); application layer with a `PropertyLookup`
 outbound port (3); **`properties.api` + adapter — the first cross-module call, closing plan 004's
 chunk 8** (4); persistence (5); public endpoints with cursor pagination (6); moderation-state
 transitions + audit, `V4.2` (7); helpful signals/ranking inputs, likely deferred (8).
