@@ -3,6 +3,7 @@ package com.example.geohousing.app.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -45,6 +46,12 @@ public class SecurityConfiguration {
                     .permitAll()
                     .requestMatchers("/api/admin/**")
                     .hasRole("ADMIN")
+                    // The catalogue and published reviews are publicly readable (DECISION_LOG
+                    // P-010): reading needs no account, and the modules' visibility rules already
+                    // treat the anonymous viewer as a normal case — unpublished content stays
+                    // hidden. Writing anywhere still requires an authenticated account.
+                    .requestMatchers(HttpMethod.GET, "/api/properties/**", "/api/reviews/**")
+                    .permitAll()
                     .anyRequest()
                     .authenticated())
         .sessionManagement(

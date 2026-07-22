@@ -16,7 +16,7 @@ No issue. See `docs/plans/005-reviews-module.md` — this is chunk 6 of 8.
 
 ## Current status
 
-chunk6_implemented — **stacked on chunk 5**. Review and merge chunk 5 first, then this.
+chunk6_implemented (incl. founder-resolved open items) — **stacked on chunk 5**. Review and merge chunk 5 first, then this.
 
 ## Completed work
 
@@ -40,11 +40,8 @@ properties items are listed in that plan's Final outcome rather than dropped.
 **Points a reviewer should push on:**
 - `PUT /api/reviews/{id}` is **beyond the chunk's listed scope**: chunk 3's edit use case existed and
   was tested, and "review versions" is an MVP must-have that needs a reachable way to make one.
-- **No `Idempotency-Key`**, though API_GUIDELINES lists final review submission. The one-live-review
-  rule already makes replay safe; a repeat returns 409 `REVIEW_ALREADY_EXISTS` with `existingReviewId`
-  and a `Location` header pointing at the existing review. A key-and-store mechanism would add a
-  table and migration for no observable difference. Disagree here if you think the guideline is
-  meant literally.
+- **No `Idempotency-Key`** — resolved: the guideline itself was amended (founder-approved) to accept
+  natural idempotency where the conflict response identifies the existing resource.
 - **Administrators get no extra visibility on public endpoints.** `WebAuthentication.publicViewer`
   always builds a plain user; elevated reading belongs to the moderation queue where it is auditable.
 - `editReason` is omitted from the public representation (written for moderators; `versionNumber`
@@ -56,9 +53,11 @@ properties items are listed in that plan's Final outcome rather than dropped.
 **Note for chunk 7:** endpoint tests publish via direct SQL because moderation endpoints do not exist
 yet. Move them onto the real transition when chunk 7 lands.
 
-**Open product question:** every endpoint requires a bearer token (`anyRequest().authenticated()`).
-Public read access for anonymous visitors is plausible for a review site but is an app-level security
-change, deliberately not made inside a module chunk.
+**Resolved (founder, 2026-07-22):** public read access is now live — `GET /api/properties/**` and
+`GET /api/reviews/**` are anonymous-friendly (DECISION_LOG P-010); writes, `/api/me` and
+`/api/admin/**` still require auth. And the `Idempotency-Key` guideline was amended rather than
+implemented: natural idempotency with a self-identifying conflict response satisfies it
+(API_GUIDELINES, Idempotency).
 
 ### Reviews chunk 5 — persistence (previous branch in the stack)
 

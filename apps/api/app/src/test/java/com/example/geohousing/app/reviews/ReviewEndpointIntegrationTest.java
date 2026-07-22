@@ -65,19 +65,43 @@ class ReviewEndpointIntegrationTest {
   }
 
   @Test
-  void anonymousRequestsAreUnauthorized() throws Exception {
-    String propertyId = UUID.randomUUID().toString();
+  void anonymousVisitorsCanReadButNeverWrite() throws Exception {
+    // Reading is public (DECISION_LOG P-010) …
+    String bearer = bearer("subject-anon-read");
+    String propertyId = createProperty(bearer, "Anon Read Tower " + UUID.randomUUID());
+    String publishedId = submitReview(bearer, propertyId, "საჯაროდ წასაკითხი");
+    publish(publishedId);
 
     mockMvc
         .perform(get("/api/properties/" + propertyId + "/reviews"))
-        .andExpect(status().isUnauthorized());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].reviewId").value(publishedId));
+    mockMvc
+        .perform(get("/api/reviews/" + publishedId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reviewId").value(publishedId));
+
+    // … but only of published content: an unpublished review does not exist for a visitor.
+    String pendingId =
+        submitReview(
+            bearer("subject-anon-hidden"),
+            createProperty(bearer, "Anon Hidden Tower " + UUID.randomUUID()),
+            "ჯერ მოდერაციაში");
+    mockMvc.perform(get("/api/reviews/" + pendingId)).andExpect(status().isNotFound());
+
+    // Writing always requires an account.
     mockMvc
         .perform(
             post("/api/properties/" + propertyId + "/reviews")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(submitBody("კარგი შენობა")))
         .andExpect(status().isUnauthorized());
-    mockMvc.perform(get("/api/reviews/" + UUID.randomUUID())).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(
+            put("/api/reviews/" + publishedId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(editBody("გადაწერა", "anon")))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

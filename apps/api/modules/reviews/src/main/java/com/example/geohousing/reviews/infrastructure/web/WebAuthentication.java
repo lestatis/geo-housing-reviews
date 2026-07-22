@@ -22,7 +22,9 @@ final class WebAuthentication {
   }
 
   /**
-   * The viewer for a public endpoint: always a plain user, never a moderator.
+   * The viewer for a public endpoint: anonymous when no account is signed in (public reads,
+   * DECISION_LOG P-010 — Spring injects a null {@link Principal} then), otherwise a plain user —
+   * never a moderator.
    *
    * <p>Elevated visibility is not granted here even to an administrator. Moderators read
    * unpublished content through the moderation queue, where the access is scoped and auditable —
@@ -30,6 +32,6 @@ final class WebAuthentication {
    * it.
    */
   static ReviewViewer publicViewer(Principal principal) {
-    return ReviewViewer.user(authorId(principal));
+    return principal == null ? ReviewViewer.anonymous() : ReviewViewer.user(authorId(principal));
   }
 }

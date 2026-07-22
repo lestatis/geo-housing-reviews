@@ -79,6 +79,21 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-22: Chunk 6 open items reviewed with the founder and closed (second commit on the chunk-6
+  branch). **Resolved by explicit founder decision:** (a) the catalogue and published reviews are now
+  publicly readable — `SecurityConfiguration` permits `GET /api/properties/**` and
+  `GET /api/reviews/**`, everything else still authenticated; recorded as **DECISION_LOG P-010**.
+  The reviews web layer maps a null principal to `ReviewViewer.anonymous()`, which the visibility
+  rules already treated as a normal case, so unpublished content stays hidden to visitors — asserted
+  end-to-end (anonymous reads a published review 200, an unpublished one 404, and both writes 401).
+  (b) The `Idempotency-Key` guideline is **amended, not implemented**: API_GUIDELINES now says a
+  natural unique constraint satisfies the requirement when the conflict response identifies the
+  existing resource, which review submission does (409 + `existingReviewId` + `Location`); the
+  header stays required for verification, moderation, media and export/delete. **Ratified as-is
+  after review:** the beyond-scope `PUT`, admin-no-extra-visibility, and the `editReason` omission.
+  The chunk-6 test-taught fixes (403/404 tracks current visibility; the admin promotion proven
+  against an admin-only endpoint) were already in the previous commit. The open-question paragraph
+  in the handoff is now resolved and removed. Full gate passes.
 - 2026-07-22: Chunk 6 (public endpoints) implemented on `feat/005-reviews-chunk6-endpoints`,
   **branched from the chunk-5 branch, not `main`** — chunk 5 is still awaiting review, and the
   endpoints need its persistence. Merge chunk 5 first; the two are stacked.

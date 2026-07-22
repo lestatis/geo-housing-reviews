@@ -58,13 +58,19 @@ Use cursor pagination for reviews, moderation queues and audit events. Responses
 
 Require `Idempotency-Key` for operations such as:
 
-- final review submission;
 - verification submission;
 - moderation decision;
 - media finalization;
 - data export/deletion request.
 
 Store result and reject incompatible reuse.
+
+Where a natural unique constraint already makes a replay safe **and** the conflict response
+identifies the existing resource, that satisfies this requirement without the header. Final review
+submission works this way: one live review per author per property, and a replay is answered `409`
+with a `code` of `REVIEW_ALREADY_EXISTS`, the `existingReviewId`, and a `Location` header pointing
+at the existing review. Do not add a keyed request store where a natural key already gives the
+client everything it needs to recover.
 
 ## Concurrency
 
