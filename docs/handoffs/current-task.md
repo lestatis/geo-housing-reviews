@@ -5,22 +5,46 @@
 Build the `verification` backend module (plan `docs/plans/006-verification-module.md`): a private
 workflow that checks whether an account had its claimed relationship with a property, producing a
 strength tier and a public-safe badge that feeds the reviews `VerificationTier` projection. MVP loop
-3 ("Verify relationship → improve trust signal"). This is chunk 2 (domain model).
+3 ("Verify relationship → improve trust signal"). This is chunk 3 (application layer).
 
 ## Active branch
 
-`feat/006-verification-chunk2-domain` (branched from `main` at `6b8625f`)
+`feat/006-verification-chunk3-application` (branched from `main` at `7b67ae9`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/006-verification-module.md` — this is chunk 2 of 8. Tier 2 evidence is
+No issue. See `docs/plans/006-verification-module.md` — this is chunk 3 of 8. Tier 2 evidence is
 deferred to plan 007 (its storage subsystem is highly sensitive and gets its own security review).
 
 ## Current status
 
-chunk2_implemented — ready for fresh independent review and merge before chunk 3.
+chunk3_implemented — ready for fresh independent review and merge before chunk 4.
 
-### Verification chunk 2 — domain model (this branch)
+### Verification chunk 3 — application layer (this branch)
+
+Framework-free use cases and the ports they need:
+- `VerificationCaseRepository` (by id; live case for account+property, mirroring the V5.1 partial
+  index; latest case for a badge; status queue; create/save), `PropertyLookup` (resolve to merge
+  survivor — no reviewability question, since one may verify a past relationship to a now-withheld
+  property), `VerificationDecisionRepository` (applyDecision + recordAttempt, atomic mutation+audit).
+- Domain audit types added this chunk: `VerificationDecisionAction/Outcome/AuditEvent` (actor absent
+  only for system EXPIRE, reason mandatory), plus not-found / version-conflict exceptions.
+- `VerificationSubmissionService.open` / `.cancel`, `VerificationDecisionService.approve` / `.reject`,
+  `VerificationQueryService.getById` / `.findMine` / `.pendingQueue`.
+
+**Points a reviewer should push on:**
+- Visibility is one shared rule (`VerificationVisibility`): a case is visible only to its owner and
+  moderators, reported **not found** to everyone else — and there is **no anonymous viewer** (a case
+  is confidential, unlike a published review).
+- `open` resolves the property to its merge survivor and enforces one live case (PENDING or APPROVED)
+  per account+property; an APPROVED case still blocks a duplicate.
+- `cancel` is owner-only; a moderator withdrawing a case is a REJECT (audited), not a cancel.
+- Decisions validate the reason first, refuse a stale `expectedVersion` before any transition, and
+  audit a decision against a missing case as NOT_FOUND while returning empty.
+- Chunk 4 note: the reviews-side tier projection and the `PropertyLookup` adapter over `properties.api`
+  are the next chunk; this chunk only defines the outbound port.
+
+### Verification chunk 2 — domain model (merged to `main`)
 
 Framework-free `verification.domain`: the `VerificationCase` aggregate + state machine, the
 method → tier mapping, and the public `VerificationBadge` projection.
@@ -59,8 +83,8 @@ method → tier mapping, and the public `VerificationBadge` projection.
 
 ## Remaining work
 
-Chunks 3–8 (see the plan). Next up: chunk 3 (application — repository port, open-case + decision
-services with audit, badge query; in-memory-fake unit tests).
+Chunks 4–8 (see the plan). Next up: chunk 4 (`reviews.api` inbound port + verification→reviews tier
+push/pull, and the `PropertyLookup` adapter over `properties.api`).
 
 ## Decisions and assumptions
 

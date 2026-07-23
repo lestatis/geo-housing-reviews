@@ -149,6 +149,28 @@ cd .. && ./scripts/check.sh
   ArchUnit domain-purity now binds real `verification.domain` code. 18 unit tests;
   `./scripts/check.sh` passes.
 
+- 2026-07-23: Chunk 3 (application layer) implemented on `feat/006-verification-chunk3-application`.
+  Ports: `VerificationCaseRepository` (by id; the live case for an account+property mirroring the
+  V5.1 partial index; latest case for reading a badge; a status queue; create/save), the
+  `PropertyLookup` outbound port (resolve a property to its merge survivor — verification does *not*
+  ask about reviewability, since one may verify a past relationship to a now-withheld property), and
+  `VerificationDecisionRepository` (applyDecision + recordAttempt, committing the mutation and its
+  audit row together). Domain audit types added: `VerificationDecisionAction`,
+  `VerificationDecisionOutcome`, `VerificationDecisionAuditEvent` (actor absent only for system
+  EXPIRE; reason mandatory), plus `VerificationCaseNotFoundException` /
+  `VerificationVersionConflictException`. Services: `VerificationSubmissionService.open` (property
+  resolved to survivor; one live case per account+property, refused with the existing id) and
+  `.cancel` (owner-only; a moderator withdrawing a case is a REJECT, which is audited);
+  `VerificationDecisionService.approve` / `.reject` (reason validated first, stale expectedVersion →
+  409 before the transition, missing case → audited NOT_FOUND + empty); `VerificationQueryService`
+  (getById with a viewer, findMine, moderators-only pending queue). Decision worth review:
+  **visibility is one shared rule** — a case is visible only to its owner and moderators, and reported
+  as *not found* to anyone else (a private workflow must never confirm that a given account is
+  verifying a given property), the same 404-not-403 stance as reviews but with **no anonymous
+  viewer** (a case is confidential, whereas a published review is public). 21 application unit tests
+  against in-memory fakes (39 in the module), including the negative authorization paths;
+  `./scripts/check.sh` passes.
+
 ## Out of scope
 
 Tier 2 evidence storage (plan 007); ranking weights and the ranking module; Tier 3 registry
