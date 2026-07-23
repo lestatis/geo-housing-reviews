@@ -171,6 +171,27 @@ cd .. && ./scripts/check.sh
   against in-memory fakes (39 in the module), including the negative authorization paths;
   `./scripts/check.sh` passes.
 
+- 2026-07-23: Chunk 4 (reviews.api inbound port + tier projection) implemented on
+  `feat/006-verification-chunk4-reviews-projection`. **Architecture decision, founder-approved:** the
+  plan's "push-on-decision plus pull-at-submit" would make reviews and verification mutually
+  dependent, which the no-cycles ArchUnit rule forbids. Resolved to **push-only, verification →
+  reviews** (reviews never calls verification). Reviews publishes its **first inbound contract**:
+  `reviews.api.ReviewVerificationUpdater` + `ReviewVerificationTier` (own enum, not the domain type —
+  the properties.api discipline), implemented by `ReviewVerificationApplier` which sets the tier on
+  the author's live review (reusing `findLiveByAuthorAndProperty` + `updateVerificationTier`).
+  Verification gets a `ReviewProjection` outbound port, a `ReviewProjectionAdapter` over reviews.api,
+  and a `CatalogPropertyResolver` over properties.api (renamed from CatalogPropertyLookup to avoid a
+  component-scan bean-name clash with reviews' identically-named adapter — a real failure the app
+  context caught). `VerificationDecisionService` now pushes the resulting tier after every decision
+  (approve → RELATIONSHIP_SIGNAL, reject → UNVERIFIED; NOT_FOUND pushes nothing), as a separate
+  idempotent concern from the decision's own transaction. **Accepted trade-off:** a review written
+  *after* approval starts UNVERIFIED until a re-push — the verify-first gap, closed later. The
+  verification *services* are not wired in the app yet (they need the chunk-5 repositories); the two
+  outbound adapters wire standalone and the app context stays green. Reviews half proven end-to-end
+  on Postgres (`ReviewVerificationProjectionIntegrationTest`); no-cycle ArchUnit confirmed green.
+  7 new unit tests (reviews applier 4 + verification push assertions) + 3 integration; 98 module
+  tests; `./scripts/check.sh` passes.
+
 ## Out of scope
 
 Tier 2 evidence storage (plan 007); ranking weights and the ranking module; Tier 3 registry

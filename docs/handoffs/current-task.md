@@ -5,22 +5,45 @@
 Build the `verification` backend module (plan `docs/plans/006-verification-module.md`): a private
 workflow that checks whether an account had its claimed relationship with a property, producing a
 strength tier and a public-safe badge that feeds the reviews `VerificationTier` projection. MVP loop
-3 ("Verify relationship → improve trust signal"). This is chunk 3 (application layer).
+3 ("Verify relationship → improve trust signal"). This is chunk 4 (reviews.api inbound port + tier projection).
 
 ## Active branch
 
-`feat/006-verification-chunk3-application` (branched from `main` at `7b67ae9`)
+`feat/006-verification-chunk4-reviews-projection` (branched from `main` at `3a30826`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/006-verification-module.md` — this is chunk 3 of 8. Tier 2 evidence is
+No issue. See `docs/plans/006-verification-module.md` — this is chunk 4 of 8. Tier 2 evidence is
 deferred to plan 007 (its storage subsystem is highly sensitive and gets its own security review).
 
 ## Current status
 
-chunk3_implemented — ready for fresh independent review and merge before chunk 4.
+chunk4_implemented — ready for fresh independent review and merge before chunk 5.
 
-### Verification chunk 3 — application layer (this branch)
+### Verification chunk 4 — reviews.api inbound port + tier projection (this branch)
+
+The reviews↔verification seam, **push-only (verification → reviews)** — the founder-approved
+resolution of the plan's push+pull, which would have formed a module cycle.
+
+- Reviews publishes its first inbound contract: `reviews.api.ReviewVerificationUpdater` +
+  `ReviewVerificationTier`, implemented by `ReviewVerificationApplier` (sets the tier on the author's
+  live review). Wired as a bean.
+- Verification: `ReviewProjection` outbound port, `ReviewProjectionAdapter` over reviews.api,
+  `CatalogPropertyResolver` over properties.api. `VerificationDecisionService` pushes the resulting
+  tier after every decision.
+
+**Points a reviewer should push on:**
+- Direction: push-only, reviews never calls verification (keeps them acyclic — the no-cycles ArchUnit
+  rule was the forcing function). Was this the right call vs. pull-at-read?
+- **Verify-first gap (accepted):** a review written after approval starts UNVERIFIED until a re-push.
+- The tier push is a separate concern from the decision transaction — idempotent, re-pushable. Not
+  transactional across modules by design.
+- Verification services are **not wired in the app** yet (need chunk-5 repositories); only the two
+  outbound adapters are component-scanned. The app context stays green.
+- `CatalogPropertyResolver` is named differently from reviews' `CatalogPropertyLookup` to avoid a
+  component-scan bean-name collision (which the app context caught).
+
+### Verification chunk 3 — application layer (merged to `main`)
 
 Framework-free use cases and the ports they need:
 - `VerificationCaseRepository` (by id; live case for account+property, mirroring the V5.1 partial
@@ -83,8 +106,8 @@ method → tier mapping, and the public `VerificationBadge` projection.
 
 ## Remaining work
 
-Chunks 4–8 (see the plan). Next up: chunk 4 (`reviews.api` inbound port + verification→reviews tier
-push/pull, and the `PropertyLookup` adapter over `properties.api`).
+Chunks 5–8 (see the plan). Next up: chunk 5 (JPA persistence for the case/decision graph, the
+VerificationBeanConfiguration wiring the services, integration tests).
 
 ## Decisions and assumptions
 

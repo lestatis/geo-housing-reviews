@@ -26,14 +26,17 @@ public final class VerificationDecisionService {
 
   private final VerificationCaseRepository caseRepository;
   private final VerificationDecisionRepository decisionRepository;
+  private final ReviewProjection reviewProjection;
   private final Clock clock;
 
   public VerificationDecisionService(
       VerificationCaseRepository caseRepository,
       VerificationDecisionRepository decisionRepository,
+      ReviewProjection reviewProjection,
       Clock clock) {
     this.caseRepository = Objects.requireNonNull(caseRepository, "caseRepository");
     this.decisionRepository = Objects.requireNonNull(decisionRepository, "decisionRepository");
+    this.reviewProjection = Objects.requireNonNull(reviewProjection, "reviewProjection");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
 
@@ -102,6 +105,14 @@ public final class VerificationDecisionService {
         verificationCase,
         VerificationDecisionAuditEvent.applied(
             moderatorId.value(), action, caseId, reasonCode, now));
+
+    // Project the resulting tier onto the account's review. Uniform across decisions: approval
+    // raises it, rejection leaves it UNVERIFIED (a pending case never granted a tier, and the
+    // one-live-case rule means no other approval coexists). The push is a separate concern from the
+    // decision's own transaction — it is idempotent, so a later re-push reconciles if it fails
+    // here.
+    reviewProjection.applyTier(
+        verificationCase.accountRef(), verificationCase.propertyRef(), verificationCase.tier());
     return Optional.of(verificationCase);
   }
 

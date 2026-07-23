@@ -1,11 +1,13 @@
 package com.example.geohousing.reviews.infrastructure;
 
+import com.example.geohousing.reviews.api.ReviewVerificationUpdater;
 import com.example.geohousing.reviews.application.PropertyLookup;
 import com.example.geohousing.reviews.application.ReviewModerationRepository;
 import com.example.geohousing.reviews.application.ReviewModerationService;
 import com.example.geohousing.reviews.application.ReviewQueryService;
 import com.example.geohousing.reviews.application.ReviewRepository;
 import com.example.geohousing.reviews.application.ReviewSubmissionService;
+import com.example.geohousing.reviews.application.ReviewVerificationApplier;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,5 +39,10 @@ public class ReviewsBeanConfiguration {
   ReviewModerationService reviewModerationService(
       ReviewRepository reviewRepository, ReviewModerationRepository moderationRepository) {
     return new ReviewModerationService(reviewRepository, moderationRepository, Clock.systemUTC());
+  }
+
+  @Bean
+  ReviewVerificationUpdater reviewVerificationUpdater(ReviewRepository reviewRepository) {
+    return new ReviewVerificationApplier(reviewRepository, Clock.systemUTC());
   }
 }

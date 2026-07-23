@@ -32,8 +32,27 @@ class VerificationDecisionServiceTest {
   private final InMemoryVerificationCaseRepository cases = new InMemoryVerificationCaseRepository();
   private final InMemoryVerificationCaseRepository.RecordingDecisionRepository decisions =
       cases.decisionRepository();
+  private final RecordingReviewProjection reviewProjection = new RecordingReviewProjection();
   private final VerificationDecisionService service =
-      new VerificationDecisionService(cases, decisions, CLOCK);
+      new VerificationDecisionService(cases, decisions, reviewProjection, CLOCK);
+
+  /** Captures the tiers pushed to the reviews module. */
+  private static final class RecordingReviewProjection
+      implements com.example.geohousing.verification.application.ReviewProjection {
+    private final java.util.List<VerificationTier> pushed = new java.util.ArrayList<>();
+
+    @Override
+    public void applyTier(
+        com.example.geohousing.verification.domain.AccountRef accountRef,
+        com.example.geohousing.verification.domain.PropertyRef propertyRef,
+        VerificationTier tier) {
+      pushed.add(tier);
+    }
+
+    VerificationTier last() {
+      return pushed.get(pushed.size() - 1);
+    }
+  }
 
   private VerificationCase storePending() {
     VerificationCase verificationCase =
@@ -72,6 +91,8 @@ class VerificationDecisionServiceTest {
     assertThat(event.outcome()).isEqualTo(VerificationDecisionOutcome.APPLIED);
     assertThat(event.actorAccountId()).contains(MODERATOR.value());
     assertThat(event.reasonCode()).isEqualTo("INVITE_CONFIRMED");
+    // The granted tier is projected onto the account's review.
+    assertThat(reviewProjection.last()).isEqualTo(VerificationTier.RELATIONSHIP_SIGNAL);
   }
 
   @Test
@@ -83,6 +104,8 @@ class VerificationDecisionServiceTest {
     assertThat(cases.findById(pending.id()).orElseThrow().status())
         .isEqualTo(VerificationStatus.REJECTED);
     assertThat(lastEvent().action()).isEqualTo(VerificationDecisionAction.REJECT);
+    // A rejection projects UNVERIFIED — the review keeps no tier from this case.
+    assertThat(reviewProjection.last()).isEqualTo(VerificationTier.UNVERIFIED);
   }
 
   @Test
@@ -94,6 +117,8 @@ class VerificationDecisionServiceTest {
     VerificationDecisionAuditEvent event = lastEvent();
     assertThat(event.outcome()).isEqualTo(VerificationDecisionOutcome.NOT_FOUND);
     assertThat(event.caseId()).isEqualTo(missing);
+    // Nothing was decided, so nothing is projected onto any review.
+    assertThat(reviewProjection.pushed).isEmpty();
   }
 
   @Test
