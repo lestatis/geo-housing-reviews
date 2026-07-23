@@ -210,6 +210,22 @@ cd .. && ./scripts/check.sh
   yet) succeeds harmlessly. 6 persistence + 2 cross-module integration tests (15 verification
   integration tests total with the migration test); `./scripts/check.sh` passes.
 
+- 2026-07-23: Chunk 6 (public + admin endpoints) implemented on
+  `feat/006-verification-chunk6-endpoints`. User endpoints (all authenticated — a case is private, so
+  none is a public read): `POST /api/verifications` (201 + Location; a replay is 409
+  `VERIFICATION_CASE_ALREADY_EXISTS` with the existing id + Location), `GET /api/verifications/{id}`,
+  `POST /api/verifications/{id}/cancel`, and `GET /api/verifications?propertyId=` (my case for a
+  property — deliberately not under `/api/properties`, which is a public-GET path). Admin endpoints
+  under `/api/admin/verifications` (ROLE_ADMIN from the security chain): pending queue, moderator
+  view, approve, reject. `VerificationExceptionHandler` scoped to the verification web package.
+  **No security-config change was needed** — the existing rules already make `/api/verifications/**`
+  authenticated (not in the public-GET matcher) and `/api/admin/**` admin-only. Least-exposure in the
+  response: `decidedBy` (which moderator) is omitted; the badge carries only label/timestamps/key.
+  Privacy holds at the wire — a stranger reading another account's case gets **404, not 403**
+  (asserted). The full loop is proven through the real security chain: open → admin approve → the
+  owner's published review shows `RELATIONSHIP_SIGNAL`, and the decision is audited with the
+  moderator and reason. 11 endpoint integration tests; `./scripts/check.sh` passes.
+
 ## Out of scope
 
 Tier 2 evidence storage (plan 007); ranking weights and the ranking module; Tier 3 registry

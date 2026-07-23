@@ -5,22 +5,42 @@
 Build the `verification` backend module (plan `docs/plans/006-verification-module.md`): a private
 workflow that checks whether an account had its claimed relationship with a property, producing a
 strength tier and a public-safe badge that feeds the reviews `VerificationTier` projection. MVP loop
-3 ("Verify relationship → improve trust signal"). This is chunk 5 (persistence).
+3 ("Verify relationship → improve trust signal"). This is chunk 6 (public + admin endpoints).
 
 ## Active branch
 
-`feat/006-verification-chunk5-persistence` (branched from `main` at `4608bd4`)
+`feat/006-verification-chunk6-endpoints` (branched from `main` at `853e895`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/006-verification-module.md` — this is chunk 5 of 8. Tier 2 evidence is
+No issue. See `docs/plans/006-verification-module.md` — this is chunk 6 of 8. Tier 2 evidence is
 deferred to plan 007 (its storage subsystem is highly sensitive and gets its own security review).
 
 ## Current status
 
-chunk5_implemented — ready for fresh independent review and merge before chunk 6.
+chunk6_implemented — ready for fresh independent review and merge before chunk 7.
 
-### Verification chunk 5 — persistence (this branch)
+### Verification chunk 6 — public + admin endpoints (this branch)
+
+User endpoints (all authenticated; a case is private) and admin moderation endpoints, with an
+RFC 7807 handler scoped to the verification web package.
+
+- `POST /api/verifications`, `GET /api/verifications/{id}`, `POST /api/verifications/{id}/cancel`,
+  `GET /api/verifications?propertyId=` (my case for a property).
+- `/api/admin/verifications`: queue, get, approve, reject (ROLE_ADMIN gate from the security chain).
+
+**Points a reviewer should push on:**
+- No security-config change was needed: `/api/verifications/**` is authenticated (not in the
+  public-GET matcher, unlike properties/reviews) and `/api/admin/**` is admin-only. Confirm that is
+  the intended privacy posture (cases are confidential, so yes).
+- A stranger reading another account's case gets **404, not 403** — the private-workflow rule at the
+  wire (asserted).
+- Least exposure: `decidedBy` is omitted from the response; the badge carries no
+  document/apartment/address.
+- The full open → approve loop through the real security chain raises the review tier and writes the
+  audit row (asserted end to end).
+
+### Verification chunk 5 — persistence (merged to `main`)
 
 JPA for the single-row case aggregate + the decision-audit table, and the Spring wiring that finally
 runs the verification services in the app context.
@@ -127,8 +147,8 @@ method → tier mapping, and the public `VerificationBadge` projection.
 
 ## Remaining work
 
-Chunks 6–8 (see the plan). Next up: chunk 6 (public + admin endpoints: open/read own case, moderator
-queue + approve/reject; RFC 7807 scoped to verification).
+Chunks 7–8 (see the plan). Next up: chunk 7 (revocation + expiration: revoke an approved badge back
+to unverified, expire current-resident badges; audit; the tier reverts on the review).
 
 ## Decisions and assumptions
 
