@@ -128,6 +128,26 @@ cd .. && ./scripts/check.sh
 
 - 2026-07-23: Plan approved (Tier 1 spine now, Tier 2 evidence deferred to plan 007; verification →
   reviews as push-on-decision plus pull-at-submit). Chunk 1 begins.
+- 2026-07-23: Chunk 1 (foundation + schema) merged: `V5.1` (case + decision audit), build deps, 7
+  migration integration tests.
+- 2026-07-23: Chunk 2 (domain) implemented on `feat/006-verification-chunk2-domain`. Framework-free
+  `verification.domain`: opaque `AccountRef`/`PropertyRef`/`ModeratorId`, `RelationshipClaim`,
+  `VerificationMethod` (each method carries the tier it grants — strength is a property of the
+  method, not a moderator's free choice, §2), `VerificationTier` (own type, same values as reviews'),
+  `VerificationStatus` (with `isLive`/`isTerminal`), `VerificationBadgeType` + `VerificationBadge`,
+  and the `VerificationCase` aggregate. State machine: PENDING → APPROVED (grants the method's tier,
+  records verified-at/decider/reason) / REJECTED / CANCELLED (user, no decider); APPROVED → EXPIRED
+  (system, no moderator) or revoke → REJECTED (reverts tier to UNVERIFIED, never deletes — the review
+  falls back to unverified per §8). Decision worth review: **the badge label depends on the tier, not
+  just the claim** — a Tier 1 signal is always `RELATIONSHIP_SIGNAL_CONFIRMED`, never
+  "verified current tenant"; only Tier 2 earns the four claim-specific badges (§2). Badge carries no
+  document/apartment/address, only a localisation key for the mandated tooltip. **Bug caught by a
+  test and fixed:** the decision methods mutated `status` before validating the reason code, so a
+  blank reason left the aggregate half-transitioned; now every decision validates before touching
+  state (a regression test asserts a rejected reason leaves the case cleanly PENDING). Invariants
+  mirror `V5.1` (approved ⇒ verified-at; decided ⇒ decider+reason; approved ⇒ a granted tier).
+  ArchUnit domain-purity now binds real `verification.domain` code. 18 unit tests;
+  `./scripts/check.sh` passes.
 
 ## Out of scope
 

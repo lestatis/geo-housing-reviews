@@ -5,22 +5,38 @@
 Build the `verification` backend module (plan `docs/plans/006-verification-module.md`): a private
 workflow that checks whether an account had its claimed relationship with a property, producing a
 strength tier and a public-safe badge that feeds the reviews `VerificationTier` projection. MVP loop
-3 ("Verify relationship → improve trust signal"). This is chunk 1 (foundation + schema).
+3 ("Verify relationship → improve trust signal"). This is chunk 2 (domain model).
 
 ## Active branch
 
-`feat/006-verification-chunk1-foundation` (branched from `main` at `6312174`)
+`feat/006-verification-chunk2-domain` (branched from `main` at `6b8625f`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/006-verification-module.md` — this is chunk 1 of 8. Tier 2 evidence is
+No issue. See `docs/plans/006-verification-module.md` — this is chunk 2 of 8. Tier 2 evidence is
 deferred to plan 007 (its storage subsystem is highly sensitive and gets its own security review).
 
 ## Current status
 
-chunk1_implemented — ready for fresh independent review and merge before chunk 2.
+chunk2_implemented — ready for fresh independent review and merge before chunk 3.
 
-### Verification chunk 1 — foundation + schema (this branch)
+### Verification chunk 2 — domain model (this branch)
+
+Framework-free `verification.domain`: the `VerificationCase` aggregate + state machine, the
+method → tier mapping, and the public `VerificationBadge` projection.
+
+**Points a reviewer should push on:**
+- The badge label depends on the **tier**, not only the claim: a Tier 1 signal is always
+  `RELATIONSHIP_SIGNAL_CONFIRMED`, never "verified current tenant" (§2). The four claim-specific
+  badges are reachable only at Tier 2.
+- Strength is granted by the method (`VerificationMethod.grantedTier()`), not chosen by the
+  moderator — an approval is as strong as the method allows and no stronger.
+- Revoke and expire both revert the tier to UNVERIFIED and are terminal; they never delete the case,
+  so the review it fed falls back to unverified rather than disappearing (§8).
+- Decision methods validate the reason **before** any state mutation (a bug the tests caught: a blank
+  reason used to leave the case half-transitioned). Regression test present.
+
+### Verification chunk 1 — foundation + schema (merged to `main`)
 
 - `V5.1__create_verification_tables.sql` (verification schema; migration major version 5, after
   reviews' 4). `verification_case` with opaque `account_id`/`property_id` (no cross-module FK),
@@ -43,8 +59,8 @@ chunk1_implemented — ready for fresh independent review and merge before chunk
 
 ## Remaining work
 
-Chunks 2–8 (see the plan). Next up: chunk 2 (domain — `VerificationCase` aggregate + state machine,
-methods, claim, tier mapping, badge projection).
+Chunks 3–8 (see the plan). Next up: chunk 3 (application — repository port, open-case + decision
+services with audit, badge query; in-memory-fake unit tests).
 
 ## Decisions and assumptions
 
