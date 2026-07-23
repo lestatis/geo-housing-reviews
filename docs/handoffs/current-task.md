@@ -5,22 +5,43 @@
 Build the `verification` backend module (plan `docs/plans/006-verification-module.md`): a private
 workflow that checks whether an account had its claimed relationship with a property, producing a
 strength tier and a public-safe badge that feeds the reviews `VerificationTier` projection. MVP loop
-3 ("Verify relationship → improve trust signal"). This is chunk 4 (reviews.api inbound port + tier projection).
+3 ("Verify relationship → improve trust signal"). This is chunk 5 (persistence).
 
 ## Active branch
 
-`feat/006-verification-chunk4-reviews-projection` (branched from `main` at `3a30826`)
+`feat/006-verification-chunk5-persistence` (branched from `main` at `4608bd4`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/006-verification-module.md` — this is chunk 4 of 8. Tier 2 evidence is
+No issue. See `docs/plans/006-verification-module.md` — this is chunk 5 of 8. Tier 2 evidence is
 deferred to plan 007 (its storage subsystem is highly sensitive and gets its own security review).
 
 ## Current status
 
-chunk4_implemented — ready for fresh independent review and merge before chunk 5.
+chunk5_implemented — ready for fresh independent review and merge before chunk 6.
 
-### Verification chunk 4 — reviews.api inbound port + tier projection (this branch)
+### Verification chunk 5 — persistence (this branch)
+
+JPA for the single-row case aggregate + the decision-audit table, and the Spring wiring that finally
+runs the verification services in the app context.
+
+- `JpaVerificationCaseRepository.save` loads the stored row and applies only the decision fields
+  (immutable account/property/claim/method are out of reach), refusing a stale `@Version`.
+- `JpaVerificationDecisionRepository` writes the case **through the case port** (so the optimistic
+  check is not bypassed) and the audit row in one transaction.
+- `VerificationBeanConfiguration` wires the services; the app `@EntityScan`/`@EnableJpaRepositories`
+  now covers `verification.infrastructure.persistence`.
+
+**Points a reviewer should push on:**
+- The whole verification → reviews push is proven end to end on Postgres now
+  (`VerificationToReviewProjectionIntegrationTest`): approve → the review row's tier rises to
+  RELATIONSHIP_SIGNAL. The verify-first case (approve with no review) succeeds harmlessly.
+- `save` is load-then-apply, not merge — deliberate, to keep immutable fields immutable and to give a
+  deterministic version-conflict rather than relying on merge semantics.
+- The cross-module push is not in the decision's DB transaction (idempotent, re-pushable) — same
+  design as chunk 4.
+
+### Verification chunk 4 — reviews.api inbound port + tier projection (merged to `main`)
 
 The reviews↔verification seam, **push-only (verification → reviews)** — the founder-approved
 resolution of the plan's push+pull, which would have formed a module cycle.
@@ -106,8 +127,8 @@ method → tier mapping, and the public `VerificationBadge` projection.
 
 ## Remaining work
 
-Chunks 5–8 (see the plan). Next up: chunk 5 (JPA persistence for the case/decision graph, the
-VerificationBeanConfiguration wiring the services, integration tests).
+Chunks 6–8 (see the plan). Next up: chunk 6 (public + admin endpoints: open/read own case, moderator
+queue + approve/reject; RFC 7807 scoped to verification).
 
 ## Decisions and assumptions
 

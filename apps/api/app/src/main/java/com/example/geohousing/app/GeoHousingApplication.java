@@ -10,13 +10,15 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     basePackages = {
       "com.example.geohousing.identity.infrastructure.persistence",
       "com.example.geohousing.properties.infrastructure.persistence",
-      "com.example.geohousing.reviews.infrastructure.persistence"
+      "com.example.geohousing.reviews.infrastructure.persistence",
+      "com.example.geohousing.verification.infrastructure.persistence"
     })
 @EnableJpaRepositories(
     basePackages = {
       "com.example.geohousing.identity.infrastructure.persistence",
       "com.example.geohousing.properties.infrastructure.persistence",
-      "com.example.geohousing.reviews.infrastructure.persistence"
+      "com.example.geohousing.reviews.infrastructure.persistence",
+      "com.example.geohousing.verification.infrastructure.persistence"
     })
 public class GeoHousingApplication {
 

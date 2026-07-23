@@ -192,6 +192,24 @@ cd .. && ./scripts/check.sh
   7 new unit tests (reviews applier 4 + verification push assertions) + 3 integration; 98 module
   tests; `./scripts/check.sh` passes.
 
+- 2026-07-23: Chunk 5 (persistence) implemented on `feat/006-verification-chunk5-persistence`. JPA
+  for the single-row case aggregate: `VerificationCaseJpaEntity` (`@Version` optimistic locking,
+  `account_id`/`property_id` as plain UUID columns, enums as STRING) + mapper + Spring Data queries
+  (`findLive` excluding terminal statuses to match the V5.1 partial index, `findLatest`,
+  `findByStatus`). `JpaVerificationCaseRepository.save` loads the stored row and applies only the
+  decision fields, refusing a stale version — so the immutable fields (account, property, claim,
+  method) stay beyond the reach of an update. Append-only `verification_decision_audit_event`
+  persistence, and `JpaVerificationDecisionRepository` which writes the case (through the port, so
+  the optimistic check is not bypassed) and the audit row in one transaction. The application
+  services are now wired (`VerificationBeanConfiguration`) and `verification.infrastructure.persistence`
+  is added to the app's `@EntityScan`/`@EnableJpaRepositories` — so the verification services run in
+  the app context for the first time. **The whole verification → reviews push is now proven end to
+  end on Postgres:** `VerificationToReviewProjectionIntegrationTest` opens a case for an account that
+  already has a review, approves it through the real `VerificationDecisionService`, and asserts the
+  review row's tier became RELATIONSHIP_SIGNAL — plus the verify-first case (approve with no review
+  yet) succeeds harmlessly. 6 persistence + 2 cross-module integration tests (15 verification
+  integration tests total with the migration test); `./scripts/check.sh` passes.
+
 ## Out of scope
 
 Tier 2 evidence storage (plan 007); ranking weights and the ranking module; Tier 3 registry
