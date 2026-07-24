@@ -5,6 +5,7 @@ import com.example.geohousing.verification.application.ReviewProjection;
 import com.example.geohousing.verification.application.VerificationCaseRepository;
 import com.example.geohousing.verification.application.VerificationDecisionRepository;
 import com.example.geohousing.verification.application.VerificationDecisionService;
+import com.example.geohousing.verification.application.VerificationExpiryService;
 import com.example.geohousing.verification.application.VerificationQueryService;
 import com.example.geohousing.verification.application.VerificationSubmissionService;
 import java.time.Clock;
@@ -42,5 +43,14 @@ public class VerificationBeanConfiguration {
   @Bean
   VerificationQueryService verificationQueryService(VerificationCaseRepository caseRepository) {
     return new VerificationQueryService(caseRepository);
+  }
+
+  @Bean
+  VerificationExpiryService verificationExpiryService(
+      VerificationCaseRepository caseRepository,
+      VerificationDecisionRepository decisionRepository,
+      ReviewProjection reviewProjection) {
+    return new VerificationExpiryService(
+        caseRepository, decisionRepository, reviewProjection, Clock.systemUTC());
   }
 }

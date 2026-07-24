@@ -109,6 +109,33 @@ class VerificationDecisionServiceTest {
   }
 
   @Test
+  void revokingAnApprovedBadgeRevertsTheReviewToUnverifiedAndIsAudited() {
+    VerificationCase pending = storePending();
+    service.approve(MODERATOR, pending.id(), pending.version(), "CLEAN", null);
+    long approvedVersion = cases.findById(pending.id()).orElseThrow().version();
+
+    service.revoke(MODERATOR, pending.id(), approvedVersion, "FORGED_INVITE").orElseThrow();
+
+    VerificationCase stored = cases.findById(pending.id()).orElseThrow();
+    assertThat(stored.status()).isEqualTo(VerificationStatus.REJECTED);
+    assertThat(stored.tier()).isEqualTo(VerificationTier.UNVERIFIED);
+    assertThat(stored.badge()).isEmpty();
+
+    assertThat(lastEvent().action()).isEqualTo(VerificationDecisionAction.REVOKE);
+    assertThat(lastEvent().reasonCode()).isEqualTo("FORGED_INVITE");
+    // The review loses the badge but is never deleted by this action.
+    assertThat(reviewProjection.last()).isEqualTo(VerificationTier.UNVERIFIED);
+  }
+
+  @Test
+  void onlyAnApprovedCaseCanBeRevoked() {
+    VerificationCase pending = storePending();
+
+    assertThatThrownBy(() -> service.revoke(MODERATOR, pending.id(), pending.version(), "FORGED"))
+        .isInstanceOf(IllegalVerificationStateTransitionException.class);
+  }
+
+  @Test
   void aDecisionAgainstAMissingCaseIsAuditedAsNotFound() {
     VerificationCaseId missing = VerificationCaseId.of(UUID.randomUUID());
 

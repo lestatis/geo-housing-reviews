@@ -6,6 +6,7 @@ import com.example.geohousing.verification.domain.VerificationCase;
 import com.example.geohousing.verification.domain.VerificationCaseId;
 import com.example.geohousing.verification.domain.VerificationDecisionAuditEvent;
 import com.example.geohousing.verification.domain.VerificationStatus;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -73,6 +74,17 @@ final class InMemoryVerificationCaseRepository implements VerificationCaseReposi
     return byId.values().stream()
         .filter(c -> c.status() == status)
         .sorted(Comparator.comparing(VerificationCase::createdAt))
+        .limit(limit)
+        .map(InMemoryVerificationCaseRepository::snapshot)
+        .toList();
+  }
+
+  @Override
+  public List<VerificationCase> findLapsedApproved(Instant asOf, int limit) {
+    return byId.values().stream()
+        .filter(c -> c.status() == VerificationStatus.APPROVED)
+        .filter(c -> c.validThrough().map(v -> v.isBefore(asOf)).orElse(false))
+        .sorted(Comparator.comparing(c -> c.validThrough().orElseThrow()))
         .limit(limit)
         .map(InMemoryVerificationCaseRepository::snapshot)
         .toList();

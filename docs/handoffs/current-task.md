@@ -5,22 +5,41 @@
 Build the `verification` backend module (plan `docs/plans/006-verification-module.md`): a private
 workflow that checks whether an account had its claimed relationship with a property, producing a
 strength tier and a public-safe badge that feeds the reviews `VerificationTier` projection. MVP loop
-3 ("Verify relationship → improve trust signal"). This is chunk 6 (public + admin endpoints).
+3 ("Verify relationship → improve trust signal"). This is chunk 7 (revocation + expiration) — the last chunk of plan 006.
 
 ## Active branch
 
-`feat/006-verification-chunk6-endpoints` (branched from `main` at `853e895`)
+`feat/006-verification-chunk7-revocation` (branched from `main` at `b90467c`)
 
 ## Related issue or plan
 
-No issue. See `docs/plans/006-verification-module.md` — this is chunk 6 of 8. Tier 2 evidence is
+No issue. See `docs/plans/006-verification-module.md` — this is chunk 7 of 8; chunk 8 (Tier 2 evidence) is plan 007, so this completes plan 006. Tier 2 evidence is
 deferred to plan 007 (its storage subsystem is highly sensitive and gets its own security review).
 
 ## Current status
 
-chunk6_implemented — ready for fresh independent review and merge before chunk 7.
+chunk7_implemented — ready for fresh independent review. Merging it completes plan 006 (7/8).
 
-### Verification chunk 6 — public + admin endpoints (this branch)
+### Verification chunk 7 — revocation + expiration (this branch)
+
+- `VerificationDecisionService.revoke` + `POST /api/admin/verifications/{id}/revoke`: an approved
+  badge is taken back, the case becomes terminal, and the review reverts to UNVERIFIED — the review
+  is never deleted (§8).
+- `VerificationExpiryService.expireLapsed(limit)`: sweeps approved badges past their `validThrough`,
+  audits with **no actor** (system expiry — the one action V5.1 allows that for), and reverts the
+  review's tier. Idempotent and limit-respecting; a badge with no expiry never lapses.
+
+**Points a reviewer should push on:**
+- **Narrower than §8 on purpose:** a lapsed current-resident badge expires rather than *becoming*
+  "verified former resident". Rewriting the account's recorded claim felt wrong, and at Tier 1 the
+  badge label is identical for every claim. Flagged as a follow-up, not a silent divergence.
+- **No scheduler is wired.** `expireLapsed` is the tested mechanism; hooking it to a trigger is an ops
+  step. Deliberate — a background job firing inside every `@SpringBootTest` is worse than an
+  unwired-but-proven sweep.
+- Revocation is a moderator action (audited, actor recorded); expiry is a system action (no actor).
+  That asymmetry is exactly what the V5.1 CHECK encodes.
+
+### Verification chunk 6 — public + admin endpoints (merged to `main`)
 
 User endpoints (all authenticated; a case is private) and admin moderation endpoints, with an
 RFC 7807 handler scoped to the verification web package.
@@ -147,8 +166,10 @@ method → tier mapping, and the public `VerificationBadge` projection.
 
 ## Remaining work
 
-Chunks 7–8 (see the plan). Next up: chunk 7 (revocation + expiration: revoke an approved badge back
-to unverified, expire current-resident badges; audit; the tier reverts on the review).
+Plan 006 is complete at 7/8 once this merges. Next: **plan 007 — Tier 2 document evidence**
+(quarantine storage, encryption, short-lived signed URLs, retention + deletion job, evidence-access
+audit, and the `DOCUMENT` method that `V5.1` deliberately excludes). That plan needs its own security
+review before implementation.
 
 ## Decisions and assumptions
 

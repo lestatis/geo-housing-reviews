@@ -5,6 +5,7 @@ import com.example.geohousing.verification.domain.PropertyRef;
 import com.example.geohousing.verification.domain.VerificationCase;
 import com.example.geohousing.verification.domain.VerificationCaseId;
 import com.example.geohousing.verification.domain.VerificationStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,12 @@ public interface VerificationCaseRepository {
 
   /** Cases in a given status, oldest first — the moderator queue reads {@code PENDING}. */
   List<VerificationCase> findByStatus(VerificationStatus status, int limit);
+
+  /**
+   * Approved cases whose badge validity has lapsed by {@code asOf} — the expiry sweep's input.
+   * Cases with no {@code validThrough} never lapse.
+   */
+  List<VerificationCase> findLapsedApproved(Instant asOf, int limit);
 
   /** Persists a newly opened case. */
   void create(VerificationCase verificationCase);

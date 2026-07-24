@@ -8,6 +8,7 @@ import com.example.geohousing.verification.domain.VerificationCaseId;
 import com.example.geohousing.verification.domain.VerificationCaseNotFoundException;
 import com.example.geohousing.verification.domain.VerificationStatus;
 import com.example.geohousing.verification.domain.VerificationVersionConflictException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
@@ -52,6 +53,14 @@ public class JpaVerificationCaseRepository implements VerificationCaseRepository
   @Transactional(readOnly = true)
   public List<VerificationCase> findByStatus(VerificationStatus status, int limit) {
     return cases.findByStatus(status, Limit.of(limit)).stream()
+        .map(VerificationCaseJpaMapper::toDomain)
+        .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<VerificationCase> findLapsedApproved(Instant asOf, int limit) {
+    return cases.findLapsedApproved(asOf, Limit.of(limit)).stream()
         .map(VerificationCaseJpaMapper::toDomain)
         .toList();
   }

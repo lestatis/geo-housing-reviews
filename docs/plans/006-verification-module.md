@@ -1,6 +1,6 @@
 # Verification Module: Relationship Verification Cases, Decisions, Tier Projection
 
-Status: Active
+Status: Complete (7/8; chunk 8 = Tier 2 evidence, scheduled as plan 007)
 Owner: Claude Code
 Related issue: none (direct founder request; follows the reviews module, plan 005)
 Last updated: 2026-07-23
@@ -225,6 +225,40 @@ cd .. && ./scripts/check.sh
   (asserted). The full loop is proven through the real security chain: open → admin approve → the
   owner's published review shows `RELATIONSHIP_SIGNAL`, and the decision is audited with the
   moderator and reason. 11 endpoint integration tests; `./scripts/check.sh` passes.
+
+- 2026-07-23: Chunk 7 (revocation + expiration) implemented on
+  `feat/006-verification-chunk7-revocation`. `VerificationDecisionService.revoke` (APPROVED →
+  terminal, tier reverts to UNVERIFIED, audited as REVOKE) with `POST
+  /api/admin/verifications/{id}/revoke`. `VerificationExpiryService.expireLapsed(limit)` sweeps
+  approved badges whose `validThrough` has passed: it expires them, audits with
+  `VerificationDecisionAuditEvent.systemExpiry` (**no actor** — the one action the V5.1 CHECK allows
+  that for) and projects UNVERIFIED onto the review. Idempotent (an expired case is no longer
+  approved, so a second run selects nothing) and limit-respecting. A badge with no `validThrough`
+  never lapses. **Deliberately narrower than TRUST_VERIFICATION §8:** the section permits a lapsed
+  current-resident badge to *become* "verified former resident"; that is not done, because it would
+  rewrite the claim the account actually made and at Tier 1 every claim carries the same
+  relationship-signal badge anyway — the distinction only bites once Tier 2 exists. Recorded as a
+  follow-up rather than a silent divergence. **No scheduler is wired:** `expireLapsed` is the
+  mechanism, fully tested; hooking it to a trigger is an ops step, deliberately not a background job
+  firing inside every integration test. Both revocation and expiry are proven on Postgres to take the
+  badge off the review while leaving the review and the case in place. 7 new unit tests (46 in the
+  module) + 4 integration tests; `./scripts/check.sh` passes.
+
+## Final outcome
+
+**Complete at 7 of 8 chunks.** The module delivers MVP loop 3: an account opens a Tier 1 verification
+case, a moderator approves or rejects it with a mandatory reason, and the resulting tier is projected
+onto the account's review through a one-way published contract — with revocation and expiry taking it
+back off. Every decision is audited; nothing asserts that a review's statements are true.
+
+**Chunk 8 (Tier 2 document evidence) is intentionally not built here.** Its quarantine storage,
+encryption, short-lived signed URLs, retention deadlines, deletion job and evidence-access audit are a
+highly-sensitive subsystem deserving their own security review — scheduled as **plan 007**, together
+with the `DOCUMENT` method that the `V5.1` CHECK deliberately excludes today.
+
+Deferred, recorded rather than dropped: a scheduler/cron trigger for `expireLapsed`; the §8
+"expire into verified former resident" variant; the verify-first projection gap (a review written
+after approval starts unverified until a re-push); Tier 3 registry integration.
 
 ## Out of scope
 

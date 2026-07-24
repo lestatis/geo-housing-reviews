@@ -1,6 +1,7 @@
 package com.example.geohousing.verification.infrastructure.persistence;
 
 import com.example.geohousing.verification.domain.VerificationStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +36,19 @@ interface SpringDataVerificationCaseRepository
       """)
   List<VerificationCaseJpaEntity> findLatest(
       @Param("accountId") UUID accountId, @Param("propertyId") UUID propertyId, Limit limit);
+
+  /**
+   * Approved cases whose validity has lapsed. A null {@code validThrough} means "never expires", so
+   * those rows are excluded by the comparison itself.
+   */
+  @Query(
+      """
+      select c from VerificationCaseJpaEntity c
+      where c.status = com.example.geohousing.verification.domain.VerificationStatus.APPROVED
+        and c.validThrough is not null and c.validThrough < :asOf
+      order by c.validThrough asc, c.id asc
+      """)
+  List<VerificationCaseJpaEntity> findLapsedApproved(@Param("asOf") Instant asOf, Limit limit);
 
   /** Cases in a status, oldest first — the moderator queue reads {@code PENDING}. */
   @Query(

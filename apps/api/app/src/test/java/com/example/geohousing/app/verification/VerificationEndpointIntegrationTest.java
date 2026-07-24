@@ -219,6 +219,38 @@ class VerificationEndpointIntegrationTest {
   }
 
   @Test
+  void revokingAnApprovedBadgeTakesItOffTheReview() throws Exception {
+    String owner = bearer("subject-revoke-owner");
+    String admin = adminBearer("subject-revoke-admin");
+    String property = createProperty(owner);
+    String reviewId = submitAndPublishReview(owner, property);
+    String caseId = openCase(owner, property);
+    mockMvc
+        .perform(
+            post("/api/admin/verifications/" + caseId + "/approve")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":0,\"reasonCode\":\"INVITE_OK\"}"))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/api/admin/verifications/" + caseId + "/revoke")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":1,\"reasonCode\":\"FORGED_INVITE\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.tier").value("UNVERIFIED"))
+        .andExpect(jsonPath("$.badge").doesNotExist());
+
+    // The review survives; it just no longer carries the badge.
+    mockMvc
+        .perform(get("/api/reviews/" + reviewId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.verificationTier").value("UNVERIFIED"));
+  }
+
+  @Test
   void aStaleVersionIsA409() throws Exception {
     String owner = bearer("subject-stale-owner");
     String admin = adminBearer("subject-stale-admin");

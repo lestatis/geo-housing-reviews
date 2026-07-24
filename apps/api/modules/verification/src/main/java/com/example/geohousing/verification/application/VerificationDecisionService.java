@@ -71,6 +71,23 @@ public final class VerificationDecisionService {
         (verificationCase, now) -> verificationCase.reject(moderatorId, reasonCode, clock));
   }
 
+  /**
+   * Revokes an approved badge — forged evidence, a compromised account, a moderator's error. The
+   * case becomes terminal and the tier reverts to {@code UNVERIFIED}, which is projected onto the
+   * account's review: the review itself is never deleted, it simply stops carrying the badge
+   * (TRUST_VERIFICATION.md §8).
+   */
+  public Optional<VerificationCase> revoke(
+      ModeratorId moderatorId, VerificationCaseId caseId, long expectedVersion, String reasonCode) {
+    return decide(
+        moderatorId,
+        caseId,
+        expectedVersion,
+        reasonCode,
+        VerificationDecisionAction.REVOKE,
+        (verificationCase, now) -> verificationCase.revoke(moderatorId, reasonCode, clock));
+  }
+
   private Optional<VerificationCase> decide(
       ModeratorId moderatorId,
       VerificationCaseId caseId,

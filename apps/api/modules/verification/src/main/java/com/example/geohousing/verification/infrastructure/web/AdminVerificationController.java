@@ -84,6 +84,23 @@ class AdminVerificationController {
         id);
   }
 
+  /**
+   * Revokes an approved badge. The case becomes terminal and the account's review reverts to
+   * unverified — the review itself is never removed by this action.
+   */
+  @PostMapping("/{caseId}/revoke")
+  VerificationCaseResponse revoke(
+      Principal principal,
+      @PathVariable("caseId") String caseId,
+      @RequestBody VerificationDecisionRequest request) {
+    VerificationCaseId id = VerificationCaseId.of(parseUuid(caseId));
+    return respond(
+        () ->
+            decisionService.revoke(
+                moderator(principal), id, requiredVersion(request), request.reasonCode()),
+        id);
+  }
+
   private static ModeratorId moderator(Principal principal) {
     return WebAuthentication.moderatorId(principal);
   }
