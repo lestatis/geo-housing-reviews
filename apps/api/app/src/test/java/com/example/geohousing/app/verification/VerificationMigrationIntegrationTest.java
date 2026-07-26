@@ -38,7 +38,13 @@ class VerificationMigrationIntegrationTest {
 
   @Test
   void verificationTablesExist() {
-    for (String table : new String[] {"verification_case", "verification_decision_audit_event"}) {
+    for (String table :
+        new String[] {
+          "verification_case",
+          "verification_decision_audit_event",
+          "verification_evidence",
+          "verification_evidence_access_event"
+        }) {
       Integer count =
           jdbcTemplate.queryForObject(
               "select count(*) from information_schema.tables"
@@ -53,13 +59,51 @@ class VerificationMigrationIntegrationTest {
   void claimMethodStatusAndTierRejectUnknownValues() {
     assertThatThrownBy(() -> insertCase("TENANT", "INVITATION", "PENDING", "UNVERIFIED"))
         .isInstanceOf(DataIntegrityViolationException.class);
-    // DOCUMENT (Tier 2) is intentionally not yet an accepted method; it arrives with the evidence
-    // subsystem in a later migration.
-    assertThatThrownBy(() -> insertCase("OWNER", "DOCUMENT", "PENDING", "UNVERIFIED"))
-        .isInstanceOf(DataIntegrityViolationException.class);
     assertThatThrownBy(() -> insertCase("OWNER", "INVITATION", "ARCHIVED", "UNVERIFIED"))
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThatThrownBy(() -> insertCase("OWNER", "INVITATION", "PENDING", "GOLD"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
+  void theDocumentMethodIsNowAccepted() {
+    // V5.2 admits Tier 2: DOCUMENT is a valid method where V5.1 refused it.
+    assertThatCode(() -> insertCase("OWNER", "DOCUMENT", "PENDING", "UNVERIFIED"))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void evidenceMetadataConstraintsHold() {
+    UUID caseId = insertDocumentCase();
+
+    assertThatCode(() -> insertEvidence(caseId, uniqueKey(caseId), 1234, "a".repeat(64)))
+        .doesNotThrowAnyException();
+    // Non-hex checksum, zero size, and a duplicate key are all refused.
+    assertThatThrownBy(() -> insertEvidence(caseId, uniqueKey(caseId), 10, "NOT-HEX"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() -> insertEvidence(caseId, uniqueKey(caseId), 0, "b".repeat(64)))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    String key = uniqueKey(caseId);
+    insertEvidence(caseId, key, 5, "c".repeat(64));
+    assertThatThrownBy(() -> insertEvidence(caseId, key, 9, "d".repeat(64)))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    // Evidence for a case that does not exist is refused by the foreign key.
+    assertThatThrownBy(() -> insertEvidence(UUID.randomUUID(), "evidence/x/y", 5, "e".repeat(64)))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
+  void onlySystemDeletionMayOmitTheEvidenceAccessor() {
+    UUID caseId = insertDocumentCase();
+    UUID evidenceId = insertEvidence(caseId, uniqueKey(caseId), 100, "f".repeat(64));
+
+    // A moderator READ must record who read it.
+    assertThatThrownBy(() -> insertAccessEvent(evidenceId, null, "READ"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    // A system DELETE (retention sweep) may omit the accessor.
+    assertThatCode(() -> insertAccessEvent(evidenceId, null, "DELETE")).doesNotThrowAnyException();
+    // An unknown action is refused.
+    assertThatThrownBy(() -> insertAccessEvent(evidenceId, UUID.randomUUID(), "PEEK"))
         .isInstanceOf(DataIntegrityViolationException.class);
   }
 
@@ -171,5 +215,45 @@ class VerificationMigrationIntegrationTest {
         claim,
         method,
         status);
+  }
+
+  private UUID insertDocumentCase() {
+    UUID caseId = UUID.randomUUID();
+    jdbcTemplate.update(
+        "insert into verification.verification_case"
+            + " (id, account_id, property_id, relationship_claim, method)"
+            + " values (?, ?, ?, 'OWNER', 'DOCUMENT')",
+        caseId,
+        UUID.randomUUID(),
+        UUID.randomUUID());
+    return caseId;
+  }
+
+  private static String uniqueKey(UUID caseId) {
+    return "evidence/" + caseId + "/" + UUID.randomUUID();
+  }
+
+  private UUID insertEvidence(UUID caseId, String storageKey, long sizeBytes, String sha256) {
+    UUID evidenceId = UUID.randomUUID();
+    jdbcTemplate.update(
+        "insert into verification.verification_evidence"
+            + " (id, case_id, storage_key, content_type, size_bytes, sha256, retention_deadline)"
+            + " values (?, ?, ?, 'application/pdf', ?, ?, now() + interval '30 days')",
+        evidenceId,
+        caseId,
+        storageKey,
+        sizeBytes,
+        sha256);
+    return evidenceId;
+  }
+
+  private void insertAccessEvent(UUID evidenceId, UUID accessor, String action) {
+    jdbcTemplate.update(
+        "insert into verification.verification_evidence_access_event"
+            + " (id, evidence_id, accessor_account_id, action) values (?, ?, ?, ?)",
+        UUID.randomUUID(),
+        evidenceId,
+        accessor,
+        action);
   }
 }

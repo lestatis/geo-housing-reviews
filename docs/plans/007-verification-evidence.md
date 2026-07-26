@@ -107,6 +107,19 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-23: Chunk 2 (`V5.2` schema) implemented on `feat/007-evidence-chunk2-schema`. Verified
+  constraint-by-constraint on scratch Postgres before the test. `verification_evidence` holds
+  metadata only — `storage_key` (unique), `content_type`, `size_bytes` (> 0), `sha256` (a hex CHECK),
+  `retention_deadline` (set at upload), `uploaded_at`, and a nullable `deleted_at` that the retention
+  sweep stamps so the metadata row survives as proof of deletion. `case_id` is a **real foreign key**
+  (same module; a case is never deleted and metadata outlives the object, so it always holds).
+  `verification_evidence_access_event` is append-only with `action IN (READ, DELETE)`; a moderator
+  READ must record its accessor, a system DELETE (retention) may omit it — the same shape as the
+  decision audit's EXPIRE. `DOCUMENT` joins the case `method` CHECK: because V5.1 defined that check
+  inline (auto-named `verification_case_method_check`), the append-only way to extend it is DROP then
+  ADD, done here. This makes the four claim-specific Tier 2 badges reachable for the first time. The
+  chunk-1 migration test asserted DOCUMENT was *rejected*; that assertion is now inverted and V5.2
+  coverage added. 10 migration integration tests; `./scripts/check.sh` passes.
 - 2026-07-23: Plan approved with two founder decisions — S3-compatible object storage (over Postgres
   `bytea`, because evidence must not enter database backups if retention is to mean anything) and
   server-side encryption (with envelope encryption recorded as a pre-launch follow-up). Chunk 1

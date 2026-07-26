@@ -5,22 +5,36 @@
 Add **Tier 2 document evidence** to the `verification` module (plan `docs/plans/007-verification-evidence.md`):
 an account attaches a document to a pending case, a moderator reads it under audit and decides, and the
 raw evidence is deleted shortly after the decision. Completes MVP must-have "safe evidence upload and
-retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 1 (ADR + storage substrate).
+retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 2 (V5.2 schema).
 
 ## Active branch
 
-`feat/007-evidence-chunk1-storage-substrate` (branched from `main` at `020cd0a`)
+`feat/007-evidence-chunk2-schema` (branched from `main` at `15c682c`)
 
 ## Related issue or plan
 
 No issue. See `docs/plans/007-verification-evidence.md` and `docs/adr/0008-verification-evidence-object-storage.md`.
-This is chunk 1 of 7.
+This is chunk 2 of 7.
 
 ## Current status
 
-chunk1_implemented — ready for fresh independent review and merge before chunk 2.
+chunk2_implemented — ready for fresh independent review and merge before chunk 3.
 
-### Evidence chunk 1 — ADR + storage substrate (this branch)
+### Evidence chunk 2 — V5.2 schema (this branch)
+
+- `verification_evidence` (metadata only — key/type/size/checksum/retention/deleted_at) and
+  `verification_evidence_access_event` (append-only READ/DELETE audit). Verified on scratch Postgres
+  first.
+- `DOCUMENT` added to the case `method` CHECK (DROP + ADD, since V5.1's inline check was auto-named
+  `verification_case_method_check`). Tier 2's four claim-specific badges are now reachable.
+
+**Points a reviewer should push on:**
+- `case_id` is a real FK (same-module, always holds because metadata outlives the object); evidence
+  bytes are the thing that leaves, not the row.
+- Access audit: a moderator READ records its accessor; a system DELETE may omit it (retention sweep).
+- The chunk-1 assertion that DOCUMENT was rejected is deliberately inverted in this chunk.
+
+### Evidence chunk 1 — ADR + storage substrate (merged to `main`)
 
 - **ADR-0008** and **plan 007**, resolving the two founder decisions: S3-compatible object storage
   (over Postgres `bytea`, so evidence never enters DB backups and retention is enforceable) and
@@ -46,8 +60,8 @@ chunk1_implemented — ready for fresh independent review and merge before chunk
 
 ## Remaining work
 
-Chunks 2–7 (see the plan). Next: chunk 2 (`V5.2` — `verification_evidence` +
-`verification_evidence_access_event` tables; add `DOCUMENT` to the case `method` CHECK).
+Chunks 3–7 (see the plan). Next: chunk 3 (domain — evidence value objects, retention deadline, the
+`DOCUMENT` method granting `DOCUMENT_VERIFIED`, and the case aggregate's evidence rules).
 
 ## Decisions and assumptions
 
