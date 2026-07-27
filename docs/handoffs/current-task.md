@@ -7,7 +7,7 @@ helpful signal per voter/review. This creates no public endpoint, aggregate coun
 
 ## Active branch
 
-`feat/008-review-helpful-signals-foundation` (branched from clean `main` at `5bd6e39`)
+`main` (chunk 1 fast-forward merged at `b6a20d7`)
 
 ## Related issue or plan
 
@@ -15,7 +15,7 @@ No issue. `docs/plans/008-review-helpful-signals.md`, continuing plan 005 chunk 
 
 ## Current status
 
-ready_for_review
+completed
 
 ## Completed work
 
@@ -27,8 +27,8 @@ ready_for_review
 
 ## Remaining work
 
-No implementation work remains for chunk 1. A fresh independent read-only review is required before
-human merge. Plan 008 chunks 2–5 remain future work and must start only after this branch is merged.
+No implementation work remains for chunk 1. Plan 008 chunks 2–5 remain future work and require a
+new task branch from `main`.
 
 ## Decisions made
 
@@ -81,8 +81,7 @@ None.
 
 ## Recommended next action
 
-Run a fresh independent read-only review of the complete branch diff. If merged by a human, mark this
-handoff completed and start plan 008 chunk 2 from updated `main`.
+No action remains for this chunk. When requested, start plan 008 chunk 2 from `main`.
 
 ## Last updated
 

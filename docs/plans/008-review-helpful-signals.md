@@ -88,6 +88,7 @@ records needed to explain historical aggregates.
   limiting one active signal per voter/review. Focused Postgres integration tests prove Flyway
   application, local-reference integrity, duplicate-active rejection, and re-signalling after
   withdrawal. `:modules:reviews:check` and `./scripts/check.sh` pass. Ready for independent review.
+- 2026-07-27: Chunk 1 fast-forward merged to `main` at `b6a20d7`.
 
 ## Final outcome
 
