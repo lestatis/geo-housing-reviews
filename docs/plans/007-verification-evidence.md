@@ -107,6 +107,24 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-23: Chunk 5 (persistence) implemented on `feat/007-evidence-chunk5-persistence`. JPA for
+  evidence metadata and the access audit: `VerificationEvidenceJpaEntity` (case_id a plain UUID
+  column — evidence has its own lifecycle and is never dragged along with a case),
+  `EvidenceAccessEventJpaEntity` (append-only, `saveAndFlush` because the audit row is written
+  *before* bytes are disclosed and must not sit in a persistence context a later failure discards),
+  and the two adapters. `JpaEvidenceRepository.save` loads the row and stamps only `deleted_at` —
+  the one field that can change after upload — so the immutable fields stay structurally out of
+  reach. Services wired in `VerificationBeanConfiguration`; retention periods come from
+  `EvidenceRetentionProperties` (`verification.evidence.retention.*`), still configuration pending
+  legal review. **The `ddl-auto=validate` guard earned its keep:** `V5.2` declares `sha256 CHAR(64)`
+  but Hibernate maps a `String` to `varchar`, so the context refused to start until the entity said
+  `columnDefinition = "bpchar"` — fixed in the mapping rather than by loosening the merged schema.
+  `EvidencePersistenceIntegrationTest` runs **Postgres and MinIO together** for the first time
+  (attach → metadata row + object; moderator read → bytes + audit row naming the accessor; delete →
+  object gone, row stamped, read reports content-gone; sweep → deleted with a *null* accessor; a
+  non-moderator read → not-found with **no** audit row). The test deliberately needs **no storage
+  SDK**: MinIO creates the bucket at startup via its entrypoint, keeping the ADR-0008 boundary that
+  only the verification adapter touches S3. 5 integration tests; `./scripts/check.sh` passes.
 - 2026-07-23: Chunk 4 (application) implemented on `feat/007-evidence-chunk4-application`. Ports:
   `EvidenceRepository` (metadata; `findPastRetention` mirrors the V5.2 partial index) and
   `EvidenceAccessAuditRepository` — kept separate because the audit is written on a *read* path,

@@ -5,22 +5,37 @@
 Add **Tier 2 document evidence** to the `verification` module (plan `docs/plans/007-verification-evidence.md`):
 an account attaches a document to a pending case, a moderator reads it under audit and decides, and the
 raw evidence is deleted shortly after the decision. Completes MVP must-have "safe evidence upload and
-retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 4 (application).
+retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 5 (persistence).
 
 ## Active branch
 
-`feat/007-evidence-chunk4-application` (branched from `main` at `7d2b821`)
+`feat/007-evidence-chunk5-persistence` (branched from `main` at `bc3dba3`)
 
 ## Related issue or plan
 
 No issue. See `docs/plans/007-verification-evidence.md` and `docs/adr/0008-verification-evidence-object-storage.md`.
-This is chunk 4 of 7.
+This is chunk 5 of 7.
 
 ## Current status
 
-chunk4_implemented — ready for fresh independent review and merge before chunk 5.
+chunk5_implemented — ready for fresh independent review and merge before chunk 6.
 
-### Evidence chunk 4 — application (this branch)
+### Evidence chunk 5 — persistence (this branch)
+
+- JPA for evidence metadata + the append-only access audit; both adapters, plus service wiring and
+  `verification.evidence.retention.*` configuration.
+- `EvidencePersistenceIntegrationTest` runs **Postgres and MinIO together** — the two consistency
+  domains from ADR-0008 exercised in one Spring context.
+
+**Points a reviewer should push on:**
+- `sha256` needed `columnDefinition = "bpchar"`: V5.2 declares CHAR(64) and Hibernate maps String to
+  varchar. Fixed in the mapping, not by loosening the merged schema — `ddl-auto=validate` caught it.
+- `JpaEvidenceRepository.save` stamps only `deleted_at`; everything else is fixed at upload.
+- The audit adapter uses `saveAndFlush` because the row is written before bytes are disclosed.
+- The integration test needs **no storage SDK** (MinIO makes the bucket at startup), preserving the
+  ADR-0008 rule that only the verification adapter touches S3.
+
+### Evidence chunk 4 — application (merged to `main`)
 
 - Ports: `EvidenceRepository` (metadata) and `EvidenceAccessAuditRepository` (separate, because the
   audit is written on a read path). Domain gained `EvidenceAccessEvent`.
@@ -93,8 +108,8 @@ chunk4_implemented — ready for fresh independent review and merge before chunk
 
 ## Remaining work
 
-Chunks 5–7 (see the plan). Next: chunk 5 (persistence — JPA for evidence metadata and the access
-audit; integration tests against Postgres and Testcontainers MinIO together).
+Chunks 6–7 (see the plan). Next: chunk 6 (endpoints — upload to one's own pending case, moderator
+short-lived read, Tier 2 decisions; RFC 7807 scoped to verification).
 
 ## Decisions and assumptions
 

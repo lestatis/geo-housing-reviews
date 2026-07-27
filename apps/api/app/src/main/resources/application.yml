@@ -38,6 +38,11 @@ verification:
       secret-access-key: ${EVIDENCE_S3_SECRET_KEY:geo_housing_evidence}
       max-upload-bytes: ${EVIDENCE_MAX_UPLOAD_BYTES:10485760}
       path-style-access: ${EVIDENCE_S3_PATH_STYLE:true}
+    retention:
+      # Placeholders until legal review fixes the real periods (SECURITY_PRIVACY §6). Deliberately
+      # configuration, so a legal answer changes settings rather than code.
+      upload-retention-days: ${EVIDENCE_UPLOAD_RETENTION_DAYS:30}
+      post-decision-retention-days: ${EVIDENCE_POST_DECISION_RETENTION_DAYS:7}
 
 server:
   port: 8080

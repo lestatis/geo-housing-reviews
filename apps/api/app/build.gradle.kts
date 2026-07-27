@@ -34,6 +34,8 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    // Tier 2 evidence integration tests run Postgres and the object store together (ADR-0008).
+    testImplementation("org.testcontainers:testcontainers-minio")
     testImplementation(libs.archunit.junit5)
 }
 

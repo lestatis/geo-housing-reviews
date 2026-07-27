@@ -1,5 +1,11 @@
 package com.example.geohousing.verification.infrastructure;
 
+import com.example.geohousing.verification.application.EvidenceAccessAuditRepository;
+import com.example.geohousing.verification.application.EvidenceRepository;
+import com.example.geohousing.verification.application.EvidenceRetentionPolicy;
+import com.example.geohousing.verification.application.EvidenceRetentionService;
+import com.example.geohousing.verification.application.EvidenceService;
+import com.example.geohousing.verification.application.EvidenceStore;
 import com.example.geohousing.verification.application.PropertyLookup;
 import com.example.geohousing.verification.application.ReviewProjection;
 import com.example.geohousing.verification.application.VerificationCaseRepository;
@@ -8,7 +14,10 @@ import com.example.geohousing.verification.application.VerificationDecisionServi
 import com.example.geohousing.verification.application.VerificationExpiryService;
 import com.example.geohousing.verification.application.VerificationQueryService;
 import com.example.geohousing.verification.application.VerificationSubmissionService;
+import com.example.geohousing.verification.infrastructure.storage.EvidenceStorageProperties;
 import java.time.Clock;
+import java.time.Duration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -23,6 +32,7 @@ import org.springframework.context.annotation.Configuration;
  * Clock} bean would make every {@code Clock} injection ambiguous.
  */
 @Configuration
+@EnableConfigurationProperties(EvidenceRetentionProperties.class)
 public class VerificationBeanConfiguration {
 
   @Bean
@@ -52,5 +62,39 @@ public class VerificationBeanConfiguration {
       ReviewProjection reviewProjection) {
     return new VerificationExpiryService(
         caseRepository, decisionRepository, reviewProjection, Clock.systemUTC());
+  }
+
+  @Bean
+  EvidenceRetentionPolicy evidenceRetentionPolicy(EvidenceRetentionProperties properties) {
+    return new EvidenceRetentionPolicy(
+        Duration.ofDays(properties.uploadRetentionDays()),
+        Duration.ofDays(properties.postDecisionRetentionDays()));
+  }
+
+  @Bean
+  EvidenceService evidenceService(
+      VerificationCaseRepository caseRepository,
+      EvidenceRepository evidenceRepository,
+      EvidenceAccessAuditRepository accessAudit,
+      EvidenceStore evidenceStore,
+      EvidenceRetentionPolicy retentionPolicy,
+      EvidenceStorageProperties storageProperties) {
+    return new EvidenceService(
+        caseRepository,
+        evidenceRepository,
+        accessAudit,
+        evidenceStore,
+        retentionPolicy,
+        storageProperties.maxUploadBytes(),
+        Clock.systemUTC());
+  }
+
+  @Bean
+  EvidenceRetentionService evidenceRetentionService(
+      EvidenceRepository evidenceRepository,
+      EvidenceAccessAuditRepository accessAudit,
+      EvidenceStore evidenceStore) {
+    return new EvidenceRetentionService(
+        evidenceRepository, accessAudit, evidenceStore, Clock.systemUTC());
   }
 }
