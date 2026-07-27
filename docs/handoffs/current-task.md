@@ -5,20 +5,54 @@
 Add **Tier 2 document evidence** to the `verification` module (plan `docs/plans/007-verification-evidence.md`):
 an account attaches a document to a pending case, a moderator reads it under audit and decides, and the
 raw evidence is deleted shortly after the decision. Completes MVP must-have "safe evidence upload and
-retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 5 (persistence).
+retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 6 (endpoints).
 
 ## Active branch
 
-`feat/007-evidence-chunk5-persistence` (branched from `main` at `bc3dba3`)
+`feat/007-evidence-chunk6-endpoints` (branched from clean `main` at `2a08005`)
 
 ## Related issue or plan
 
 No issue. See `docs/plans/007-verification-evidence.md` and `docs/adr/0008-verification-evidence-object-storage.md`.
-This is chunk 5 of 7.
+This is chunk 6 of 7.
 
 ## Current status
 
-chunk5_implemented — ready for fresh independent review and merge before chunk 6.
+chunk6_ready_for_review — implementation and deterministic checks pass; await a fresh independent
+review before merge.
+
+### Chunk 6 execution plan
+
+- Accept one multipart document only at the owner's pending `DOCUMENT` case, validate its declared
+  content type before storage, and return metadata without a storage key, checksum, raw bytes, or
+  original filename.
+- Let only an admin list evidence metadata and receive a one-response document stream; require
+  `Cache-Control: no-store`, safe attachment disposition, and the existing pre-read access audit.
+- Refuse approval of a `DOCUMENT` case without retained evidence; rejection remains possible.
+- Map the new application and upload-size failures to scoped RFC 7807 codes, then cover success,
+  authorization, invalid input, no-evidence approval, audit, and response cache controls through
+  Postgres + MinIO endpoint tests.
+
+### Evidence chunk 6 — endpoints (this branch)
+
+- `POST /api/verifications/{caseId}/evidence` accepts exactly the multipart `document` part only
+  from the owner of a pending `DOCUMENT` case. It returns `201` and safe metadata; storage keys,
+  SHA-256 values, source filenames, and bytes are never returned.
+- `GET /api/admin/verifications/{caseId}/evidence` lists safe metadata. `GET
+  /api/admin/verifications/{caseId}/evidence/{evidenceId}` verifies that the evidence belongs to
+  that case, then uses the existing audited application read. It proxies the one response with
+  `Cache-Control: no-store`, a fixed safe attachment name, and `X-Content-Type-Options: nosniff`.
+  No presigned or reusable storage URL is created.
+- A document-method case cannot be approved without an undeleted evidence record. The check occurs
+  after the normal case/version lookup but before any state change or decision audit; rejection is
+  still allowed.
+- `VerificationExceptionHandler` now maps evidence state/not-found/gone/size and missing-document
+  failures to verification-scoped RFC 7807 responses. Servlet multipart limits are configured from
+  environment variables alongside the store limit, while the store remains the final pre-storage
+  enforcement point.
+- `EvidenceEndpointIntegrationTest` runs real Postgres + MinIO through MockMvc. It proves successful
+  upload/list/read, correct bytes and READ audit, non-admin denial without an audit row, the Tier 2
+  approval guard, and content-type rejection before metadata is written.
 
 ### Evidence chunk 5 — persistence (this branch)
 
@@ -108,8 +142,9 @@ chunk5_implemented — ready for fresh independent review and merge before chunk
 
 ## Remaining work
 
-Chunks 6–7 (see the plan). Next: chunk 6 (endpoints — upload to one's own pending case, moderator
-short-lived read, Tier 2 decisions; RFC 7807 scoped to verification).
+Chunk 7 only: delete raw objects on decision/cancel, schedule/trigger retention deletion, and prove
+the object is gone while the metadata and DELETE audit remain. Do not begin it until this branch has
+received fresh independent review and is merged.
 
 ## Decisions and assumptions
 
@@ -121,18 +156,25 @@ short-lived read, Tier 2 decisions; RFC 7807 scoped to verification).
 
 ```bash
 cd apps/api
-./gradlew :modules:verification:test --tests '*S3EvidenceStore*'   # Testcontainers MinIO
+./gradlew :modules:verification:test --tests 'com.example.geohousing.verification.application.VerificationDecisionServiceTest'
+./gradlew :modules:verification:check
+./gradlew :app:test --tests 'com.example.geohousing.app.verification.EvidenceEndpointIntegrationTest'
 cd .. && ./scripts/check.sh
 ```
 
+All passed on 2026-07-27. The first focused module command exposed misplaced imports from the
+initial patch; those were corrected before the succeeding module, endpoint, and repository checks.
+
 ## Failures / unresolved risks
 
-None. `./scripts/check.sh` passes. Two consistency domains (metadata rows vs objects) are a known
-design property handled from chunk 2 on: deletion is idempotent and an orphaned object stays sweepable.
+No unresolved implementation failure. `./scripts/check.sh` passes. Two consistency domains
+(metadata rows vs objects) remain a known design property; chunk 7 owns terminal-state deletion.
+Malware scanning, image re-encoding, envelope encryption, and legally approved retention periods
+remain the plan/ADR's explicit pre-launch follow-ups.
 
 Environment note: scratch `geo-*-verify` containers may linger in `docker ps` because `docker stop/kill`
 returns "permission denied" for this user; harmless `--rm` containers cleared by a daemon restart.
 
 ## Next action
 
-Fresh independent review of chunk 1, then merge to `main` before chunk 2.
+Fresh independent review of the complete chunk 6 diff, then merge to `main` before chunk 7.

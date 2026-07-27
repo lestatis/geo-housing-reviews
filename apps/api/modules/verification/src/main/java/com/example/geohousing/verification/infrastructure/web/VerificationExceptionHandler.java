@@ -1,6 +1,11 @@
 package com.example.geohousing.verification.infrastructure.web;
 
+import com.example.geohousing.verification.application.DocumentEvidenceRequiredException;
 import com.example.geohousing.verification.application.DuplicateVerificationCaseException;
+import com.example.geohousing.verification.application.EvidenceContentGoneException;
+import com.example.geohousing.verification.application.EvidenceNotAcceptedException;
+import com.example.geohousing.verification.application.EvidenceNotFoundException;
+import com.example.geohousing.verification.application.EvidenceTooLargeException;
 import com.example.geohousing.verification.application.PropertyNotFoundForVerificationException;
 import com.example.geohousing.verification.application.VerificationAccessDeniedException;
 import com.example.geohousing.verification.domain.IllegalVerificationStateTransitionException;
@@ -12,6 +17,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Maps verification errors to RFC 7807 Problem Details (see {@code docs/API_GUIDELINES.md}).
@@ -71,6 +77,51 @@ class VerificationExceptionHandler {
         "Verification access denied",
         "VERIFICATION_ACCESS_DENIED",
         "This verification case belongs to another account.");
+  }
+
+  @ExceptionHandler(EvidenceNotAcceptedException.class)
+  ProblemDetail handleEvidenceNotAccepted(EvidenceNotAcceptedException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Verification case is not accepting evidence",
+        "EVIDENCE_NOT_ACCEPTED",
+        "Evidence can only be added to your pending document verification case.");
+  }
+
+  @ExceptionHandler(EvidenceNotFoundException.class)
+  ProblemDetail handleEvidenceNotFound(EvidenceNotFoundException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Verification evidence not found",
+        "VERIFICATION_EVIDENCE_NOT_FOUND",
+        "No verification evidence was found for this identifier.");
+  }
+
+  @ExceptionHandler(EvidenceContentGoneException.class)
+  ProblemDetail handleEvidenceGone(EvidenceContentGoneException exception) {
+    return problem(
+        HttpStatus.GONE,
+        "Verification evidence is no longer available",
+        "VERIFICATION_EVIDENCE_GONE",
+        "The evidence document was deleted under the retention policy.");
+  }
+
+  @ExceptionHandler({EvidenceTooLargeException.class, MaxUploadSizeExceededException.class})
+  ProblemDetail handleEvidenceTooLarge(RuntimeException exception) {
+    return problem(
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        "Evidence upload is too large",
+        "EVIDENCE_TOO_LARGE",
+        "The evidence document exceeds the maximum allowed size.");
+  }
+
+  @ExceptionHandler(DocumentEvidenceRequiredException.class)
+  ProblemDetail handleDocumentEvidenceRequired(DocumentEvidenceRequiredException exception) {
+    return problem(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        "Document evidence is required",
+        "DOCUMENT_EVIDENCE_REQUIRED",
+        "A document verification case cannot be approved without retained evidence.");
   }
 
   @ExceptionHandler(IllegalVerificationStateTransitionException.class)

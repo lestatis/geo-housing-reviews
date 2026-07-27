@@ -32,9 +32,10 @@ class VerificationDecisionServiceTest {
   private final InMemoryVerificationCaseRepository cases = new InMemoryVerificationCaseRepository();
   private final InMemoryVerificationCaseRepository.RecordingDecisionRepository decisions =
       cases.decisionRepository();
+  private final InMemoryEvidenceRepository evidence = new InMemoryEvidenceRepository();
   private final RecordingReviewProjection reviewProjection = new RecordingReviewProjection();
   private final VerificationDecisionService service =
-      new VerificationDecisionService(cases, decisions, reviewProjection, CLOCK);
+      new VerificationDecisionService(cases, evidence, decisions, reviewProjection, CLOCK);
 
   /** Captures the tiers pushed to the reviews module. */
   private static final class RecordingReviewProjection
@@ -180,6 +181,27 @@ class VerificationDecisionServiceTest {
       assertThatThrownBy(() -> service.reject(MODERATOR, pending.id(), pending.version(), blank))
           .isInstanceOf(IllegalArgumentException.class);
     }
+    assertThat(cases.findById(pending.id()).orElseThrow().status())
+        .isEqualTo(VerificationStatus.PENDING);
+    assertThat(decisions.events).isEmpty();
+  }
+
+  @Test
+  void approvingADocumentCaseRequiresRetainedEvidence() {
+    VerificationCase pending =
+        VerificationCase.open(
+            VerificationCaseId.of(UUID.randomUUID()),
+            AccountRef.of(UUID.randomUUID()),
+            PropertyRef.of(UUID.randomUUID()),
+            RelationshipClaim.OWNER,
+            VerificationMethod.DOCUMENT,
+            1,
+            CLOCK);
+    cases.create(pending);
+
+    assertThatThrownBy(
+            () -> service.approve(MODERATOR, pending.id(), pending.version(), "DOCUMENT_OK", null))
+        .isInstanceOf(DocumentEvidenceRequiredException.class);
     assertThat(cases.findById(pending.id()).orElseThrow().status())
         .isEqualTo(VerificationStatus.PENDING);
     assertThat(decisions.events).isEmpty();

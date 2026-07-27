@@ -1,5 +1,6 @@
 package com.example.geohousing.verification.infrastructure.web;
 
+import com.example.geohousing.verification.application.EvidenceService;
 import com.example.geohousing.verification.application.OpenVerificationCommand;
 import com.example.geohousing.verification.application.VerificationQueryService;
 import com.example.geohousing.verification.application.VerificationSubmissionService;
@@ -8,7 +9,10 @@ import com.example.geohousing.verification.domain.RelationshipClaim;
 import com.example.geohousing.verification.domain.VerificationCase;
 import com.example.geohousing.verification.domain.VerificationCaseId;
 import com.example.geohousing.verification.domain.VerificationCaseNotFoundException;
+import com.example.geohousing.verification.domain.VerificationEvidence;
 import com.example.geohousing.verification.domain.VerificationMethod;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.security.Principal;
 import java.util.UUID;
@@ -18,7 +22,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * A user's own verification cases: opening one, reading it, cancelling it, and checking whether
@@ -30,11 +36,15 @@ class VerificationController {
 
   private final VerificationSubmissionService submissionService;
   private final VerificationQueryService queryService;
+  private final EvidenceService evidenceService;
 
   VerificationController(
-      VerificationSubmissionService submissionService, VerificationQueryService queryService) {
+      VerificationSubmissionService submissionService,
+      VerificationQueryService queryService,
+      EvidenceService evidenceService) {
     this.submissionService = submissionService;
     this.queryService = queryService;
+    this.evidenceService = evidenceService;
   }
 
   /**
@@ -71,6 +81,30 @@ class VerificationController {
     return VerificationCaseResponse.from(
         submissionService.cancel(
             VerificationCaseId.of(parseUuid(caseId)), WebAuthentication.ownerViewer(principal)));
+  }
+
+  /**
+   * Attaches one document to the caller's pending Tier 2 case. The original filename is not kept or
+   * returned: document names often contain personal information and are unnecessary to verify a
+   * relationship.
+   */
+  @PostMapping(value = "/api/verifications/{caseId}/evidence", consumes = "multipart/form-data")
+  ResponseEntity<VerificationEvidenceResponse> attachEvidence(
+      Principal principal,
+      @PathVariable("caseId") String caseId,
+      @RequestPart("document") MultipartFile document) {
+    VerificationEvidence evidence;
+    try (InputStream content = document.getInputStream()) {
+      evidence =
+          evidenceService.attach(
+              VerificationCaseId.of(parseUuid(caseId)),
+              WebAuthentication.ownerViewer(principal),
+              document.getContentType(),
+              content);
+    } catch (IOException exception) {
+      throw new IllegalArgumentException("could not read uploaded evidence", exception);
+    }
+    return ResponseEntity.status(201).body(VerificationEvidenceResponse.from(evidence));
   }
 
   /**

@@ -44,10 +44,15 @@ public class VerificationBeanConfiguration {
   @Bean
   VerificationDecisionService verificationDecisionService(
       VerificationCaseRepository caseRepository,
+      EvidenceRepository evidenceRepository,
       VerificationDecisionRepository decisionRepository,
       ReviewProjection reviewProjection) {
     return new VerificationDecisionService(
-        caseRepository, decisionRepository, reviewProjection, Clock.systemUTC());
+        caseRepository,
+        evidenceRepository,
+        decisionRepository,
+        reviewProjection,
+        Clock.systemUTC());
   }
 
   @Bean

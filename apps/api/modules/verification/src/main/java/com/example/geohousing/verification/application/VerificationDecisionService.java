@@ -25,16 +25,19 @@ import java.util.Optional;
 public final class VerificationDecisionService {
 
   private final VerificationCaseRepository caseRepository;
+  private final EvidenceRepository evidenceRepository;
   private final VerificationDecisionRepository decisionRepository;
   private final ReviewProjection reviewProjection;
   private final Clock clock;
 
   public VerificationDecisionService(
       VerificationCaseRepository caseRepository,
+      EvidenceRepository evidenceRepository,
       VerificationDecisionRepository decisionRepository,
       ReviewProjection reviewProjection,
       Clock clock) {
     this.caseRepository = Objects.requireNonNull(caseRepository, "caseRepository");
+    this.evidenceRepository = Objects.requireNonNull(evidenceRepository, "evidenceRepository");
     this.decisionRepository = Objects.requireNonNull(decisionRepository, "decisionRepository");
     this.reviewProjection = Objects.requireNonNull(reviewProjection, "reviewProjection");
     this.clock = Objects.requireNonNull(clock, "clock");
@@ -116,6 +119,12 @@ public final class VerificationDecisionService {
     if (verificationCase.version() != expectedVersion) {
       throw new VerificationVersionConflictException(
           "verification case " + caseId.value() + " changed since the moderator loaded it");
+    }
+    if (action == VerificationDecisionAction.APPROVE
+        && verificationCase.method().requiresEvidence()
+        && evidenceRepository.findByCase(caseId).stream()
+            .noneMatch(evidence -> !evidence.isDeleted())) {
+      throw new DocumentEvidenceRequiredException(caseId);
     }
     decision.apply(verificationCase, now);
     decisionRepository.applyDecision(

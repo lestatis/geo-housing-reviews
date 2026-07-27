@@ -107,6 +107,17 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-27: Chunk 6 implemented on `feat/007-evidence-chunk6-endpoints`. `POST
+  /api/verifications/{caseId}/evidence` takes one multipart `document` for the owner's pending
+  `DOCUMENT` case; the response has safe metadata only (no original name, key, checksum, or bytes).
+  `GET /api/admin/verifications/{caseId}/evidence` lists that metadata and `GET
+  /api/admin/verifications/{caseId}/evidence/{evidenceId}` performs one audited, proxied download
+  with `Cache-Control: no-store`, attachment disposition, and `nosniff` — no reusable storage URL.
+  Tier 2 approval now requires an undeleted metadata row; rejection remains possible. The servlet
+  multipart cap is configurable alongside the store cap. Endpoint tests use Postgres + MinIO and
+  cover upload, byte read/audit, admin authorization, pre-storage content-type rejection, and the
+  no-evidence approval negative path. `:modules:verification:check`, targeted endpoint tests, and
+  `./scripts/check.sh` pass. Ready for fresh independent review.
 - 2026-07-23: Chunk 5 (persistence) implemented on `feat/007-evidence-chunk5-persistence`. JPA for
   evidence metadata and the access audit: `VerificationEvidenceJpaEntity` (case_id a plain UUID
   column — evidence has its own lifecycle and is never dragged along with a case),
