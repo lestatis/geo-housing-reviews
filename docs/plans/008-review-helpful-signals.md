@@ -89,6 +89,13 @@ records needed to explain historical aggregates.
   application, local-reference integrity, duplicate-active rejection, and re-signalling after
   withdrawal. `:modules:reviews:check` and `./scripts/check.sh` pass. Ready for independent review.
 - 2026-07-27: Chunk 1 fast-forward merged to `main` at `b6a20d7`.
+- 2026-07-27: Chunk 2 implemented on `feat/008-review-helpful-signals-application`. Added the
+  private `HelpfulSignal` lifecycle and opaque signal/voter identifiers, application port and
+  service, plus in-memory tests. A signal may be added only to a published, non-author review;
+  unpublished targets are reported as missing to avoid review-state probing, self-signals are
+  refused, duplicate active signals conflict, and withdrawal is idempotent. No persistence adapter,
+  endpoint, aggregate count, or ranking behaviour was added. Focused tests,
+  `:modules:reviews:check`, and `./scripts/check.sh` pass. Ready for independent review.
 
 ## Final outcome
 
