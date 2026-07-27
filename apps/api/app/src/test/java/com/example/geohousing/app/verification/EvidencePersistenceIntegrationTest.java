@@ -12,9 +12,11 @@ import com.example.geohousing.verification.application.EvidenceNotFoundException
 import com.example.geohousing.verification.application.EvidenceRetentionService;
 import com.example.geohousing.verification.application.EvidenceService;
 import com.example.geohousing.verification.application.OpenVerificationCommand;
+import com.example.geohousing.verification.application.VerificationDecisionService;
 import com.example.geohousing.verification.application.VerificationSubmissionService;
 import com.example.geohousing.verification.application.VerificationViewer;
 import com.example.geohousing.verification.domain.AccountRef;
+import com.example.geohousing.verification.domain.ModeratorId;
 import com.example.geohousing.verification.domain.PropertyRef;
 import com.example.geohousing.verification.domain.RelationshipClaim;
 import com.example.geohousing.verification.domain.VerificationCase;
@@ -94,6 +96,7 @@ class EvidencePersistenceIntegrationTest {
 
   @Autowired private EvidenceService evidenceService;
   @Autowired private EvidenceRetentionService retentionService;
+  @Autowired private VerificationDecisionService decisionService;
   @Autowired private VerificationSubmissionService submission;
   @Autowired private com.example.geohousing.properties.application.PropertyRepository properties;
   @Autowired private JdbcTemplate jdbcTemplate;
@@ -192,6 +195,36 @@ class EvidencePersistenceIntegrationTest {
   }
 
   @Test
+  void cancellingACaseDeletesEvidenceAndAuditsTheOwner() {
+    UUID owner = UUID.randomUUID();
+    VerificationCase documentCase = openDocumentCase(owner);
+    VerificationEvidence evidence = attach(documentCase, owner);
+
+    submission.cancel(documentCase.id(), VerificationViewer.account(AccountRef.of(owner)));
+
+    assertDeleted(evidence, owner);
+  }
+
+  @Test
+  void approvingACaseDeletesEvidenceAndAuditsTheModerator() {
+    UUID owner = UUID.randomUUID();
+    UUID moderator = UUID.randomUUID();
+    VerificationCase documentCase = openDocumentCase(owner);
+    VerificationEvidence evidence = attach(documentCase, owner);
+
+    decisionService
+        .approve(
+            ModeratorId.of(moderator),
+            documentCase.id(),
+            documentCase.version(),
+            "DOCUMENT_OK",
+            null)
+        .orElseThrow();
+
+    assertDeleted(evidence, moderator);
+  }
+
+  @Test
   void theRetentionSweepDeletesLapsedEvidenceAndAuditsWithoutAnActor() {
     UUID owner = UUID.randomUUID();
     VerificationCase documentCase = openDocumentCase(owner);
@@ -242,5 +275,27 @@ class EvidencePersistenceIntegrationTest {
             Integer.class,
             evidence.id().value());
     assertThat(auditRows).isZero();
+  }
+
+  private void assertDeleted(VerificationEvidence evidence, UUID actor) {
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select deleted_at is not null from verification.verification_evidence"
+                    + " where id = ?::uuid",
+                Boolean.class,
+                evidence.id().value()))
+        .isTrue();
+    assertThatThrownBy(
+            () ->
+                evidenceService.read(
+                    evidence.id(), VerificationViewer.moderator(AccountRef.of(actor))))
+        .isInstanceOf(EvidenceContentGoneException.class);
+    assertThat(
+            jdbcTemplate.queryForObject(
+                "select accessor_account_id::text from verification.verification_evidence_access_event"
+                    + " where evidence_id = ?::uuid and action = 'DELETE'",
+                String.class,
+                evidence.id().value()))
+        .isEqualTo(actor.toString());
   }
 }

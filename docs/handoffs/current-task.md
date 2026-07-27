@@ -5,21 +5,47 @@
 Add **Tier 2 document evidence** to the `verification` module (plan `docs/plans/007-verification-evidence.md`):
 an account attaches a document to a pending case, a moderator reads it under audit and decides, and the
 raw evidence is deleted shortly after the decision. Completes MVP must-have "safe evidence upload and
-retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 6 (endpoints).
+retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 7 (retention deletion).
 
 ## Active branch
 
-`feat/007-evidence-chunk6-endpoints` (branched from clean `main` at `2a08005`)
+`feat/007-evidence-chunk7-retention` (branched from clean `main` at `e50c289`)
 
 ## Related issue or plan
 
 No issue. See `docs/plans/007-verification-evidence.md` and `docs/adr/0008-verification-evidence-object-storage.md`.
-This is chunk 6 of 7.
+This is chunk 7 of 7.
 
 ## Current status
 
-chunk6_ready_for_review — implementation and deterministic checks pass; await a fresh independent
-review before merge.
+chunk7_ready_for_review — all planned Tier 2 evidence work is implemented and checks pass; await a
+fresh independent review before merge.
+
+### Chunk 7 execution plan
+
+- After a successful owner cancellation or moderator decision, delete every attached raw object,
+  stamp its metadata, and append a DELETE audit event naming the responsible account.
+- Expose the existing lapsed-evidence sweep through a configured scheduled runner with a bounded
+  batch size. A system-triggered deletion continues to have no accessor.
+- Preserve the object-before-metadata ordering and idempotence in all paths; a failed storage
+  deletion must never make metadata falsely say the bytes were removed.
+- Add application and Postgres+MinIO integration coverage that proves object disappearance,
+  metadata/audit survival, correct actor attribution, cancellation/decision state, and sweep
+  behavior.
+
+### Evidence chunk 7 — terminal deletion and sweep trigger (this branch)
+
+- `VerificationSubmissionService.cancel` persists the owner's terminal cancellation, then calls
+  `EvidenceService.deleteForCase` with the owner id. `VerificationDecisionService` does the same
+  for applied APPROVE and REJECT actions with the moderator id, after the decision and review
+  projection are complete. The existing delete implementation keeps its privacy-safe ordering:
+  object deletion before metadata stamp and append-only DELETE audit.
+- `EvidenceRetentionJob` calls `EvidenceRetentionService.deleteLapsed` at a configured fixed delay;
+  `sweep-batch-size` bounds each run. `@EnableScheduling` is scoped in the verification module's
+  configuration. The system sweep remains actorless by design.
+- `EvidencePersistenceIntegrationTest` now proves real MinIO disappearance, surviving metadata,
+  and DELETE audit attribution for both cancellation and approval. Unit tests cover cancellation,
+  approval, and the job's configured batch delegation.
 
 ### Chunk 6 execution plan
 
@@ -142,9 +168,9 @@ review before merge.
 
 ## Remaining work
 
-Chunk 7 only: delete raw objects on decision/cancel, schedule/trigger retention deletion, and prove
-the object is gone while the metadata and DELETE audit remain. Do not begin it until this branch has
-received fresh independent review and is merged.
+No implementation chunks remain. Fresh independent review is required before merging this branch;
+the plan/ADR's pre-launch requirements (malware scanning, image re-encoding, envelope encryption,
+and legal retention approval) remain separate follow-up work.
 
 ## Decisions and assumptions
 
@@ -157,18 +183,23 @@ received fresh independent review and is merged.
 ```bash
 cd apps/api
 ./gradlew :modules:verification:test --tests 'com.example.geohousing.verification.application.VerificationDecisionServiceTest'
+./gradlew :modules:verification:test --tests 'com.example.geohousing.verification.application.VerificationSubmissionServiceTest'
+./gradlew :modules:verification:test --tests 'com.example.geohousing.verification.application.EvidenceRetentionJobTest'
 ./gradlew :modules:verification:check
-./gradlew :app:test --tests 'com.example.geohousing.app.verification.EvidenceEndpointIntegrationTest'
+./gradlew :app:test --tests 'com.example.geohousing.app.verification.EvidencePersistenceIntegrationTest'
 cd .. && ./scripts/check.sh
 ```
 
-All passed on 2026-07-27. The first focused module command exposed misplaced imports from the
-initial patch; those were corrected before the succeeding module, endpoint, and repository checks.
+All passed on 2026-07-27. The initial configuration compile exposed a missing `EvidenceService`
+parameter in the decision bean; it was corrected before the succeeding unit, integration, and
+repository checks.
 
 ## Failures / unresolved risks
 
 No unresolved implementation failure. `./scripts/check.sh` passes. Two consistency domains
-(metadata rows vs objects) remain a known design property; chunk 7 owns terminal-state deletion.
+(metadata rows vs objects) remain a known design property: a storage failure after a terminal case
+leaves metadata unstamped, so the configured retention sweep can retry rather than claiming a
+deletion it cannot prove.
 Malware scanning, image re-encoding, envelope encryption, and legally approved retention periods
 remain the plan/ADR's explicit pre-launch follow-ups.
 
@@ -177,4 +208,4 @@ returns "permission denied" for this user; harmless `--rm` containers cleared by
 
 ## Next action
 
-Fresh independent review of the complete chunk 6 diff, then merge to `main` before chunk 7.
+Fresh independent review of the complete Tier 2 evidence diff, then merge to `main`.

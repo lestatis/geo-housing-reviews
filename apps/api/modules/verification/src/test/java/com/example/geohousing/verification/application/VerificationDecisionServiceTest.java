@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.geohousing.verification.domain.AccountRef;
+import com.example.geohousing.verification.domain.EvidenceAccessAction;
 import com.example.geohousing.verification.domain.IllegalVerificationStateTransitionException;
 import com.example.geohousing.verification.domain.ModeratorId;
 import com.example.geohousing.verification.domain.PropertyRef;
@@ -17,7 +18,9 @@ import com.example.geohousing.verification.domain.VerificationMethod;
 import com.example.geohousing.verification.domain.VerificationStatus;
 import com.example.geohousing.verification.domain.VerificationTier;
 import com.example.geohousing.verification.domain.VerificationVersionConflictException;
+import java.io.ByteArrayInputStream;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -33,9 +36,21 @@ class VerificationDecisionServiceTest {
   private final InMemoryVerificationCaseRepository.RecordingDecisionRepository decisions =
       cases.decisionRepository();
   private final InMemoryEvidenceRepository evidence = new InMemoryEvidenceRepository();
+  private final RecordingEvidenceAccessAudit evidenceAudit = new RecordingEvidenceAccessAudit();
+  private final InMemoryEvidenceStore evidenceStore = new InMemoryEvidenceStore();
+  private final EvidenceService evidenceService =
+      new EvidenceService(
+          cases,
+          evidence,
+          evidenceAudit,
+          evidenceStore,
+          new EvidenceRetentionPolicy(Duration.ofDays(30), Duration.ofDays(7)),
+          1024,
+          CLOCK);
   private final RecordingReviewProjection reviewProjection = new RecordingReviewProjection();
   private final VerificationDecisionService service =
-      new VerificationDecisionService(cases, evidence, decisions, reviewProjection, CLOCK);
+      new VerificationDecisionService(
+          cases, evidence, decisions, reviewProjection, evidenceService, CLOCK);
 
   /** Captures the tiers pushed to the reviews module. */
   private static final class RecordingReviewProjection
@@ -205,5 +220,36 @@ class VerificationDecisionServiceTest {
     assertThat(cases.findById(pending.id()).orElseThrow().status())
         .isEqualTo(VerificationStatus.PENDING);
     assertThat(decisions.events).isEmpty();
+  }
+
+  @Test
+  void approvingADocumentCaseDeletesItsEvidenceAfterTheDecision() {
+    VerificationCase pending =
+        VerificationCase.open(
+            VerificationCaseId.of(UUID.randomUUID()),
+            AccountRef.of(UUID.randomUUID()),
+            PropertyRef.of(UUID.randomUUID()),
+            RelationshipClaim.OWNER,
+            VerificationMethod.DOCUMENT,
+            1,
+            CLOCK);
+    cases.create(pending);
+    var attached =
+        evidenceService.attach(
+            pending.id(),
+            VerificationViewer.account(pending.accountRef()),
+            "application/pdf",
+            new ByteArrayInputStream("SYNTHETIC-TEST-EVIDENCE".getBytes()));
+
+    service.approve(MODERATOR, pending.id(), pending.version(), "DOCUMENT_OK", null).orElseThrow();
+
+    assertThat(evidenceRepository().findById(attached.id()).orElseThrow().isDeleted()).isTrue();
+    assertThat(evidenceStore.objects).isEmpty();
+    assertThat(evidenceAudit.last().action()).isEqualTo(EvidenceAccessAction.DELETE);
+    assertThat(evidenceAudit.last().accessorAccountId()).contains(MODERATOR.value());
+  }
+
+  private InMemoryEvidenceRepository evidenceRepository() {
+    return evidence;
   }
 }

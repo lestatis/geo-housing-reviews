@@ -21,12 +21,17 @@ public final class VerificationSubmissionService {
 
   private final VerificationCaseRepository caseRepository;
   private final PropertyLookup propertyLookup;
+  private final EvidenceService evidenceService;
   private final Clock clock;
 
   public VerificationSubmissionService(
-      VerificationCaseRepository caseRepository, PropertyLookup propertyLookup, Clock clock) {
+      VerificationCaseRepository caseRepository,
+      PropertyLookup propertyLookup,
+      EvidenceService evidenceService,
+      Clock clock) {
     this.caseRepository = Objects.requireNonNull(caseRepository, "caseRepository");
     this.propertyLookup = Objects.requireNonNull(propertyLookup, "propertyLookup");
+    this.evidenceService = Objects.requireNonNull(evidenceService, "evidenceService");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
 
@@ -85,6 +90,10 @@ public final class VerificationSubmissionService {
     }
     verificationCase.cancel(clock);
     caseRepository.save(verificationCase);
+    // The terminal case is persisted before touching the separate object store. If storage fails,
+    // metadata remains unstamped (so the configured retention sweep can retry) rather than falsely
+    // claiming the document was removed.
+    evidenceService.deleteForCase(caseId, verificationCase.accountRef().value());
     return verificationCase;
   }
 }

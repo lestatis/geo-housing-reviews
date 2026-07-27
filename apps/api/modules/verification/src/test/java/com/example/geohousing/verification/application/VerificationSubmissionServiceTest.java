@@ -10,9 +10,12 @@ import com.example.geohousing.verification.domain.RelationshipClaim;
 import com.example.geohousing.verification.domain.VerificationCase;
 import com.example.geohousing.verification.domain.VerificationCaseId;
 import com.example.geohousing.verification.domain.VerificationCaseNotFoundException;
+import com.example.geohousing.verification.domain.VerificationEvidence;
 import com.example.geohousing.verification.domain.VerificationMethod;
 import com.example.geohousing.verification.domain.VerificationStatus;
+import java.io.ByteArrayInputStream;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -29,9 +32,21 @@ class VerificationSubmissionServiceTest {
 
   private final InMemoryVerificationCaseRepository repository =
       new InMemoryVerificationCaseRepository();
+  private final InMemoryEvidenceRepository evidenceRepository = new InMemoryEvidenceRepository();
+  private final RecordingEvidenceAccessAudit evidenceAudit = new RecordingEvidenceAccessAudit();
+  private final InMemoryEvidenceStore evidenceStore = new InMemoryEvidenceStore();
+  private final EvidenceService evidenceService =
+      new EvidenceService(
+          repository,
+          evidenceRepository,
+          evidenceAudit,
+          evidenceStore,
+          new EvidenceRetentionPolicy(Duration.ofDays(30), Duration.ofDays(7)),
+          1024,
+          CLOCK);
 
   private VerificationSubmissionService serviceSeeing(PropertyLookup lookup) {
-    return new VerificationSubmissionService(repository, lookup, CLOCK);
+    return new VerificationSubmissionService(repository, lookup, evidenceService, CLOCK);
   }
 
   private VerificationSubmissionService service() {
@@ -166,5 +181,27 @@ class VerificationSubmissionServiceTest {
 
     assertThatThrownBy(() -> service.cancel(opened.id(), VerificationViewer.account(ACCOUNT)))
         .isInstanceOf(IllegalVerificationStateTransitionException.class);
+  }
+
+  @Test
+  void cancellingADocumentCaseDeletesEvidenceAndRecordsTheOwner() {
+    VerificationSubmissionService service = service();
+    VerificationCase opened =
+        service.open(
+            new OpenVerificationCommand(
+                ACCOUNT, PROPERTY, RelationshipClaim.OWNER, VerificationMethod.DOCUMENT));
+    VerificationEvidence evidence =
+        evidenceService.attach(
+            opened.id(),
+            VerificationViewer.account(ACCOUNT),
+            "application/pdf",
+            new ByteArrayInputStream("SYNTHETIC-TEST-EVIDENCE".getBytes()));
+
+    VerificationCase cancelled = service.cancel(opened.id(), VerificationViewer.account(ACCOUNT));
+
+    assertThat(cancelled.status()).isEqualTo(VerificationStatus.CANCELLED);
+    assertThat(evidenceRepository.findById(evidence.id()).orElseThrow().isDeleted()).isTrue();
+    assertThat(evidenceStore.objects).isEmpty();
+    assertThat(evidenceAudit.last().accessorAccountId()).contains(ACCOUNT.value());
   }
 }

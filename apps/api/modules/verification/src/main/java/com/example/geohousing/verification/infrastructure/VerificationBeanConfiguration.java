@@ -20,6 +20,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Constructs the verification module's framework-free application services as Spring beans. The
@@ -33,12 +34,16 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @EnableConfigurationProperties(EvidenceRetentionProperties.class)
+@EnableScheduling
 public class VerificationBeanConfiguration {
 
   @Bean
   VerificationSubmissionService verificationSubmissionService(
-      VerificationCaseRepository caseRepository, PropertyLookup propertyLookup) {
-    return new VerificationSubmissionService(caseRepository, propertyLookup, Clock.systemUTC());
+      VerificationCaseRepository caseRepository,
+      PropertyLookup propertyLookup,
+      EvidenceService evidenceService) {
+    return new VerificationSubmissionService(
+        caseRepository, propertyLookup, evidenceService, Clock.systemUTC());
   }
 
   @Bean
@@ -46,12 +51,14 @@ public class VerificationBeanConfiguration {
       VerificationCaseRepository caseRepository,
       EvidenceRepository evidenceRepository,
       VerificationDecisionRepository decisionRepository,
-      ReviewProjection reviewProjection) {
+      ReviewProjection reviewProjection,
+      EvidenceService evidenceService) {
     return new VerificationDecisionService(
         caseRepository,
         evidenceRepository,
         decisionRepository,
         reviewProjection,
+        evidenceService,
         Clock.systemUTC());
   }
 

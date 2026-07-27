@@ -28,6 +28,7 @@ public final class VerificationDecisionService {
   private final EvidenceRepository evidenceRepository;
   private final VerificationDecisionRepository decisionRepository;
   private final ReviewProjection reviewProjection;
+  private final EvidenceService evidenceService;
   private final Clock clock;
 
   public VerificationDecisionService(
@@ -35,11 +36,13 @@ public final class VerificationDecisionService {
       EvidenceRepository evidenceRepository,
       VerificationDecisionRepository decisionRepository,
       ReviewProjection reviewProjection,
+      EvidenceService evidenceService,
       Clock clock) {
     this.caseRepository = Objects.requireNonNull(caseRepository, "caseRepository");
     this.evidenceRepository = Objects.requireNonNull(evidenceRepository, "evidenceRepository");
     this.decisionRepository = Objects.requireNonNull(decisionRepository, "decisionRepository");
     this.reviewProjection = Objects.requireNonNull(reviewProjection, "reviewProjection");
+    this.evidenceService = Objects.requireNonNull(evidenceService, "evidenceService");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
 
@@ -139,6 +142,13 @@ public final class VerificationDecisionService {
     // here.
     reviewProjection.applyTier(
         verificationCase.accountRef(), verificationCase.propertyRef(), verificationCase.tier());
+    if (action == VerificationDecisionAction.APPROVE
+        || action == VerificationDecisionAction.REJECT) {
+      // The case decision and review projection are complete before calling the separate object
+      // store. If that call fails, metadata stays unstamped and the retention sweep can retry; the
+      // system never records a deletion that did not happen.
+      evidenceService.deleteForCase(caseId, moderatorId.value());
+    }
     return Optional.of(verificationCase);
   }
 

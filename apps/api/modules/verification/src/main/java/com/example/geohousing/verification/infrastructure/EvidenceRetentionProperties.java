@@ -1,5 +1,6 @@
 package com.example.geohousing.verification.infrastructure;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -13,12 +14,23 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param uploadRetentionDays backstop for evidence on a case that is never decided
  * @param postDecisionRetentionDays how long evidence may outlive a decision, covering the appeal
  *     window
+ * @param sweepBatchSize maximum lapsed objects one scheduled run may delete
+ * @param sweepFixedDelay delay between scheduled retention runs
  */
 @ConfigurationProperties(prefix = "verification.evidence.retention")
-public record EvidenceRetentionProperties(int uploadRetentionDays, int postDecisionRetentionDays) {
+public record EvidenceRetentionProperties(
+    int uploadRetentionDays,
+    int postDecisionRetentionDays,
+    int sweepBatchSize,
+    Duration sweepFixedDelay) {
 
   public EvidenceRetentionProperties {
     uploadRetentionDays = uploadRetentionDays <= 0 ? 30 : uploadRetentionDays;
     postDecisionRetentionDays = postDecisionRetentionDays <= 0 ? 7 : postDecisionRetentionDays;
+    sweepBatchSize = sweepBatchSize <= 0 ? 100 : sweepBatchSize;
+    sweepFixedDelay =
+        sweepFixedDelay == null || sweepFixedDelay.isNegative() || sweepFixedDelay.isZero()
+            ? Duration.ofMinutes(15)
+            : sweepFixedDelay;
   }
 }

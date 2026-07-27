@@ -1,6 +1,6 @@
 # Verification Evidence: Tier 2 Document-Assisted Verification
 
-Status: Active
+Status: Ready for review
 Owner: Claude Code
 Related issue: none (direct founder request; continues the verification module, plan 006)
 Related ADR: `docs/adr/0008-verification-evidence-object-storage.md`
@@ -19,19 +19,19 @@ top of it, under its own security review because the data is the most sensitive 
 
 ## Acceptance criteria
 
-- [ ] Evidence bytes live in S3-compatible object storage; PostgreSQL holds only metadata (key, type,
+- [x] Evidence bytes live in S3-compatible object storage; PostgreSQL holds only metadata (key, type,
       size, checksum, timestamps, retention deadline) — never document content (ADR-0008).
-- [ ] Objects are never publicly readable, keys are not guessable, and reads are short-lived and
+- [x] Objects are never publicly readable, keys are not guessable, and reads are short-lived and
       authorized; every moderator access to evidence is audited.
-- [ ] A retention deadline is set **at upload**; a deletion job removes the object, stamps the
+- [x] A retention deadline is set **at upload**; a deletion job removes the object, stamps the
       metadata row, and records completion (SECURITY_PRIVACY §4 "deletion jobs with evidence of
       completion"). Retention periods are configuration, never hard-coded.
-- [ ] The `DOCUMENT` method is added to the case `method` CHECK by a new migration and grants
+- [x] The `DOCUMENT` method is added to the case `method` CHECK by a new migration and grants
       `DOCUMENT_VERIFIED`, which makes the four claim-specific badges reachable for the first time.
-- [ ] An account may cancel before a decision, and cancelling deletes the evidence.
-- [ ] Raw evidence never appears in logs, analytics, review APIs or support tooling.
-- [ ] Uploads are validated (content-type allowlist, size cap) before anything is stored.
-- [ ] Tests use synthetic fixtures that cannot be mistaken for real documents
+- [x] An account may cancel before a decision, and cancelling deletes the evidence.
+- [x] Raw evidence never appears in logs, analytics, review APIs or support tooling.
+- [x] Uploads are validated (content-type allowlist, size cap) before anything is stored.
+- [x] Tests use synthetic fixtures that cannot be mistaken for real documents
       (`.claude/rules/security.md`).
 
 ## Non-goals
@@ -107,6 +107,16 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-27: Chunk 7 implemented on `feat/007-evidence-chunk7-retention` from clean `main` at
+  `e50c289`. A successful cancellation deletes with the owner as DELETE auditor; an applied
+  approval or rejection deletes with the deciding moderator as DELETE auditor. Both persist the
+  terminal case first, then delete object → stamp metadata → audit, preserving retryable metadata
+  if the separate store fails. `EvidenceRetentionJob` enables a configurable, bounded scheduled
+  sweep, whose system DELETE has no accessor. Unit tests cover decision/cancel object deletion and
+  the job's batch delegation; the Postgres + MinIO test proves the object is gone while metadata
+  and actor-attributed audit remain. `:modules:verification:check`, the persistence integration
+  test, and `./scripts/check.sh` pass. All planned chunks are complete and ready for fresh
+  independent review.
 - 2026-07-27: Chunk 6 implemented on `feat/007-evidence-chunk6-endpoints`. `POST
   /api/verifications/{caseId}/evidence` takes one multipart `document` for the owner's pending
   `DOCUMENT` case; the response has safe metadata only (no original name, key, checksum, or bytes).
