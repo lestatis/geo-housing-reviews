@@ -37,6 +37,35 @@ class ReviewsMigrationIntegrationTest {
   }
 
   @Test
+  void helpfulSignalMigrationAppliedAndPreservesOneActiveSignalPerVoter() {
+    Integer applied =
+        jdbcTemplate.queryForObject(
+            "select count(*) from flyway_schema_history where version = '4.4' and success = true",
+            Integer.class);
+    assertThat(applied).isEqualTo(1);
+
+    UUID reviewId = seedReview();
+    UUID voter = UUID.randomUUID();
+    insertHelpfulSignal(reviewId, voter);
+
+    assertThatThrownBy(() -> insertHelpfulSignal(reviewId, voter))
+        .isInstanceOf(DataIntegrityViolationException.class);
+
+    jdbcTemplate.update(
+        "update reviews.review_helpful_signal set withdrawn_at = now() where review_id = ?"
+            + " and voter_account_id = ?",
+        reviewId,
+        voter);
+    assertThatCode(() -> insertHelpfulSignal(reviewId, voter)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void helpfulSignalCannotReferenceAnUnknownLocalReview() {
+    assertThatThrownBy(() -> insertHelpfulSignal(UUID.randomUUID(), UUID.randomUUID()))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
   void theCurrentVersionForeignKeyIsDeferredButStillEnforced() {
     Integer applied =
         jdbcTemplate.queryForObject(
@@ -209,5 +238,12 @@ class ReviewsMigrationIntegrationTest {
         category,
         value,
         notApplicable);
+  }
+
+  private void insertHelpfulSignal(UUID reviewId, UUID voterAccountId) {
+    jdbcTemplate.update(
+        "insert into reviews.review_helpful_signal (review_id, voter_account_id) values (?, ?)",
+        reviewId,
+        voterAccountId);
   }
 }

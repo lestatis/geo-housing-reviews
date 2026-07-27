@@ -1,9 +1,9 @@
 # Reviews Module: Structured Reviews, Versions, Ratings, Publication State
 
-Status: Active
+Status: Completed (core delivery; optional helpful signals continued in plan 008)
 Owner: Claude Code
 Related issue: none (direct founder request; follows the properties module, plan 004)
-Last updated: 2026-07-20
+Last updated: 2026-07-27
 
 ## Objective
 
@@ -49,7 +49,9 @@ media attachments (`media`); machine translation; helpful-vote anti-abuse tuning
 | Version | Contents | Chunk |
 |---|---|---|
 | `V4.1` | `reviews` schema; `review`, `review_version`, `category_rating` | 1 |
-| `V4.2` | reserved — moderation/admin audit table | 7 |
+| `V4.2` | deferred `review.current_version_id` foreign key | 5 |
+| `V4.3` | moderation/admin audit table | 7 |
+| `V4.4` | helpful-signal table | plan 008 chunk 1 |
 
 ## Implementation chunks (one branch each: self-check → fresh independent review → merge before the next)
 
@@ -259,4 +261,7 @@ cd /home/vladimir/IdeaProjects/geo-housing-reviews && ./scripts/check.sh
 
 ## Final outcome
 
-Not yet complete.
+Chunks 1–7 deliver the MVP review lifecycle, immutable versions, verification summary projection,
+property validation, public read/write endpoints, and audited moderation transitions. The optional
+helpful-signal/ranking-input chunk is continued as plan 008 rather than silently expanding this
+completed core plan.
