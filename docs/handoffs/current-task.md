@@ -5,22 +5,40 @@
 Add **Tier 2 document evidence** to the `verification` module (plan `docs/plans/007-verification-evidence.md`):
 an account attaches a document to a pending case, a moderator reads it under audit and decides, and the
 raw evidence is deleted shortly after the decision. Completes MVP must-have "safe evidence upload and
-retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 3 (domain).
+retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 4 (application).
 
 ## Active branch
 
-`feat/007-evidence-chunk3-domain` (branched from `main` at `28d458f`)
+`feat/007-evidence-chunk4-application` (branched from `main` at `7d2b821`)
 
 ## Related issue or plan
 
 No issue. See `docs/plans/007-verification-evidence.md` and `docs/adr/0008-verification-evidence-object-storage.md`.
-This is chunk 3 of 7.
+This is chunk 4 of 7.
 
 ## Current status
 
-chunk3_implemented — ready for fresh independent review and merge before chunk 4.
+chunk4_implemented — ready for fresh independent review and merge before chunk 5.
 
-### Evidence chunk 3 — domain (this branch)
+### Evidence chunk 4 — application (this branch)
+
+- Ports: `EvidenceRepository` (metadata) and `EvidenceAccessAuditRepository` (separate, because the
+  audit is written on a read path). Domain gained `EvidenceAccessEvent`.
+- `EvidenceRetentionPolicy` — deadline computed at upload, periods are configuration.
+- `EvidenceService`: attach / read / listForCase / deleteForCase.
+- `EvidenceRetentionService.deleteLapsed` — object deleted *before* the row is stamped.
+
+**Points a reviewer should push on:**
+- **The owner cannot read their own evidence back** (moderators only, §6). Deliberate; challenge if
+  the product wants an owner preview.
+- **A moderator cannot upload into a case they will judge** — separation of who supplies and who
+  assesses.
+- A non-moderator read is **404 with no audit row** (nothing disclosed); deleted evidence is a
+  distinct `EvidenceContentGoneException`, not not-found.
+- Sweep ordering: delete object → stamp row. An interruption leaves a re-sweepable row rather than a
+  row claiming a deletion that never happened.
+
+### Evidence chunk 3 — domain (merged to `main`)
 
 - `VerificationMethod.DOCUMENT` grants `DOCUMENT_VERIFIED` and is `requiresEvidence`. Tier 2's four
   claim-specific badges are reachable through a real approval now.
@@ -75,8 +93,8 @@ chunk3_implemented — ready for fresh independent review and merge before chunk
 
 ## Remaining work
 
-Chunks 4–7 (see the plan). Next: chunk 4 (application — attach-evidence use case with validation,
-moderator read-with-audit, and the retention sweep; in-memory-fake unit tests).
+Chunks 5–7 (see the plan). Next: chunk 5 (persistence — JPA for evidence metadata and the access
+audit; integration tests against Postgres and Testcontainers MinIO together).
 
 ## Decisions and assumptions
 

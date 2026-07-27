@@ -107,6 +107,26 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-23: Chunk 4 (application) implemented on `feat/007-evidence-chunk4-application`. Ports:
+  `EvidenceRepository` (metadata; `findPastRetention` mirrors the V5.2 partial index) and
+  `EvidenceAccessAuditRepository` — kept separate because the audit is written on a *read* path,
+  where no metadata changes. Domain gained `EvidenceAccessAction`/`EvidenceAccessEvent` (a READ must
+  name its accessor; a sweep DELETE has none). `EvidenceRetentionPolicy` computes the deadline at
+  upload and is **configuration, not a constant** — SECURITY_PRIVACY says exact periods need legal
+  approval, so a legal answer must change a setting, not this code.
+  `EvidenceService`: **attach** (owner-only, pending document case only, content-type allowlist
+  checked before any byte is stored, store enforces the size cap, metadata written only after the
+  object lands), **read** (moderators only, audited *before* the stream is handed over), **listForCase**
+  (metadata only), **deleteForCase** (idempotent, stamps the row, audits the responsible person).
+  `EvidenceRetentionService.deleteLapsed` sweeps past-deadline objects, deleting the object *before*
+  stamping the row so an interruption leaves a re-sweepable row rather than a row that lies about
+  deletion. Decisions worth review: (a) **the owner cannot read their own upload back** — reading is
+  a disclosure of the most sensitive data the platform holds and §6 restricts it to moderators;
+  (b) **a moderator cannot upload into a case they will judge**, so the reviewer cannot manufacture
+  what they then assess; (c) a non-moderator read attempt is **404, not 403**, and leaves no audit
+  row, because nothing was disclosed; (d) deleted evidence reads as `EvidenceContentGoneException`,
+  distinct from not-found, because the record of the upload survives deletion by design. 18 unit
+  tests against in-memory fakes (76 in the module); `./scripts/check.sh` passes.
 - 2026-07-23: Chunk 3 (domain) implemented on `feat/007-evidence-chunk3-domain`. `VerificationMethod`
   gains `DOCUMENT`, which grants `DOCUMENT_VERIFIED` and is the one method flagged `requiresEvidence`
   — so approving a Tier 2 case now produces one of the four claim-specific badges (VERIFIED_OWNER,
