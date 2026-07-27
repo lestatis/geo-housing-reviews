@@ -1,10 +1,10 @@
 # Verification Evidence: Tier 2 Document-Assisted Verification
 
-Status: Ready for review
+Status: Completed
 Owner: Claude Code
 Related issue: none (direct founder request; continues the verification module, plan 006)
 Related ADR: `docs/adr/0008-verification-evidence-object-storage.md`
-Last updated: 2026-07-23
+Last updated: 2026-07-27
 
 ## Objective
 
@@ -107,6 +107,7 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-27: Chunk 7 was fast-forward merged to `main` at `44e6a4d`; plan 007 is complete.
 - 2026-07-27: Chunk 7 implemented on `feat/007-evidence-chunk7-retention` from clean `main` at
   `e50c289`. A successful cancellation deletes with the owner as DELETE auditor; an applied
   approval or rejection deletes with the deciding moderator as DELETE auditor. Both persist the

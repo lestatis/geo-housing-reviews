@@ -9,7 +9,7 @@ retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 7 (rete
 
 ## Active branch
 
-`feat/007-evidence-chunk7-retention` (branched from clean `main` at `e50c289`)
+`main` (Chunk 7 fast-forward merged at `44e6a4d`)
 
 ## Related issue or plan
 
@@ -18,8 +18,7 @@ This is chunk 7 of 7.
 
 ## Current status
 
-chunk7_ready_for_review — all planned Tier 2 evidence work is implemented and checks pass; await a
-fresh independent review before merge.
+completed — all planned Tier 2 evidence work is implemented, checked, and locally merged to `main`.
 
 ### Chunk 7 execution plan
 
@@ -168,9 +167,8 @@ fresh independent review before merge.
 
 ## Remaining work
 
-No implementation chunks remain. Fresh independent review is required before merging this branch;
-the plan/ADR's pre-launch requirements (malware scanning, image re-encoding, envelope encryption,
-and legal retention approval) remain separate follow-up work.
+No work remains for plan 007. The plan/ADR's pre-launch requirements (malware scanning, image
+re-encoding, envelope encryption, and legal retention approval) remain separate follow-up work.
 
 ## Decisions and assumptions
 
@@ -208,4 +206,5 @@ returns "permission denied" for this user; harmless `--rm` containers cleared by
 
 ## Next action
 
-Fresh independent review of the complete Tier 2 evidence diff, then merge to `main`.
+No action for this plan; it is locally merged to `main`. A fresh independent review may still be
+performed as a separate review task.
