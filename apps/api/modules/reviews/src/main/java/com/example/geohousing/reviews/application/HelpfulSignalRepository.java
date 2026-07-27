@@ -13,4 +13,7 @@ public interface HelpfulSignalRepository {
   void create(HelpfulSignal signal);
 
   void withdraw(HelpfulSignal signal);
+
+  /** Active-signal total for one review. This projection never returns voter identities. */
+  long countActive(ReviewId reviewId);
 }

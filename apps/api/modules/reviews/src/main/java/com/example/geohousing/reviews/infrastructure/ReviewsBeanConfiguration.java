@@ -1,6 +1,9 @@
 package com.example.geohousing.reviews.infrastructure;
 
 import com.example.geohousing.reviews.api.ReviewVerificationUpdater;
+import com.example.geohousing.reviews.application.HelpfulSignalQueryService;
+import com.example.geohousing.reviews.application.HelpfulSignalRepository;
+import com.example.geohousing.reviews.application.HelpfulSignalService;
 import com.example.geohousing.reviews.application.PropertyLookup;
 import com.example.geohousing.reviews.application.ReviewModerationRepository;
 import com.example.geohousing.reviews.application.ReviewModerationService;
@@ -33,6 +36,18 @@ public class ReviewsBeanConfiguration {
   @Bean
   ReviewQueryService reviewQueryService(ReviewRepository reviewRepository) {
     return new ReviewQueryService(reviewRepository);
+  }
+
+  @Bean
+  HelpfulSignalService helpfulSignalService(
+      ReviewRepository reviewRepository, HelpfulSignalRepository helpfulSignalRepository) {
+    return new HelpfulSignalService(reviewRepository, helpfulSignalRepository, Clock.systemUTC());
+  }
+
+  @Bean
+  HelpfulSignalQueryService helpfulSignalQueryService(
+      ReviewRepository reviewRepository, HelpfulSignalRepository helpfulSignalRepository) {
+    return new HelpfulSignalQueryService(reviewRepository, helpfulSignalRepository);
   }
 
   @Bean

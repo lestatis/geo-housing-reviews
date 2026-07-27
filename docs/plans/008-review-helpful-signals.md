@@ -97,6 +97,14 @@ records needed to explain historical aggregates.
   endpoint, aggregate count, or ranking behaviour was added. Focused tests,
   `:modules:reviews:check`, and `./scripts/check.sh` pass. Ready for independent review.
 - 2026-07-27: Chunk 2 fast-forward merged to `main` at `e2665b4`.
+- 2026-07-27: Chunk 3 implemented on `feat/008-review-helpful-signals-persistence`. JPA now maps
+  `V4.4` signals and translates only the named active-voter partial-unique index into the existing
+  application conflict. The active total is derived from the rows rather than stored separately, so
+  concurrent writes cannot drift a counter; `HelpfulSignalQueryService` exposes only the count for
+  a published review. A real Postgres test runs two simultaneous creates and proves exactly one
+  succeeds, the other becomes the domain conflict, and the active count remains one. Focused unit
+  and integration tests, `:modules:reviews:check`, and `./scripts/check.sh` pass. Ready for
+  independent review.
 
 ## Final outcome
 

@@ -2,88 +2,86 @@
 
 ## Objective
 
-Implement plan 008, chunk 2: a framework-free helpful-signal lifecycle and application eligibility
-service. Persistence adapters, HTTP endpoints, aggregate counts, and ranking behaviour are excluded.
+Implement plan 008, chunk 3: persist helpful signals through JPA and provide a public-safe,
+active-count query projection. HTTP endpoints and ranking behaviour are excluded.
 
 ## Active branch
 
-`main` (chunk 2 fast-forward merged at `e2665b4`)
+`feat/008-review-helpful-signals-persistence` (branched from clean `main` at `a276cad`)
 
 ## Related issue or plan
 
-No issue. `docs/plans/008-review-helpful-signals.md`, chunk 2 of 5.
+No issue. `docs/plans/008-review-helpful-signals.md`, chunk 3 of 5.
 
 ## Current status
 
-completed
+ready_for_review
 
 ## Completed work
 
-- Inspected the plan/handoff, clean Git state, reviews domain/application/test conventions,
-  `DOMAIN_MODEL.md`, `ARCHITECTURE.md`, and ADR-0003.
-- Added `HelpfulSignal`, opaque signal and voter identifiers, and lifecycle validation (active until
-  withdrawal; no withdrawal before creation or twice).
-- Added `HelpfulSignalRepository` and `HelpfulSignalService` application ports/use cases.
-- Enforced application eligibility: target must be published; unpublished targets return
-  `ReviewNotFoundException` to prevent state probing; the author cannot signal their own review;
-  duplicate active signals conflict; withdrawal is idempotent.
-- Added in-memory persistence fake plus focused domain and application tests.
+- Inspected clean Git state, plan/handoff, accepted domain/architecture/ADR constraints, existing
+  reviews JPA patterns, and persistence integration tests.
+- Added JPA entity, mapper, Spring Data repository, and adapter for `reviews.review_helpful_signal`.
+- The adapter flushes writes and translates only PostgreSQL constraint
+  `review_helpful_signal_one_active_voter_idx` into `HelpfulSignalAlreadyActiveException`; unrelated
+  integrity failures are rethrown.
+- Added active-row count to the port and `HelpfulSignalQueryService`/`HelpfulSignalCount`, which
+  returns no voter details and treats an unpublished review as not found.
+- Wired helpful-signal command/query services in `ReviewsBeanConfiguration`.
+- Added a Testcontainers Postgres integration test for persistence, withdrawal, count projection,
+  and simultaneous duplicate creation.
 
 ## Remaining work
 
-No implementation work remains for chunk 2. Plan 008 chunks 3–5 remain future work and require a
-new task branch from `main`.
+No implementation work remains for chunk 3. A fresh independent read-only review is required before
+human merge. Plan 008 chunks 4–5 remain future work and must start only after this branch is merged.
 
 ## Decisions made
 
-- `HelpfulSignalVoterId` is distinct from `AuthorId`: both are opaque identity references, but their
-  roles and invariants differ.
-- A missing active signal makes withdrawal a no-op, suitable for a future idempotent DELETE endpoint.
-- Signal eligibility reads the review aggregate but does not mutate it; helpful signals remain their
-  own persistence lifecycle.
+- Active count is queried from `withdrawn_at IS NULL` rows, not stored/mutated as a second counter;
+  this avoids aggregate drift under concurrent writes.
+- Withdrawal updates the existing row and is harmless if a racing request already withdrew it.
+- The adapter owns database-exception translation; the application service stays framework-free.
 
 ## Assumptions
 
-- A voter cannot have an active signal on a review that later becomes unpublished; the future
-  persistence/query slice will exclude inactive signals and public representations cannot expose an
-  unpublished review. Moderation-specific retention policy is not part of this chunk.
+- The future HTTP controller will resolve public review visibility before exposing the count; the
+  application query service enforces the same published-only invariant as a second boundary.
 
 ## Files changed
 
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/domain/HelpfulSignal.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/domain/HelpfulSignalId.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/domain/HelpfulSignalVoterId.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/application/HelpfulSignalService.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/application/HelpfulSignalRepository.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/application/HelpfulSignalAlreadyActiveException.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/application/SelfHelpfulSignalException.java`
-- focused domain/application tests and in-memory fake
+- helpful-signal count/query application types and extended persistence port
+- reviews JPA entity, mapper, Spring Data repository, adapter, and bean configuration
+- in-memory fake and query-service unit test
+- `apps/api/app/src/test/java/com/example/geohousing/app/reviews/HelpfulSignalPersistenceIntegrationTest.java`
 - `docs/plans/008-review-helpful-signals.md`
 - `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :modules:reviews:test --tests 'com.example.geohousing.reviews.domain.HelpfulSignalTest' --tests 'com.example.geohousing.reviews.application.HelpfulSignalServiceTest'`
-- `cd apps/api && ./gradlew :modules:reviews:spotlessApply`
+- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.reviews.HelpfulSignalPersistenceIntegrationTest'`
+- `cd apps/api && ./gradlew :modules:reviews:test --tests 'com.example.geohousing.reviews.application.HelpfulSignalServiceTest' --tests 'com.example.geohousing.reviews.application.HelpfulSignalQueryServiceTest' --tests 'com.example.geohousing.reviews.domain.HelpfulSignalTest'`
+- `cd apps/api && ./gradlew :modules:reviews:spotlessApply :app:spotlessApply`
 - `cd apps/api && ./gradlew :modules:reviews:check`
 - `./scripts/check.sh`
 
 ## Tests and verification
 
-All commands above passed on 2026-07-27. The initial focused-test run failed only because an
-in-memory repository reconstitutes values and the test asserted object identity; the assertion was
-corrected to compare stable signal fields before the succeeding focused and full checks.
+All commands above passed on 2026-07-27. `HelpfulSignalPersistenceIntegrationTest` uses real
+Postgres and proves the adapter mapping, active-only count, withdrawal, and a two-thread race: one
+insert succeeds, one is translated to `HelpfulSignalAlreadyActiveException`, and one active row
+remains.
 
 ## Known failures
 
-None remaining.
+None observed.
 
 ## Risks and unresolved questions
 
-- The database partial unique index remains the final concurrency backstop; chunk 3 must translate
-  its race into the application conflict and prove it against Postgres.
-- No rate limiting or coordinated-campaign detection is introduced; these need a later privacy and
-  policy decision.
+- The count is correct transactionally but coordinated voting remains possible; rate limits and
+  stronger abuse signals require separate policy/privacy work.
+- Endpoint response semantics and whether a client can read its own current signal remain chunk 4
+  contract decisions; this branch exposes no HTTP surface.
 
 ## Human actions required
 
@@ -91,7 +89,8 @@ None.
 
 ## Recommended next action
 
-No action remains for this chunk. When requested, start plan 008 chunk 3 from `main`.
+Run a fresh independent read-only review of the complete branch diff. If merged by a human, mark this
+handoff completed and start plan 008 chunk 4 from updated `main`.
 
 ## Last updated
 

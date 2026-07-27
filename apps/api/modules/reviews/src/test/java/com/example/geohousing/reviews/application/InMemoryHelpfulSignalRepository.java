@@ -33,6 +33,14 @@ final class InMemoryHelpfulSignalRepository implements HelpfulSignalRepository {
     byId.put(signal.id(), snapshot(signal));
   }
 
+  @Override
+  public long countActive(ReviewId reviewId) {
+    return byId.values().stream()
+        .filter(signal -> signal.reviewId().equals(reviewId))
+        .filter(HelpfulSignal::isActive)
+        .count();
+  }
+
   private static HelpfulSignal snapshot(HelpfulSignal signal) {
     return HelpfulSignal.reconstitute(
         signal.id(), signal.reviewId(), signal.voterId(), signal.createdAt(), signal.withdrawnAt());
