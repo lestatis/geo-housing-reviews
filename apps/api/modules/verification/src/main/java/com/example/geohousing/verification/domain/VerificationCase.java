@@ -211,6 +211,15 @@ public final class VerificationCase {
     touch(clock);
   }
 
+  /**
+   * Whether evidence may be attached now: only a pending, document-method case takes uploads. A
+   * signal-based case is judged from the signal, not a document, and a decided case is closed to
+   * new evidence.
+   */
+  public boolean acceptsEvidence() {
+    return status == VerificationStatus.PENDING && method.requiresEvidence();
+  }
+
   /** The public badge this case grants, or empty unless it is an approved, tier-bearing case. */
   public Optional<VerificationBadge> badge() {
     if (status != VerificationStatus.APPROVED) {

@@ -107,6 +107,19 @@ cd .. && ./scripts/check.sh
 
 ## Progress log
 
+- 2026-07-23: Chunk 3 (domain) implemented on `feat/007-evidence-chunk3-domain`. `VerificationMethod`
+  gains `DOCUMENT`, which grants `DOCUMENT_VERIFIED` and is the one method flagged `requiresEvidence`
+  — so approving a Tier 2 case now produces one of the four claim-specific badges (VERIFIED_OWNER,
+  etc.) for the first time, while the three signal methods keep the cautious RELATIONSHIP_SIGNAL
+  label. `EvidenceId` and the `VerificationEvidence` entity: metadata only (storage reference,
+  content type, size, hex `sha256`, retention deadline, upload/deletion times) mirroring the V5.2
+  CHECKs; `markDeleted` is idempotent (a retryable sweep keeps the original deletion time) and
+  `isPastRetention` is false once deleted, so a deleted row is never re-selected. The domain holds
+  the storage reference as an opaque string — minting/validating the key format is a storage concern
+  (application), so the domain only requires it present. `VerificationCase.acceptsEvidence()` = a
+  PENDING, document-method case only. **Two chunk-2 assumptions inverted by design:** the badge test
+  that asserted *every* method grants RELATIONSHIP_SIGNAL now distinguishes DOCUMENT → Tier 2. 12 new
+  unit tests (58 in the module); `./scripts/check.sh` passes.
 - 2026-07-23: Chunk 2 (`V5.2` schema) implemented on `feat/007-evidence-chunk2-schema`. Verified
   constraint-by-constraint on scratch Postgres before the test. `verification_evidence` holds
   metadata only — `storage_key` (unique), `content_type`, `size_bytes` (> 0), `sha256` (a hex CHECK),

@@ -10,10 +10,20 @@ class VerificationBadgeTest {
   private static final Instant VERIFIED_AT = Instant.parse("2026-07-23T10:00:00Z");
 
   @Test
-  void everyTier1MethodGrantsTheRelationshipSignalTier() {
-    for (VerificationMethod method : VerificationMethod.values()) {
+  void theSignalMethodsGrantATierOneSignalAndOnlyDocumentGrantsTierTwo() {
+    for (VerificationMethod method :
+        new VerificationMethod[] {
+          VerificationMethod.INVITATION,
+          VerificationMethod.BUILDING_CODE,
+          VerificationMethod.LOCATION_SIGNAL
+        }) {
       assertThat(method.grantedTier()).isEqualTo(VerificationTier.RELATIONSHIP_SIGNAL);
+      assertThat(method.requiresEvidence()).isFalse();
     }
+    // DOCUMENT is the one evidence-backed method, and the only one that reaches Tier 2.
+    assertThat(VerificationMethod.DOCUMENT.grantedTier())
+        .isEqualTo(VerificationTier.DOCUMENT_VERIFIED);
+    assertThat(VerificationMethod.DOCUMENT.requiresEvidence()).isTrue();
   }
 
   @Test

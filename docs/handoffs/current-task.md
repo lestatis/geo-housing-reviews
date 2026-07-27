@@ -5,22 +5,37 @@
 Add **Tier 2 document evidence** to the `verification` module (plan `docs/plans/007-verification-evidence.md`):
 an account attaches a document to a pending case, a moderator reads it under audit and decides, and the
 raw evidence is deleted shortly after the decision. Completes MVP must-have "safe evidence upload and
-retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 2 (V5.2 schema).
+retention workflow" and P-004 (Tier 1 + Tier 2 at launch). This is chunk 3 (domain).
 
 ## Active branch
 
-`feat/007-evidence-chunk2-schema` (branched from `main` at `15c682c`)
+`feat/007-evidence-chunk3-domain` (branched from `main` at `28d458f`)
 
 ## Related issue or plan
 
 No issue. See `docs/plans/007-verification-evidence.md` and `docs/adr/0008-verification-evidence-object-storage.md`.
-This is chunk 2 of 7.
+This is chunk 3 of 7.
 
 ## Current status
 
-chunk2_implemented — ready for fresh independent review and merge before chunk 3.
+chunk3_implemented — ready for fresh independent review and merge before chunk 4.
 
-### Evidence chunk 2 — V5.2 schema (this branch)
+### Evidence chunk 3 — domain (this branch)
+
+- `VerificationMethod.DOCUMENT` grants `DOCUMENT_VERIFIED` and is `requiresEvidence`. Tier 2's four
+  claim-specific badges are reachable through a real approval now.
+- `VerificationEvidence` entity (metadata only) + `EvidenceId`; `markDeleted` idempotent,
+  `isPastRetention` excludes deleted rows. Storage reference held as an opaque string.
+- `VerificationCase.acceptsEvidence()` = PENDING + document method only.
+
+**Points a reviewer should push on:**
+- The domain holds the storage reference as a plain String, not the application's `EvidenceStorageKey`
+  — key minting/validation is a storage concern, kept out of the domain.
+- Evidence is a standalone entity (own repository in chunk 5), not nested in the case aggregate: it has
+  an independent retention lifecycle and the access audit references it directly.
+- The chunk-2 badge test asserting every method grants RELATIONSHIP_SIGNAL is deliberately updated.
+
+### Evidence chunk 2 — V5.2 schema (merged to `main`)
 
 - `verification_evidence` (metadata only — key/type/size/checksum/retention/deleted_at) and
   `verification_evidence_access_event` (append-only READ/DELETE audit). Verified on scratch Postgres
@@ -60,8 +75,8 @@ chunk2_implemented — ready for fresh independent review and merge before chunk
 
 ## Remaining work
 
-Chunks 3–7 (see the plan). Next: chunk 3 (domain — evidence value objects, retention deadline, the
-`DOCUMENT` method granting `DOCUMENT_VERIFIED`, and the case aggregate's evidence rules).
+Chunks 4–7 (see the plan). Next: chunk 4 (application — attach-evidence use case with validation,
+moderator read-with-audit, and the retention sweep; in-memory-fake unit tests).
 
 ## Decisions and assumptions
 

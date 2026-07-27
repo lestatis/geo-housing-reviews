@@ -54,6 +54,47 @@ class VerificationCaseTest {
   }
 
   @Test
+  void onlyAPendingDocumentCaseAcceptsEvidence() {
+    VerificationCase signalCase = pending(); // INVITATION
+    assertThat(signalCase.acceptsEvidence()).isFalse();
+
+    VerificationCase documentCase =
+        VerificationCase.open(
+            VerificationCaseId.of(UUID.randomUUID()),
+            AccountRef.of(UUID.randomUUID()),
+            PropertyRef.of(UUID.randomUUID()),
+            RelationshipClaim.OWNER,
+            VerificationMethod.DOCUMENT,
+            1,
+            CLOCK);
+    assertThat(documentCase.acceptsEvidence()).isTrue();
+
+    documentCase.approve(MODERATOR, "DOC_OK", null, LATER);
+    // A decided case takes no more evidence.
+    assertThat(documentCase.acceptsEvidence()).isFalse();
+  }
+
+  @Test
+  void approvingADocumentCaseGrantsTierTwoAndAClaimSpecificBadge() {
+    VerificationCase documentCase =
+        VerificationCase.open(
+            VerificationCaseId.of(UUID.randomUUID()),
+            AccountRef.of(UUID.randomUUID()),
+            PropertyRef.of(UUID.randomUUID()),
+            RelationshipClaim.OWNER,
+            VerificationMethod.DOCUMENT,
+            1,
+            CLOCK);
+
+    documentCase.approve(MODERATOR, "LEASE_CONFIRMED", null, LATER);
+
+    assertThat(documentCase.tier()).isEqualTo(VerificationTier.DOCUMENT_VERIFIED);
+    // Tier 2 earns the claim-specific "verified owner" badge, not the cautious signal label.
+    assertThat(documentCase.badge().orElseThrow().type())
+        .isEqualTo(VerificationBadgeType.VERIFIED_OWNER);
+  }
+
+  @Test
   void aTier1ApprovalIsBadgedAsARelationshipSignalNotAVerifiedResident() {
     VerificationCase verificationCase = pending(); // CURRENT_RESIDENT claim
     verificationCase.approve(MODERATOR, "CLEAN", null, LATER);
