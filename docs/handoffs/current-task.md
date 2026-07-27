@@ -7,7 +7,7 @@ service. Persistence adapters, HTTP endpoints, aggregate counts, and ranking beh
 
 ## Active branch
 
-`feat/008-review-helpful-signals-application` (branched from clean `main` at `eff997b`)
+`main` (chunk 2 fast-forward merged at `e2665b4`)
 
 ## Related issue or plan
 
@@ -15,7 +15,7 @@ No issue. `docs/plans/008-review-helpful-signals.md`, chunk 2 of 5.
 
 ## Current status
 
-ready_for_review
+completed
 
 ## Completed work
 
@@ -31,8 +31,8 @@ ready_for_review
 
 ## Remaining work
 
-No implementation work remains for chunk 2. A fresh independent read-only review is required before
-human merge. Plan 008 chunks 3–5 remain future work and must start only after this branch is merged.
+No implementation work remains for chunk 2. Plan 008 chunks 3–5 remain future work and require a
+new task branch from `main`.
 
 ## Decisions made
 
@@ -91,8 +91,7 @@ None.
 
 ## Recommended next action
 
-Run a fresh independent read-only review of the complete branch diff. If merged by a human, mark this
-handoff completed and start plan 008 chunk 3 from updated `main`.
+No action remains for this chunk. When requested, start plan 008 chunk 3 from `main`.
 
 ## Last updated
 

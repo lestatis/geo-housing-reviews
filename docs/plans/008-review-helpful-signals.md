@@ -96,6 +96,7 @@ records needed to explain historical aggregates.
   refused, duplicate active signals conflict, and withdrawal is idempotent. No persistence adapter,
   endpoint, aggregate count, or ranking behaviour was added. Focused tests,
   `:modules:reviews:check`, and `./scripts/check.sh` pass. Ready for independent review.
+- 2026-07-27: Chunk 2 fast-forward merged to `main` at `e2665b4`.
 
 ## Final outcome
 
