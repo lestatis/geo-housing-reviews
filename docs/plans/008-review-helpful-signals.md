@@ -105,6 +105,7 @@ records needed to explain historical aggregates.
   succeeds, the other becomes the domain conflict, and the active count remains one. Focused unit
   and integration tests, `:modules:reviews:check`, and `./scripts/check.sh` pass. Ready for
   independent review.
+- 2026-07-27: Chunk 3 fast-forward merged to `main` at `5ac585d`.
 
 ## Final outcome
 
