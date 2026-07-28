@@ -113,6 +113,23 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   negative direction, and an assertion that the schema holds no foreign key out of `moderation`.
   `:modules:moderation:check` and `./scripts/check.sh` pass. Ready for independent review.
 
+- 2026-07-28: Chunk 1 fast-forward merged to `main` at `3f6c683`.
+- 2026-07-28: Chunk 2 implemented on `feat/009-moderation-chunk2-domain`. Added the framework-free
+  domain: `Report`, `ModerationCase`, immutable `ModerationDecision` and `Appeal`, plus opaque ids,
+  `ModerationTargetRef`, `ReasonCode`, `PolicyVersion` and the enums. Two restrictions go beyond the
+  schema on purpose: a decision may only be recorded on an `IN_REVIEW` case, so no outcome exists
+  without a named moderator accountable for it; and a case may only close once decided, so nothing
+  lets a case vanish unexplained — which is also what makes an appeal possible. `Appeal` carries the
+  original decider so the different-decider rule is checked on the object rather than by a caller
+  that remembers to look the decision up, and refuses a conflicted decision before any state moves.
+  Reassignment keeps the original `firstResponseAt`, because a recusal handover is not a second
+  first response and the SLA measures the reporter's actual wait. Distinct `ReporterId`,
+  `ModeratorId` and `AppellantId` types stop the same account id being used in the wrong role.
+  33 domain tests, including every `reconstitute` refusing state that contradicts the invariants and
+  a reflection guard that `ModerationDecision` grows no mutator. No persistence, no endpoints, no
+  cross-module dependency. `:modules:moderation:check`, the ArchUnit boundary rules and
+  `./scripts/check.sh` pass. Ready for independent review.
+
 ## Final outcome
 
 Not yet complete.

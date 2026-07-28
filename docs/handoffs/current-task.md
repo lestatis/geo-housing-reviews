@@ -2,18 +2,18 @@
 
 ## Objective
 
-Implement plan 009, chunk 1: the moderation module's foundation — build dependencies and the `V6.1`
-schema for reports, cases, decisions and appeals, with migration integration coverage. No production
-Java beyond the migration; nothing consumes the module yet.
+Implement plan 009, chunk 2: the moderation module's domain model — reports, cases, immutable
+decisions and appeals, with their state machines and invariants. No persistence, endpoints or
+cross-module dependency.
 
 ## Active branch
 
-`feat/009-moderation-chunk1-foundation`, branched from clean `main` at `cec1e39`. Local only; not
-pushed. Awaiting a fresh independent review before merge.
+`feat/009-moderation-chunk2-domain`, branched from clean `main` at `3f6c683`. Local only; not pushed.
+Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 1 of 8.
+No issue. `docs/plans/009-moderation-module.md`, chunk 2 of 8.
 
 ## Current status
 
@@ -21,95 +21,90 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `modules/moderation/build.gradle.kts` gained the Spring Boot BOM, `spring-boot-starter-data-jpa`
-  and `assertj`. The reviews dependency (chunk 4) and web (chunk 6) are deliberately not added yet.
-- `V6.1__create_moderation_tables.sql` creates `moderation.moderation_case`, `moderation.report`,
-  `moderation.moderation_decision` and `moderation.appeal`.
-- All cross-module references (`target_id`, `reporter_account_id`, `appellant_account_id`, decider
-  and moderator ids) are opaque UUIDs with no foreign key out of the schema.
-- `ModerationMigrationIntegrationTest` — 13 tests on Testcontainers Postgres.
-- `docs/plans/009-moderation-module.md` written; `docs/DECISION_LOG.md` gained `P-013`.
+- Aggregates: `Report`, `ModerationCase`, `ModerationDecision` (immutable), `Appeal`.
+- Value objects: `ReportId`, `ModerationCaseId`, `ModerationDecisionId`, `AppealId`, `ReporterId`,
+  `ModeratorId`, `AppellantId`, `ModerationTargetRef`, `ReasonCode`, `PolicyVersion`.
+- Enums: `ReportCategory`, `ReportStatus`, `ModerationCaseStatus`, `CaseTrigger`, `RiskLevel`,
+  `DecisionAction`, `AppealStatus`, `ModerationTargetType`.
+- Exceptions: `IllegalModerationStateTransitionException`, `AppealDeciderConflictException`.
+- 33 domain tests across four test classes.
 
 ## Remaining work
 
-Chunks 2–8 of plan 009. Chunk 2 (domain model) is next and needs a new branch from `main`.
+Chunks 3–8 of plan 009. Chunk 3 (application layer: ports, report intake converging onto the live
+case, case assignment, decision recording) is next and needs a new branch from `main`.
 
 ## Decisions made
 
-Founder decisions, recorded as `P-013`:
-
-- **Scope stops before right of reply.** A public representative reply is only safe once the claim to
-  represent a property is verified, and MVP_SCOPE lists that claim workflow as a Should-have that
-  does not exist. Coupling them would block the Must-have half from merging. Plan 010.
-- **Moderators are `ADMIN` accounts.** The rules that matter key off account id, which already
-  exists. A `MODERATOR` role would mean an identity `V2.x` migration for a separation nobody has
-  needed yet; recorded as a follow-up.
-
-Schema decisions taken while implementing:
-
-- **One live case per target**, via a partial unique index where `status <> 'CLOSED'`. Twenty reports
-  about one review must converge on one case; otherwise a coordinated group floods the queue, which
-  is the brigading MODERATION.md asks the platform to resist. `CLOSED` being the only terminal status
-  means a settled case does not block a fresh one if the content is reported again later.
-- **One live report per account per target**, via a partial unique index where status is
-  `OPEN`/`LINKED`. Re-reporting after a terminal outcome is allowed, because a genuinely new problem
-  with the same content deserves to be heard.
-- **Adverse decisions must carry a user-visible explanation** (`APPROVE` and `ESCALATE` need none) —
-  a CHECK, not a service convention. `public_explanation` is separate from `internal_note` so abuse
-  signals never reach the user.
-- **Decisions have no `updated_at` and no version column.** An appeal must be able to show what was
-  decided and under which policy version, so nothing updates a decision; a changed outcome is a new
-  row.
-- **`original_decider_account_id` is copied onto the appeal row** so "a different reviewer decides the
-  appeal" is a single-row CHECK the database enforces, rather than a rule living only in a service a
-  future code path could forget to call.
-- **`LEGAL_REQUEST` is a case trigger** so an owner's or developer's takedown demand travels the same
-  audited workflow as any other report (MODERATION.md anti-capture).
-- `target_type` is a single-value CHECK (`REVIEW`) today; widening it later is then a deliberate,
-  reviewable migration rather than a silent one.
+- **A decision may only be recorded on an `IN_REVIEW` case.** Stronger than the schema, which only
+  requires an assignee for `IN_REVIEW`. The effect is that no outcome can exist without a named
+  moderator accountable for it.
+- **A case may only close from `DECIDED` or `APPEALED`.** Nothing lets a case vanish unexplained; the
+  affected user is always owed a recorded reason, which is what makes an appeal possible at all.
+- **`Appeal` carries `originalDecider`.** The different-decider rule is then checked on the object
+  rather than by a caller that happens to look the decision up — and it mirrors the row-level CHECK
+  added in chunk 1. Both layers hold it because due process should not depend on either alone.
+- **A refused appeal decision moves nothing.** Conflict and missing-explanation checks run before any
+  mutation, so a rejected attempt leaves the appeal exactly `PENDING` rather than half-decided. Same
+  pattern as the fix made earlier in `VerificationCase.approve`.
+- **Reassignment preserves `firstResponseAt`.** A recusal handover is not a second first response;
+  the reporter waited once and the SLA should say so.
+- **Distinct `ReporterId` / `ModeratorId` / `AppellantId` types** even though all three are account
+  ids, so a reporter cannot be passed where a decision-maker is expected.
+- **`ReasonCode` is a validated free code, not an enum.** The taxonomy grows with policy; pinning it
+  in a type or a CHECK means a migration per reason code, which is how a moderator ends up choosing
+  the nearest wrong code.
+- **`DecisionAction.requiresPublicExplanation()`** puts "which actions owe the user an explanation"
+  in one place shared by the domain and (already) the schema.
 
 ## Assumptions
 
-- `trigger` is a reserved word in PostgreSQL, so the column is `trigger_source`.
-- Report categories mirror MODERATION.md's nine listed categories exactly.
+- `PolicyVersion` is an integer that the application layer will supply from configuration in a later
+  chunk; the domain only insists it is positive and recorded.
+- `affectedTargetVersion` is nullable because a target without optimistic-lock versioning may be
+  moderatable later; for reviews it is always present.
 
 ## Files changed
 
-- `apps/api/modules/moderation/build.gradle.kts`
-- new `apps/api/modules/moderation/src/main/resources/db/migration/moderation/V6.1__create_moderation_tables.sql`
-- new `apps/api/app/src/test/java/com/example/geohousing/app/moderation/ModerationMigrationIntegrationTest.java`
-- new `docs/plans/009-moderation-module.md`
-- `docs/DECISION_LOG.md`, `docs/handoffs/current-task.md`
+- 20 new files under
+  `apps/api/modules/moderation/src/main/java/com/example/geohousing/moderation/domain/`
+- updated `package-info.java` in the same package
+- 4 new test classes under
+  `apps/api/modules/moderation/src/test/java/com/example/geohousing/moderation/domain/`
+- `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- scratch Postgres (`postgis/postgis:18-3.6`), migration applied and all 28 constraint probes run
-  statement-by-statement before any test was written; container stopped afterwards
-- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.moderation.ModerationMigrationIntegrationTest'`
+- `cd apps/api && ./gradlew :modules:moderation:test`
+- `cd apps/api && ./gradlew :modules:moderation:spotlessApply`
 - `cd apps/api && ./gradlew :modules:moderation:check`
+- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.architecture.*'`
 - `./scripts/check.sh`
 
 ## Tests and verification
 
-All passed on 2026-07-28. 13 integration tests: the migration applied; reports converge on one live
-case; a closed case does not block a fresh one; a case being worked has an assignee; one account
-cannot report the same content twice while a report is live but can after it is closed out; an
-`OTHER` report must say what is wrong; a report past intake carries its case; an adverse decision
-must explain itself while `APPROVE` need not; a decision always carries a reason code; an appeal is
-heard once and cannot be decided by the original moderator; a decided appeal owes an outcome and a
-timestamp; and the schema holds no foreign key out of `moderation`.
+All passed on 2026-07-28. 33 domain tests: `ModerationCaseTest` (11) covers the full state machine
+including every refused transition, the `firstResponseAt` rule on reassignment, and a takedown demand
+as an ordinary case; `ReportTest` (8) covers intake, linking, terminal states and the
+`OTHER`-needs-a-description rule; `ModerationDecisionTest` (7) covers the adverse-action explanation
+rule across every action, the separation of public explanation from internal note, reason-code and
+policy-version validation, and a reflection guard that the type grows no mutator; `AppealTest` (7)
+covers the different-decider refusal in both directions, hear-once, the outcome-explanation
+requirement, and `reconstitute` refusing rows that contradict due process. The four ArchUnit boundary
+rules pass with real moderation domain classes now in scope.
 
 ## Known failures
 
-None observed.
+None observed. The IDE reported unresolved `org.assertj` imports in the new test sources; that is a
+stale IDE classpath after the module gained test dependencies — Gradle compiles and runs them.
 
 ## Risks and unresolved questions
 
-- The one-live-case index is the queue's flood defence. If a target ever needs two concurrent cases
-  for unrelated issues, the forward fix is a discriminator column in the index, not dropping it.
-- Reason codes are a free `VARCHAR(64)` at the schema level; the taxonomy becomes a domain enum in
-  chunk 2. The column is deliberately not a CHECK so the vocabulary can grow without a migration per
-  reason code.
+- Requiring `IN_REVIEW` before a decision means the application layer must assign before deciding
+  even for a one-step admin action. Chunk 7 should make that a single endpoint that assigns and
+  decides, rather than forcing a moderator through two calls.
+- `ModerationCase` and `Appeal` carry a `version` field for optimistic locking that nothing reads
+  yet; chunk 5 wires it to `@Version`.
 
 ## Human actions required
 
@@ -117,8 +112,8 @@ None.
 
 ## Recommended next action
 
-Independent review of the chunk-1 branch in a fresh session, then merge. When requested, start plan
-009 chunk 2 (domain model) from `main`.
+Independent review of the chunk-2 branch in a fresh session, then merge. When requested, start plan
+009 chunk 3 (application layer) from `main`.
 
 ## Last updated
 
