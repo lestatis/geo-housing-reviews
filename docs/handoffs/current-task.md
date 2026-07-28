@@ -2,17 +2,17 @@
 
 ## Objective
 
-Implement plan 010, chunk 1: mutation testing as an enforced build gate, so that "we write good
-tests" becomes a measured property rather than a claim. Cucumber/Gherkin is chunk 2.
+Implement plan 010, chunk 2: a Cucumber acceptance harness so endpoint behaviour is written in
+language a non-developer can check, plus feature files for the MVP loops that have endpoints today.
 
 ## Active branch
 
-`feat/010-mutation-testing-foundation`, branched from clean `main` at `b4956ba`. Local only; not
-pushed. Awaiting a fresh independent review before merge.
+`feat/010-cucumber-acceptance`, branched from clean `main` at `52e2b43`. Local only; not pushed.
+Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/010-bdd-and-mutation-testing.md`, chunk 1 of 3. ADR-0009.
+No issue. `docs/plans/010-bdd-and-mutation-testing.md`, chunk 2 of 3. ADR-0009.
 
 ## Current status
 
@@ -20,88 +20,96 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `gradle/libs.versions.toml`: cucumber 7.34.6 (for chunk 2), pitest 1.25.8, pitestJunit5 1.2.3.
-- New `buildSrc/src/main/kotlin/geohousing.mutation-testing.gradle.kts` + `MutationTestingExtension`:
-  registers a `mutationTest` `JavaExec` task driving `pitest-command-line`, wired into `check`.
-- Applied to the five modules with domain/application code, each with a measured threshold.
-- ADR-0009, plan 010, `.claude/rules/testing.md` and `AGENTS.md` §6 updated.
+- Cucumber dependencies in `app/build.gradle.kts` via `cucumber-bom`.
+- `AcceptanceTest` — the `@Suite` runner over `classpath:features`.
+- `AcceptanceWorld` — `@CucumberContextConfiguration @SpringBootTest @AutoConfigureMockMvc`, one
+  Postgres container for the whole suite, and the same stub `JwtDecoder` the JUnit endpoint tests
+  use so scenarios run through the real security chain.
+- `ScenarioState` and `TestApi`, both scenario-scoped.
+- Six step-definition classes: actors, catalogue, reviews, trust, moderation, outcomes.
+- Four feature files, 16 scenarios: `find-property`, `submit-experience`, `verify-relationship`,
+  `moderate-and-administer`.
+- Gherkin rules added to `.claude/rules/testing.md`.
 
 ## Remaining work
 
-Chunks 2–3 of plan 010 (Cucumber foundation + MVP loop features; then plan 009 resumes test-first).
+Plan 010 chunk 3 is now just "plan 009 resumes test-first" — the rules landed in chunks 1 and 2, so
+there is no separate documentation chunk left. Next real work is plan 009 chunk 3 (moderation
+application layer), written test-first.
 
 ## Decisions made
 
-- **PITest runs via its CLI, not the Gradle plugin.** `info.solidsoft.pitest:1.15.0` (newest) cannot
-  be applied on Gradle 9.6.1 — it reads `reporting.baseDir`, removed in Gradle 9. Recorded in
-  ADR-0009 so nobody re-attempts it.
-- **Mutation scope is `domain` + `application` only.** Mutants in Spring/JPA/web glue are largely
-  equivalent or untestable; a score dominated by noise is one nobody acts on.
-- **`--excludedClasses *Test,*Test$*,*IT,*IT$*`.** The target glob matches test classes in the same
-  package, so without this PITest mutates the tests themselves. The pre-plan spike lacked this and
-  reported an inflated 80% for `moderation` against a true 76%.
-- **Thresholds are measured floors** (baseline rounded down to nearest 5), not aspirations.
-- **Wired into `check`** rather than a separate script, so `./scripts/check.sh` enforces it.
-  `-PskipMutation` exists for local iteration and is documented as never valid for pre-review runs.
+- **Step definitions grouped by domain, not by Given/When/Then.** The plan sketched the keyword
+  split; domain grouping scales better, because the step library grows per feature area and plan 009
+  will add reporting steps to it. Noted as a deliberate deviation.
+- **Outcome steps are phrased by meaning, not status code.** "the content is reported as not found"
+  carries the privacy rule a 404 exists to enforce; "returns 404" would hide it. This is the main
+  reason the feature files are worth reading.
+- **`ScenarioState` and `TestApi` are `@ScenarioScope`.** Cucumber shares one Spring context across
+  every scenario; a singleton would leak one scenario's actors and ids into the next, and the
+  symptom would look like a flaky test rather than shared state.
+- **One container for the whole suite.** The 14 JUnit endpoint classes each start their own;
+  consolidating as they migrate is the main speed argument for the on-touch migration.
+- **Loop 4 has no feature file yet.** "Report/dispute → resolve safely" has no endpoints — plan 009
+  is building them — so its scenarios arrive with plan 009 chunk 6 rather than as a file of skipped
+  scenarios that would report green while proving nothing.
+- **`moderate-and-administer` asserts against the verification queue**, because no review queue
+  endpoint exists yet. Reworded from "the moderation queue" so the scenario does not describe
+  something the system lacks.
 
 ## Assumptions
 
-- Cucumber and `pitest-junit5-plugin` support JUnit Platform 6 only incidentally (both target 1.x).
-  Verified working by spike; ADR-0009 records it as an upgrade hazard to re-check.
+- Publishing inside a `Given` step arranges its own moderator ("PublishingModerator") rather than
+  requiring the feature file to introduce one. Scenarios about reading should not be cluttered with
+  moderation plumbing.
 
 ## Files changed
 
-- `apps/api/gradle/libs.versions.toml`
-- new `apps/api/buildSrc/src/main/kotlin/geohousing.mutation-testing.gradle.kts`,
-  `MutationTestingExtension.kt`
-- `apps/api/modules/{identity,properties,reviews,verification,moderation}/build.gradle.kts`
-- new `docs/adr/0009-bdd-and-mutation-testing.md`, `docs/plans/010-bdd-and-mutation-testing.md`
-- `.claude/rules/testing.md`, `AGENTS.md`, `docs/handoffs/current-task.md`
+- `apps/api/app/build.gradle.kts`
+- new `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/` (8 classes)
+- new `apps/api/app/src/test/resources/features/` (4 feature files)
+- `.claude/rules/testing.md`, `docs/plans/010-bdd-and-mutation-testing.md`,
+  `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :modules:<each>:mutationTest --rerun-tasks`
+- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.acceptance.AcceptanceTest'`
+- `cd apps/api && ./gradlew :app:spotlessApply`
 - `./scripts/check.sh`
 
 ## Tests and verification
 
-All passed on 2026-07-28. Measured baselines and thresholds:
+All passed on 2026-07-28. 16 scenarios across four feature files, 0 failures, 0 skipped — verified by
+reading the JUnit XML per feature rather than trusting `BUILD SUCCESSFUL`, since a suite that
+discovers nothing also reports success.
 
-| Module | Mutations | Killed | Score | Threshold |
-|---|---|---|---|---|
-| identity | 126 | 104 | 83% | 80 |
-| properties | 103 | 78 | 76% | 75 |
-| reviews | 219 | 194 | 89% | 85 |
-| verification | 249 | 217 | 87% | 85 |
-| moderation | 148 | 113 | 76% | 75 |
+**Proven non-vacuous two ways**, because a scenario suite that cannot fail is documentation wearing a
+test's clothes:
 
-**The gate was proven non-vacuous two ways**, because a threshold that cannot fail is decorative:
+1. Changing `REVIEW_NOT_FOUND` from 404 to 403 in `ReviewsExceptionHandler` failed exactly one
+   scenario — "an author sees their own unpublished review but a stranger is told it does not
+   exist". The scenarios therefore test real application behaviour, and this one guards a privacy
+   rule specifically.
+2. An intentionally undefined step failed its scenario rather than being skipped, confirming
+   Cucumber 7's strictness is in force.
 
-1. Raising `moderation`'s threshold to 95 failed the build —
-   `RuntimeException: Mutation score of 76 is below threshold of 95`.
-2. Deleting one seven-test class (`AppealTest`) dropped `moderation` from 76% to 55% and failed.
-
-Both were reverted; `git status` confirms no test file was left modified. A first attempt at proof —
-weakening two `assertThatThrownBy` calls in `AppealTest` — did **not** move the score, because other
-tests already killed those mutants; that attempt proved nothing and was not relied on.
-
-Cold cost of the mutation step is 55s across five modules, so `./scripts/check.sh` goes from ~2m13s
-to roughly 3m when it has not run recently.
+Both experiments were reverted; `git status` confirms no production file was left modified.
 
 ## Known failures
 
-None observed.
+None observed. The IDE reports unresolved `io.cucumber` imports; that is a stale IDE classpath after
+the module gained the dependency — Gradle compiles and runs the suite.
 
 ## Risks and unresolved questions
 
-- Mutation scores can be gamed by assertions that kill mutants without checking meaning. The gate
-  raises the floor; it does not replace review.
-- `properties` (76%) and `moderation` (76%) sit closest to their thresholds, so they are the most
-  likely to block a future chunk. That is the intended pressure, but the first chunk touching either
-  should expect to add assertions.
-- The known survivors in `moderation` (`removed call to touch()` on every `ModerationCase` mutator —
-  nothing asserts `updatedAt` moves) are deliberately left for plan 009 chunk 3, which is the first
-  work under the new test-first rule.
+- The 16 scenarios overlap the JUnit endpoint tests in places. That is expected during on-touch
+  migration and is not duplication to eliminate now: they sit at different altitudes until an area's
+  JUnit class is migrated.
+- `TestApi.grantAdministrator` writes the role via SQL because identity exposes no
+  bootstrap-an-admin endpoint. It verifies the grant took effect, but it is the one place a scenario
+  reaches past the API.
+- Scenario count will grow fastest in plan 009; if suite runtime becomes a problem the answer is
+  tagging (`@slow`) rather than deleting coverage.
 
 ## Human actions required
 
@@ -109,8 +117,9 @@ None.
 
 ## Recommended next action
 
-Independent review of this branch in a fresh session, then merge. When requested, start plan 010
-chunk 2 (Cucumber foundation and the five MVP loop feature files) from `main`.
+Independent review of this branch in a fresh session, then merge. When requested, start plan 009
+chunk 3 (moderation application layer) from `main`, written test-first, and kill the `touch()`
+mutation survivors in `ModerationCase` as part of it.
 
 ## Last updated
 

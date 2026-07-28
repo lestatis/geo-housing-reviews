@@ -7,6 +7,7 @@ dependencies {
     implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
     testImplementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
     testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(platform(libs.cucumber.bom))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -37,6 +38,14 @@ dependencies {
     // Tier 2 evidence integration tests run Postgres and the object store together (ADR-0008).
     testImplementation("org.testcontainers:testcontainers-minio")
     testImplementation(libs.archunit.junit5)
+
+    // Acceptance scenarios (ADR-0009). Cucumber 7.x is built against JUnit Platform 1.x yet
+    // discovers and runs this project's JUnit 6 tests; that compatibility is incidental, so
+    // re-verify scenario discovery on any JUnit or Cucumber upgrade.
+    testImplementation("io.cucumber:cucumber-java")
+    testImplementation("io.cucumber:cucumber-spring")
+    testImplementation("org.junit.platform:junit-platform-suite")
+    testRuntimeOnly("io.cucumber:cucumber-junit-platform-engine")
 }
 
 tasks.withType<Test> {

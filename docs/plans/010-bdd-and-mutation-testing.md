@@ -15,10 +15,12 @@ enforced property of the build rather than a claim. See ADR-0009.
 - [x] Every module with domain/application code carries a mutation-score threshold that fails the
       build when breached, wired into `check` so `./scripts/check.sh` enforces it.
 - [x] Thresholds are set from measured baselines, and the gate is proven non-vacuous.
-- [ ] Endpoint behaviour can be expressed as Gherkin scenarios driven through the real HTTP stack,
+- [x] Endpoint behaviour can be expressed as Gherkin scenarios driven through the real HTTP stack,
       with a step-definition library built from the helpers the existing endpoint tests duplicate.
-- [ ] The five MVP loops each have a feature file.
-- [ ] `.claude/rules/testing.md` and `AGENTS.md` §6 require test-first for domain/application logic,
+- [x] Four of the five MVP loops have a feature file. Loop 4 ("Report/dispute → resolve safely")
+      has no endpoints yet — plan 009 is building them — so its feature file arrives with plan 009
+      chunk 6 rather than as a file of skipped scenarios.
+- [x] `.claude/rules/testing.md` and `AGENTS.md` §6 require test-first for domain/application logic,
       Gherkin for new endpoint behaviour, and the mutation gate.
 
 ## Non-goals
@@ -80,6 +82,21 @@ a threshold that only ever moves down measures nothing.
   against a score of 76 failed the build, and deleting one seven-test class dropped `moderation`
   from 76% to 55% and failed. Cold cost is 55s across five modules; `./scripts/check.sh` passes.
   Ready for independent review.
+
+- 2026-07-28: Chunk 2 implemented on `feat/010-cucumber-acceptance`. `AcceptanceTest` runs every
+  feature file against one Spring context and one Postgres container shared by the whole suite;
+  `AcceptanceWorld` carries the same stub `JwtDecoder` the JUnit endpoint tests use, so scenarios go
+  through the real security chain. `ScenarioState` and `TestApi` are scenario-scoped, because
+  Cucumber shares one context across scenarios and a singleton would leak one scenario's actors into
+  the next as a phantom flake. Step definitions were grouped by domain (actors, catalogue, reviews,
+  trust, moderation, outcomes) rather than the Given/When/Then split the plan sketched — the step
+  library grows per feature area, not per keyword, and plan 009 will add reporting steps to it.
+  Outcome steps are phrased by meaning rather than status code, so "the content is reported as not
+  found" carries the privacy rule a 404 exists to enforce. 16 scenarios across four loops, all
+  green. Proven non-vacuous two ways: changing `REVIEW_NOT_FOUND` from 404 to 403 failed exactly the
+  scenario asserting a stranger is not told someone's unpublished review exists, and an
+  intentionally undefined step failed its scenario rather than being skipped. Both reverted.
+  `./scripts/check.sh` passes.
 
 ## Final outcome
 
