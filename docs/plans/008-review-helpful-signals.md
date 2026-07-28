@@ -1,6 +1,6 @@
 # Review Helpful Signals: Abuse-Resistant Ranking Input
 
-Status: Active
+Status: Complete
 Owner: Codex
 Related issue: none (continues plan 005, chunk 8)
 Last updated: 2026-07-28
@@ -22,7 +22,7 @@ an exact organic-ranking formula.
       timestamps, or ranking inputs.
 - [x] Persistence keeps the aggregate consistent under concurrent signals and has integration tests
       for unique-constraint races.
-- [ ] The ranking layer consumes a versioned, bounded helpfulness input without publishing its
+- [x] The ranking layer consumes a versioned, bounded helpfulness input without publishing its
       formula; paid status never affects this input or ordering.
 
 ## Non-goals
@@ -119,7 +119,35 @@ records needed to explain historical aggregates.
   idempotent withdraw, duplicate conflict, self-signal refusal, unpublished and missing targets,
   per-review counts in a listing, and the absence of any voter identity in every response body.
   `:modules:reviews:check` and `./scripts/check.sh` pass. Ready for independent review.
+- 2026-07-28: Chunk 4 fast-forward merged to `main` at `5d91652`.
+- 2026-07-28: Chunk 5 implemented on `feat/008-review-helpful-signals-ranking`. The active-signal
+  count is turned into a bounded `[0, 1]` `HelpfulnessInput` by a saturating, versioned
+  `HelpfulnessInputPolicy`: the first signals move the value most and past a threshold further
+  signals buy nothing, so a campaign of 10,000 accounts wins exactly what a modest one already won.
+  Boundedness is a record invariant, because an unbounded input is what would let helpfulness
+  outweigh every other ranking factor. The value is a pure function of the count — the structural
+  form of "paid status must not increase organic rank", since sponsorship cannot influence a
+  calculation it is not an argument to. `RankingInputVersion` is carried on every value and the
+  policy can replay a named version, so any historical input is reproducible from the append-only
+  signal rows without storing a score that could drift. `ReviewRankingInputService` returns an input
+  for every requested review (unsignalled ones score zero rather than being absent) and reuses the
+  batched count query from chunk 4. Founder decisions recorded as `P-012`. No migration, no
+  `reviews.api` change, no public response field, and no sort order changed: the public listing
+  stays newest-publication-first until ranking policy is approved. 20 new tests plus
+  `:modules:reviews:check`, the ArchUnit boundary rules, `ReviewEndpointIntegrationTest`, and
+  `./scripts/check.sh` pass. Ready for independent review.
 
 ## Final outcome
 
-Not yet complete.
+Complete at 5/5 chunks, pending independent review of chunk 5.
+
+Published reviews carry a private, one-per-account helpful signal that a voter can withdraw. The
+database enforces the one-active-signal rule, the aggregate is derived from the rows rather than
+counted into a column, and the public API exposes only the total — never a voter, a timestamp, or
+the derived ranking value. A bounded, versioned, saturating helpfulness input is available to a
+future ranking layer, and no public ordering changed.
+
+Deliberately not built here, and not blocking: rate limiting or device/network abuse signals (needs a
+separate privacy and policy decision); applying the input to an actual sort order (needs approved
+ranking policy, and the other factors the PRD lists — completeness, recency decay, diversity,
+moderation confidence — do not exist yet).

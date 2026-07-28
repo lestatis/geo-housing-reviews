@@ -8,6 +8,7 @@ import com.example.geohousing.reviews.application.PropertyLookup;
 import com.example.geohousing.reviews.application.ReviewModerationRepository;
 import com.example.geohousing.reviews.application.ReviewModerationService;
 import com.example.geohousing.reviews.application.ReviewQueryService;
+import com.example.geohousing.reviews.application.ReviewRankingInputService;
 import com.example.geohousing.reviews.application.ReviewRepository;
 import com.example.geohousing.reviews.application.ReviewSubmissionService;
 import com.example.geohousing.reviews.application.ReviewVerificationApplier;
@@ -48,6 +49,12 @@ public class ReviewsBeanConfiguration {
   HelpfulSignalQueryService helpfulSignalQueryService(
       ReviewRepository reviewRepository, HelpfulSignalRepository helpfulSignalRepository) {
     return new HelpfulSignalQueryService(reviewRepository, helpfulSignalRepository);
+  }
+
+  @Bean
+  ReviewRankingInputService reviewRankingInputService(
+      HelpfulSignalQueryService helpfulSignalQueryService) {
+    return new ReviewRankingInputService(helpfulSignalQueryService);
   }
 
   @Bean

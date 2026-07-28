@@ -2,18 +2,18 @@
 
 ## Objective
 
-Implement plan 008, chunk 4: the HTTP contract for helpful signals — add/withdraw endpoints and a
-public-safe aggregate count on review representations, with authorization and privacy tests. Ranking
-behaviour is excluded.
+Implement plan 008, chunk 5: turn the helpful-signal count into a versioned, bounded ranking input a
+future ranking layer can consume, with audit metadata, without changing any public sort order. This
+is the last chunk of plan 008.
 
 ## Active branch
 
-`feat/008-review-helpful-signals-http`, branched from clean `main` at `803a664`. Local only; not
+`feat/008-review-helpful-signals-ranking`, branched from clean `main` at `5d91652`. Local only; not
 pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/008-review-helpful-signals.md`, chunk 4 of 5.
+No issue. `docs/plans/008-review-helpful-signals.md`, chunk 5 of 5 (plan now marked Complete).
 
 ## Current status
 
@@ -21,78 +21,75 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `POST /api/reviews/{reviewId}/helpful` and `DELETE /api/reviews/{reviewId}/helpful` add and
-  withdraw the caller's signal, answering `200` with the review's new aggregate.
-- `HelpfulSignalResponse` is `{reviewId, helpfulCount}` only. It does not echo whether the caller has
-  an active signal, so no endpoint on this path discloses who signalled what.
-- `helpfulCount` added to `ReviewResponse` and through `ReviewListResponse` to the public listing.
-- Batch count added to `HelpfulSignalRepository`, the Spring Data repository (grouped query, no
-  voter column selected), the JPA adapter, and the in-memory fake, so a listing page costs one query
-  instead of one per review.
-- `HelpfulSignalQueryService.activeCountsForVisibleReviews` decorates already-authorised reviews;
-  `countForPublishedReview` remains the guarded single-id entry point.
-- `WebAuthentication.helpfulSignalVoterId` resolves the caller as a voter (a distinct type from
-  `AuthorId`).
-- RFC 7807 mappings: `SelfHelpfulSignalException` → `403 HELPFUL_SIGNAL_SELF_NOT_ALLOWED`,
-  `HelpfulSignalAlreadyActiveException` → `409 HELPFUL_SIGNAL_ALREADY_ACTIVE`.
-- `AdminReviewController` supplies the count for the moderation representations.
-- Added `HelpfulSignalEndpointIntegrationTest` (9 tests, Testcontainers Postgres + stub
-  `JwtDecoder`).
+- `RankingInputVersion` (currently `V1`, with `current()`) — the version a value was produced under.
+- `HelpfulnessInput` — record `(value, version)` whose compact constructor rejects anything outside
+  `[0, 1]`, `NaN`, or a null version, so boundedness is a type invariant.
+- `HelpfulnessInputPolicy` — pure, versioned, saturating transform from active-signal count to input.
+  `forActiveSignals(count)` uses the current version; `forActiveSignals(count, version)` replays a
+  named one for audit.
+- `ReviewRankingInputService` — batch inputs for reviews the caller has already been authorised to
+  see, reusing `HelpfulSignalQueryService.activeCountsForVisibleReviews` from chunk 4. Returns an
+  entry for every requested review; unsignalled ones score zero rather than being absent.
+- Wired in `ReviewsBeanConfiguration`, so the booting `@SpringBootTest` proves it constructs.
+- `docs/DECISION_LOG.md` gained `P-012`; plan 008 is closed at 5/5.
 
 ## Remaining work
 
-None for chunk 4. Chunk 5 (versioned bounded ranking input) remains and needs a new branch from
-`main` after this one is reviewed and merged.
+None for chunk 5, and none for plan 008. Applying the input to an actual sort order is deliberately
+out of scope: it needs approved ranking policy and the other PRD §6 factors (completeness, recency
+decay, diversity, moderation confidence), none of which exist yet.
 
 ## Decisions made
 
-- `ReviewResponse.from(Review)` (count-defaulting overload) was **removed**. Every construction site
-  must pass a count, so a forgotten path fails to compile rather than reporting a review with
-  signals as having none.
-- Self-signal is `403`, not `404`: the review is published and the caller can already see it, so
-  explaining the refusal discloses nothing.
-- An unpublished target is `404 REVIEW_NOT_FOUND` on both POST and DELETE, so the endpoint cannot be
-  used to probe the moderation queue.
-- `activeCountsForVisibleReviews` performs no visibility check of its own; this is documented on the
-  method as post-authorization-only, because the reviews it decorates were resolved through
-  `ReviewQueryService`.
-- No security-configuration change: `GET /api/reviews/**` is already anonymous-permitted and the new
-  POST/DELETE fall through to `anyRequest().authenticated()`.
+Founder decisions taken 2026-07-28, recorded as `P-012`:
+
+- **Bounded and saturating, not raw.** An unbounded count would let a large enough voting cohort
+  outweigh every other ranking factor, which PRD §6 and TRUST_VERIFICATION §5 both forbid. Past the
+  saturation threshold further signals buy nothing, so a campaign of 10,000 wins what a modest one
+  already won.
+- **Derived, not stored.** No migration. The signal rows are append-only and preserve `withdrawn_at`,
+  so replaying a historical count through a named version reproduces the exact input used then. A
+  stored column would only add something that can drift from the rows it summarises.
+- **Internal to reviews, not a published contract.** `search` and `analytics` are still empty
+  `package-info` shells, so a `reviews.api` type would have no consumer — the same reasoning that
+  deferred `properties.api` until plan 005 chunk 4 gave it one. ARCHITECTURE §5 already assigns
+  ranking inputs to this module.
+- **Never exposed publicly.** `helpfulCount` stays the only public number. Publishing the derived
+  value would let anyone recover the curve by adding a signal and watching it move.
+- **Purity as the paid-status guarantee.** The policy takes a count and a version and nothing else,
+  so sponsorship cannot influence a calculation it is not an argument to. A test pins the signature.
 
 ## Assumptions
 
-- A client that needs to render its own toggle state will read it from its own action result or a
-  future explicit endpoint; not echoing it here is deliberate, not an oversight.
+- A future ranking layer will weigh this against other inputs; it is not a rank by itself, and the
+  `[0, 1]` scale is the contract that lets it be weighted without knowing the curve.
 
 ## Files changed
 
-- `modules/reviews/.../application/HelpfulSignalRepository.java`,
-  `HelpfulSignalQueryService.java`
-- `modules/reviews/.../infrastructure/persistence/SpringDataHelpfulSignalRepository.java`,
-  `JpaHelpfulSignalRepository.java`
-- `modules/reviews/.../infrastructure/web/ReviewController.java`, `ReviewResponse.java`,
-  `ReviewListResponse.java`, `ReviewsExceptionHandler.java`, `WebAuthentication.java`,
-  `AdminReviewController.java`, new `HelpfulSignalResponse.java`
-- `modules/reviews/src/test/.../application/InMemoryHelpfulSignalRepository.java`
-- new `app/src/test/java/com/example/geohousing/app/reviews/HelpfulSignalEndpointIntegrationTest.java`
-- `docs/plans/008-review-helpful-signals.md`, `docs/handoffs/current-task.md`
+- new `modules/reviews/.../domain/RankingInputVersion.java`, `HelpfulnessInput.java`,
+  `HelpfulnessInputPolicy.java`
+- new `modules/reviews/.../application/ReviewRankingInputService.java`
+- `modules/reviews/.../infrastructure/ReviewsBeanConfiguration.java`
+- new `modules/reviews/src/test/.../domain/HelpfulnessInputPolicyTest.java`,
+  `HelpfulnessInputTest.java`, `.../application/ReviewRankingInputServiceTest.java`
+- `docs/DECISION_LOG.md`, `docs/plans/008-review-helpful-signals.md`,
+  `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.reviews.HelpfulSignalEndpointIntegrationTest'`
-- `cd apps/api && ./gradlew :modules:reviews:check`
-- `cd apps/api && ./gradlew :app:spotlessApply`
+- `cd apps/api && ./gradlew :modules:reviews:test --tests 'com.example.geohousing.reviews.domain.Helpfulness*' --tests 'com.example.geohousing.reviews.application.ReviewRankingInputServiceTest'`
+- `cd apps/api && ./gradlew :modules:reviews:spotlessApply`
+- `cd apps/api && ./gradlew :modules:reviews:check :app:test --tests 'com.example.geohousing.app.reviews.ReviewEndpointIntegrationTest' --tests 'com.example.geohousing.app.architecture.*'`
 - `./scripts/check.sh`
 
 ## Tests and verification
 
-All passed on 2026-07-28. The endpoint test (9 tests, 0 failures) covers: anonymous POST/DELETE →
-`401` while the anonymous count read succeeds; add → count 1 and withdraw → count 0; duplicate add →
-`409` without inflating the aggregate; author self-signal and self-withdraw → `403`; unpublished and
-unknown targets → `404`; a malformed id → `400`; withdraw with nothing active → `200`; and a listing
-where one review shows 3 and its neighbour 0. The privacy test asserts the voter's account id and
-the string `voter` appear in no signal, review, or listing body, while confirming the active row
-exists in the database.
+All passed on 2026-07-28. 20 new tests: 10 policy invariants (bounded for every count including
+`Long.MAX_VALUE`; zero signals score zero; monotonic; each additional signal worth no more than the
+last; 10,000 signals score exactly what 25 do; negative count rejected; value depends on the count
+alone; version carried; a named version replays), 5 on the `HelpfulnessInput` bound and version, and
+5 on the service. The ArchUnit boundary rules and `ReviewEndpointIntegrationTest` (which asserts the
+public listing order) both still pass, confirming no boundary moved and no ordering changed.
 
 ## Known failures
 
@@ -100,10 +97,11 @@ None observed.
 
 ## Risks and unresolved questions
 
-- Coordinated voting remains possible; rate limits and stronger abuse signals are separate
-  policy/privacy work.
-- The listing count is one extra grouped query per page. It is unbounded only by page size, so it
-  scales with the cursor limit rather than the property's review total.
+- The saturation threshold is a judgement call, not a measured value — there is no production data
+  yet. Retuning it means adding `RankingInputVersion.V2` rather than editing `V1`, which is the
+  discipline the version exists to enforce.
+- Coordinated voting below the saturation threshold is still worth something. Bounding limits the
+  ceiling; it is not fraud detection, which remains separate policy work.
 
 ## Human actions required
 
@@ -111,8 +109,8 @@ None.
 
 ## Recommended next action
 
-Independent review of the chunk-4 branch in a fresh session, then merge. When requested, start plan
-008 chunk 5 from `main`.
+Independent review of the chunk-5 branch in a fresh session, then merge. Plan 008 is then closed;
+the next task should start from a new plan.
 
 ## Last updated
 

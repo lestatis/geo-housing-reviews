@@ -25,6 +25,7 @@ Use ADRs for technical decisions. This file tracks founder/product decisions and
 | P-008 | Auth provider: managed OIDC/IdP provider (specific vendor pending ADR) | 2026-07-09 | offloads security-critical auth/session/MFA handling appropriate for a team just starting; requires a follow-up ADR before integration |
 | P-009 | Map/geocoding provider: OpenStreetMap-based stack | 2026-07-09 | fits the existing PostGIS-first architecture and avoids a paid dependency before demand is proven |
 | P-011 | Public read access: the property catalogue and published reviews are readable without an account; all writes, self-service and admin endpoints require authentication | 2026-07-22 | a review platform must be browsable to be trusted (and indexed); module visibility rules already treat the anonymous viewer as a normal case, so unpublished content stays hidden either way |
+| P-012 | Helpfulness ranking input is a bounded, saturating, versioned value; it is derived from the helpful-signal rows rather than stored, lives inside the reviews module rather than a published cross-module contract, and is never exposed in a public response | 2026-07-28 | bounding is what stops a large voting cohort from outweighing every other ranking factor; the append-only signal rows already make any historical value reproducible, so a stored score would only add something that can drift; and publishing the derived value would let anyone recover the curve by adding a signal and watching it move, which PRD_MVP.md §6 forbids |
 
 ## How to update
 
