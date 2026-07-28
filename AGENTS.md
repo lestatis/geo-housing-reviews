@@ -76,6 +76,8 @@ A change is done only when:
 
 - acceptance criteria are satisfied;
 - relevant tests pass;
+- domain and application logic was written test-first, and the module's mutation score meets its
+  threshold (ADR-0009);
 - formatting/lint/static checks pass;
 - security and privacy implications were considered;
 - API/schema/docs are updated where behavior changed;

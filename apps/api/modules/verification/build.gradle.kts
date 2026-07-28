@@ -1,5 +1,6 @@
 plugins {
     id("geohousing.java-conventions")
+    id("geohousing.mutation-testing")
 }
 
 dependencies {
@@ -31,4 +32,8 @@ dependencies {
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-minio")
+}
+
+mutationTesting {
+    mutationThreshold.set(85)
 }

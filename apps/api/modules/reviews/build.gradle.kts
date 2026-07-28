@@ -1,5 +1,6 @@
 plugins {
     id("geohousing.java-conventions")
+    id("geohousing.mutation-testing")
 }
 
 dependencies {
@@ -16,4 +17,8 @@ dependencies {
 
     testImplementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
     testImplementation("org.assertj:assertj-core")
+}
+
+mutationTesting {
+    mutationThreshold.set(85)
 }

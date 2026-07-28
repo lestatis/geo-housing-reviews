@@ -1,7 +1,13 @@
 [versions]
 archunit = "1.4.2"
 awssdk = "2.35.9"
+cucumber = "7.34.6"
 junit = "6.1.1"
+# PITest runs through its command-line entry point, not the Gradle plugin: gradle-pitest-plugin
+# 1.15.0 (the newest) cannot be applied on Gradle 9 — it reads `reporting.baseDir`, removed in
+# Gradle 9. See ADR-0009.
+pitest = "1.25.8"
+pitestJunit5 = "1.2.3"
 spotless = "8.8.0"
 springdoc = "3.0.3"
 testcontainers = "2.0.5"
@@ -9,8 +15,11 @@ testcontainers = "2.0.5"
 [libraries]
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk" }
+cucumber-bom = { module = "io.cucumber:cucumber-bom", version.ref = "cucumber" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+pitest-command-line = { module = "org.pitest:pitest-command-line", version.ref = "pitest" }
+pitest-junit5-plugin = { module = "org.pitest:pitest-junit5-plugin", version.ref = "pitestJunit5" }
 springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
 

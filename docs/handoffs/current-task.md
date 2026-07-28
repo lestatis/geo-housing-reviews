@@ -2,18 +2,17 @@
 
 ## Objective
 
-Implement plan 009, chunk 2: the moderation module's domain model — reports, cases, immutable
-decisions and appeals, with their state machines and invariants. No persistence, endpoints or
-cross-module dependency.
+Implement plan 010, chunk 1: mutation testing as an enforced build gate, so that "we write good
+tests" becomes a measured property rather than a claim. Cucumber/Gherkin is chunk 2.
 
 ## Active branch
 
-`feat/009-moderation-chunk2-domain`, branched from clean `main` at `3f6c683`. Local only; not pushed.
-Awaiting a fresh independent review before merge.
+`feat/010-mutation-testing-foundation`, branched from clean `main` at `b4956ba`. Local only; not
+pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 2 of 8.
+No issue. `docs/plans/010-bdd-and-mutation-testing.md`, chunk 1 of 3. ADR-0009.
 
 ## Current status
 
@@ -21,90 +20,88 @@ completed, awaiting independent review
 
 ## Completed work
 
-- Aggregates: `Report`, `ModerationCase`, `ModerationDecision` (immutable), `Appeal`.
-- Value objects: `ReportId`, `ModerationCaseId`, `ModerationDecisionId`, `AppealId`, `ReporterId`,
-  `ModeratorId`, `AppellantId`, `ModerationTargetRef`, `ReasonCode`, `PolicyVersion`.
-- Enums: `ReportCategory`, `ReportStatus`, `ModerationCaseStatus`, `CaseTrigger`, `RiskLevel`,
-  `DecisionAction`, `AppealStatus`, `ModerationTargetType`.
-- Exceptions: `IllegalModerationStateTransitionException`, `AppealDeciderConflictException`.
-- 33 domain tests across four test classes.
+- `gradle/libs.versions.toml`: cucumber 7.34.6 (for chunk 2), pitest 1.25.8, pitestJunit5 1.2.3.
+- New `buildSrc/src/main/kotlin/geohousing.mutation-testing.gradle.kts` + `MutationTestingExtension`:
+  registers a `mutationTest` `JavaExec` task driving `pitest-command-line`, wired into `check`.
+- Applied to the five modules with domain/application code, each with a measured threshold.
+- ADR-0009, plan 010, `.claude/rules/testing.md` and `AGENTS.md` §6 updated.
 
 ## Remaining work
 
-Chunks 3–8 of plan 009. Chunk 3 (application layer: ports, report intake converging onto the live
-case, case assignment, decision recording) is next and needs a new branch from `main`.
+Chunks 2–3 of plan 010 (Cucumber foundation + MVP loop features; then plan 009 resumes test-first).
 
 ## Decisions made
 
-- **A decision may only be recorded on an `IN_REVIEW` case.** Stronger than the schema, which only
-  requires an assignee for `IN_REVIEW`. The effect is that no outcome can exist without a named
-  moderator accountable for it.
-- **A case may only close from `DECIDED` or `APPEALED`.** Nothing lets a case vanish unexplained; the
-  affected user is always owed a recorded reason, which is what makes an appeal possible at all.
-- **`Appeal` carries `originalDecider`.** The different-decider rule is then checked on the object
-  rather than by a caller that happens to look the decision up — and it mirrors the row-level CHECK
-  added in chunk 1. Both layers hold it because due process should not depend on either alone.
-- **A refused appeal decision moves nothing.** Conflict and missing-explanation checks run before any
-  mutation, so a rejected attempt leaves the appeal exactly `PENDING` rather than half-decided. Same
-  pattern as the fix made earlier in `VerificationCase.approve`.
-- **Reassignment preserves `firstResponseAt`.** A recusal handover is not a second first response;
-  the reporter waited once and the SLA should say so.
-- **Distinct `ReporterId` / `ModeratorId` / `AppellantId` types** even though all three are account
-  ids, so a reporter cannot be passed where a decision-maker is expected.
-- **`ReasonCode` is a validated free code, not an enum.** The taxonomy grows with policy; pinning it
-  in a type or a CHECK means a migration per reason code, which is how a moderator ends up choosing
-  the nearest wrong code.
-- **`DecisionAction.requiresPublicExplanation()`** puts "which actions owe the user an explanation"
-  in one place shared by the domain and (already) the schema.
+- **PITest runs via its CLI, not the Gradle plugin.** `info.solidsoft.pitest:1.15.0` (newest) cannot
+  be applied on Gradle 9.6.1 — it reads `reporting.baseDir`, removed in Gradle 9. Recorded in
+  ADR-0009 so nobody re-attempts it.
+- **Mutation scope is `domain` + `application` only.** Mutants in Spring/JPA/web glue are largely
+  equivalent or untestable; a score dominated by noise is one nobody acts on.
+- **`--excludedClasses *Test,*Test$*,*IT,*IT$*`.** The target glob matches test classes in the same
+  package, so without this PITest mutates the tests themselves. The pre-plan spike lacked this and
+  reported an inflated 80% for `moderation` against a true 76%.
+- **Thresholds are measured floors** (baseline rounded down to nearest 5), not aspirations.
+- **Wired into `check`** rather than a separate script, so `./scripts/check.sh` enforces it.
+  `-PskipMutation` exists for local iteration and is documented as never valid for pre-review runs.
 
 ## Assumptions
 
-- `PolicyVersion` is an integer that the application layer will supply from configuration in a later
-  chunk; the domain only insists it is positive and recorded.
-- `affectedTargetVersion` is nullable because a target without optimistic-lock versioning may be
-  moderatable later; for reviews it is always present.
+- Cucumber and `pitest-junit5-plugin` support JUnit Platform 6 only incidentally (both target 1.x).
+  Verified working by spike; ADR-0009 records it as an upgrade hazard to re-check.
 
 ## Files changed
 
-- 20 new files under
-  `apps/api/modules/moderation/src/main/java/com/example/geohousing/moderation/domain/`
-- updated `package-info.java` in the same package
-- 4 new test classes under
-  `apps/api/modules/moderation/src/test/java/com/example/geohousing/moderation/domain/`
-- `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
+- `apps/api/gradle/libs.versions.toml`
+- new `apps/api/buildSrc/src/main/kotlin/geohousing.mutation-testing.gradle.kts`,
+  `MutationTestingExtension.kt`
+- `apps/api/modules/{identity,properties,reviews,verification,moderation}/build.gradle.kts`
+- new `docs/adr/0009-bdd-and-mutation-testing.md`, `docs/plans/010-bdd-and-mutation-testing.md`
+- `.claude/rules/testing.md`, `AGENTS.md`, `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :modules:moderation:test`
-- `cd apps/api && ./gradlew :modules:moderation:spotlessApply`
-- `cd apps/api && ./gradlew :modules:moderation:check`
-- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.architecture.*'`
+- `cd apps/api && ./gradlew :modules:<each>:mutationTest --rerun-tasks`
 - `./scripts/check.sh`
 
 ## Tests and verification
 
-All passed on 2026-07-28. 33 domain tests: `ModerationCaseTest` (11) covers the full state machine
-including every refused transition, the `firstResponseAt` rule on reassignment, and a takedown demand
-as an ordinary case; `ReportTest` (8) covers intake, linking, terminal states and the
-`OTHER`-needs-a-description rule; `ModerationDecisionTest` (7) covers the adverse-action explanation
-rule across every action, the separation of public explanation from internal note, reason-code and
-policy-version validation, and a reflection guard that the type grows no mutator; `AppealTest` (7)
-covers the different-decider refusal in both directions, hear-once, the outcome-explanation
-requirement, and `reconstitute` refusing rows that contradict due process. The four ArchUnit boundary
-rules pass with real moderation domain classes now in scope.
+All passed on 2026-07-28. Measured baselines and thresholds:
+
+| Module | Mutations | Killed | Score | Threshold |
+|---|---|---|---|---|
+| identity | 126 | 104 | 83% | 80 |
+| properties | 103 | 78 | 76% | 75 |
+| reviews | 219 | 194 | 89% | 85 |
+| verification | 249 | 217 | 87% | 85 |
+| moderation | 148 | 113 | 76% | 75 |
+
+**The gate was proven non-vacuous two ways**, because a threshold that cannot fail is decorative:
+
+1. Raising `moderation`'s threshold to 95 failed the build —
+   `RuntimeException: Mutation score of 76 is below threshold of 95`.
+2. Deleting one seven-test class (`AppealTest`) dropped `moderation` from 76% to 55% and failed.
+
+Both were reverted; `git status` confirms no test file was left modified. A first attempt at proof —
+weakening two `assertThatThrownBy` calls in `AppealTest` — did **not** move the score, because other
+tests already killed those mutants; that attempt proved nothing and was not relied on.
+
+Cold cost of the mutation step is 55s across five modules, so `./scripts/check.sh` goes from ~2m13s
+to roughly 3m when it has not run recently.
 
 ## Known failures
 
-None observed. The IDE reported unresolved `org.assertj` imports in the new test sources; that is a
-stale IDE classpath after the module gained test dependencies — Gradle compiles and runs them.
+None observed.
 
 ## Risks and unresolved questions
 
-- Requiring `IN_REVIEW` before a decision means the application layer must assign before deciding
-  even for a one-step admin action. Chunk 7 should make that a single endpoint that assigns and
-  decides, rather than forcing a moderator through two calls.
-- `ModerationCase` and `Appeal` carry a `version` field for optimistic locking that nothing reads
-  yet; chunk 5 wires it to `@Version`.
+- Mutation scores can be gamed by assertions that kill mutants without checking meaning. The gate
+  raises the floor; it does not replace review.
+- `properties` (76%) and `moderation` (76%) sit closest to their thresholds, so they are the most
+  likely to block a future chunk. That is the intended pressure, but the first chunk touching either
+  should expect to add assertions.
+- The known survivors in `moderation` (`removed call to touch()` on every `ModerationCase` mutator —
+  nothing asserts `updatedAt` moves) are deliberately left for plan 009 chunk 3, which is the first
+  work under the new test-first rule.
 
 ## Human actions required
 
@@ -112,8 +109,8 @@ None.
 
 ## Recommended next action
 
-Independent review of the chunk-2 branch in a fresh session, then merge. When requested, start plan
-009 chunk 3 (application layer) from `main`.
+Independent review of this branch in a fresh session, then merge. When requested, start plan 010
+chunk 2 (Cucumber foundation and the five MVP loop feature files) from `main`.
 
 ## Last updated
 
