@@ -4,6 +4,7 @@ import com.example.geohousing.reviews.domain.HelpfulSignal;
 import com.example.geohousing.reviews.domain.HelpfulSignalId;
 import com.example.geohousing.reviews.domain.HelpfulSignalVoterId;
 import com.example.geohousing.reviews.domain.ReviewId;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,19 @@ final class InMemoryHelpfulSignalRepository implements HelpfulSignalRepository {
         .filter(signal -> signal.reviewId().equals(reviewId))
         .filter(HelpfulSignal::isActive)
         .count();
+  }
+
+  @Override
+  public Map<ReviewId, Long> countActive(Collection<ReviewId> reviewIds) {
+    Map<ReviewId, Long> counts = new LinkedHashMap<>();
+    for (ReviewId reviewId : reviewIds) {
+      long active = countActive(reviewId);
+      // Mirrors the real adapter, which returns no row for a review with no active signals.
+      if (active > 0) {
+        counts.put(reviewId, active);
+      }
+    }
+    return counts;
   }
 
   private static HelpfulSignal snapshot(HelpfulSignal signal) {

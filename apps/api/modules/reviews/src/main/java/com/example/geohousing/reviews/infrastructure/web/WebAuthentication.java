@@ -2,6 +2,7 @@ package com.example.geohousing.reviews.infrastructure.web;
 
 import com.example.geohousing.reviews.application.ReviewViewer;
 import com.example.geohousing.reviews.domain.AuthorId;
+import com.example.geohousing.reviews.domain.HelpfulSignalVoterId;
 import java.security.Principal;
 import java.util.UUID;
 
@@ -19,6 +20,14 @@ final class WebAuthentication {
 
   static AuthorId authorId(Principal principal) {
     return AuthorId.of(UUID.fromString(principal.getName()));
+  }
+
+  /**
+   * The caller as a helpful-signal voter. A distinct type from {@link AuthorId} so a voter can
+   * never be passed where an author is expected, even though both are the same account id.
+   */
+  static HelpfulSignalVoterId helpfulSignalVoterId(Principal principal) {
+    return HelpfulSignalVoterId.of(UUID.fromString(principal.getName()));
   }
 
   /**

@@ -15,6 +15,10 @@ import java.util.List;
  * was edited. And {@code verificationTier} is reported as the tier it is, never as a bare
  * "verified" flag: it records how the author's relationship to the property was evidenced, not that
  * their statements are true (docs/TRUST_VERIFICATION.md).
+ *
+ * <p>{@code helpfulCount} is an aggregate and nothing more: who signalled, and when, are never
+ * exposed, because voter identities and timing are what make targeting and campaign analysis
+ * possible (plan 008). The reader learns how many people found the review helpful, not which.
  */
 public record ReviewResponse(
     String reviewId,
@@ -29,7 +33,8 @@ public record ReviewResponse(
     Instant publishedAt,
     Instant createdAt,
     Instant updatedAt,
-    long version) {
+    long version,
+    long helpfulCount) {
 
   public record ContentView(
       int versionNumber,
@@ -44,7 +49,12 @@ public record ReviewResponse(
   public record RatingView(
       String category, Integer value, boolean notApplicable, String note, int categorySetVersion) {}
 
-  static ReviewResponse from(Review review) {
+  /**
+   * Builds the view. The count is always supplied by the caller rather than defaulted, so a path
+   * that forgets it fails to compile instead of quietly reporting a review as having no helpful
+   * signals when it has some.
+   */
+  static ReviewResponse from(Review review, long helpfulCount) {
     return new ReviewResponse(
         review.id().value().toString(),
         review.propertyRef().value().toString(),
@@ -58,7 +68,8 @@ public record ReviewResponse(
         review.publishedAt().orElse(null),
         review.createdAt(),
         review.updatedAt(),
-        review.version());
+        review.version(),
+        helpfulCount);
   }
 
   private static ContentView toContentView(ReviewVersion version) {

@@ -5,7 +5,12 @@ import com.example.geohousing.reviews.application.HelpfulSignalRepository;
 import com.example.geohousing.reviews.domain.HelpfulSignal;
 import com.example.geohousing.reviews.domain.HelpfulSignalVoterId;
 import com.example.geohousing.reviews.domain.ReviewId;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -62,6 +67,21 @@ public class JpaHelpfulSignalRepository implements HelpfulSignalRepository {
   @Transactional(readOnly = true)
   public long countActive(ReviewId reviewId) {
     return signals.countByReviewIdAndWithdrawnAtIsNull(reviewId.value());
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Map<ReviewId, Long> countActive(Collection<ReviewId> reviewIds) {
+    if (reviewIds.isEmpty()) {
+      // An empty `in (...)` is invalid SQL on some databases and pointless on all of them.
+      return Map.of();
+    }
+    List<UUID> ids = reviewIds.stream().map(ReviewId::value).toList();
+    return signals.countActiveGrouped(ids).stream()
+        .collect(
+            Collectors.toMap(
+                row -> ReviewId.of(row.getReviewId()),
+                SpringDataHelpfulSignalRepository.HelpfulSignalCountProjection::getTotal));
   }
 
   private static boolean isActiveVoterUniqueViolation(DataIntegrityViolationException exception) {

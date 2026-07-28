@@ -1,9 +1,11 @@
 package com.example.geohousing.reviews.infrastructure.web;
 
 import com.example.geohousing.reviews.application.DuplicateReviewException;
+import com.example.geohousing.reviews.application.HelpfulSignalAlreadyActiveException;
 import com.example.geohousing.reviews.application.PropertyNotFoundForReviewException;
 import com.example.geohousing.reviews.application.PropertyNotReviewableException;
 import com.example.geohousing.reviews.application.ReviewAccessDeniedException;
+import com.example.geohousing.reviews.application.SelfHelpfulSignalException;
 import com.example.geohousing.reviews.domain.IllegalReviewStateTransitionException;
 import com.example.geohousing.reviews.domain.ReviewNotFoundException;
 import com.example.geohousing.reviews.domain.ReviewVersionConflictException;
@@ -72,6 +74,29 @@ class ReviewsExceptionHandler {
     return ResponseEntity.status(HttpStatus.CONFLICT)
         .header(HttpHeaders.LOCATION, "/api/reviews/" + existingReviewId)
         .body(problemDetail);
+  }
+
+  /**
+   * Signalling your own review is refused as forbidden, not hidden: the review is published, so the
+   * caller can already see it and telling them why is not a disclosure.
+   */
+  @ExceptionHandler(SelfHelpfulSignalException.class)
+  ProblemDetail handleSelfHelpfulSignal(SelfHelpfulSignalException exception) {
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "Cannot mark your own review as helpful",
+        "HELPFUL_SIGNAL_SELF_NOT_ALLOWED",
+        "You cannot mark your own review as helpful.");
+  }
+
+  /** A second active signal is a conflict, never a silently incremented count. */
+  @ExceptionHandler(HelpfulSignalAlreadyActiveException.class)
+  ProblemDetail handleDuplicateHelpfulSignal(HelpfulSignalAlreadyActiveException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Helpful signal already active",
+        "HELPFUL_SIGNAL_ALREADY_ACTIVE",
+        "You have already marked this review as helpful.");
   }
 
   @ExceptionHandler(ReviewAccessDeniedException.class)

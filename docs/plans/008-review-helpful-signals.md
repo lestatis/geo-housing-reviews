@@ -3,7 +3,7 @@
 Status: Active
 Owner: Codex
 Related issue: none (continues plan 005, chunk 8)
-Last updated: 2026-07-27
+Last updated: 2026-07-28
 
 ## Objective
 
@@ -13,14 +13,14 @@ an exact organic-ranking formula.
 
 ## Acceptance criteria
 
-- [ ] The `reviews` schema owns an append-only-safe helpful-signal table in the `V4.x` namespace;
+- [x] The `reviews` schema owns an append-only-safe helpful-signal table in the `V4.x` namespace;
       its voter and review references remain local/opaque as appropriate, and it prevents more than
       one active positive signal from the same account for the same review.
-- [ ] A signed-in account can add and withdraw its signal only on a published review and never on
+- [x] A signed-in account can add and withdraw its signal only on a published review and never on
       its own review; invalid, duplicate, and unauthorized paths have explicit tests.
-- [ ] Public review representations expose only an aggregate helpful count, never voter identities,
+- [x] Public review representations expose only an aggregate helpful count, never voter identities,
       timestamps, or ranking inputs.
-- [ ] Persistence keeps the aggregate consistent under concurrent signals and has integration tests
+- [x] Persistence keeps the aggregate consistent under concurrent signals and has integration tests
       for unique-constraint races.
 - [ ] The ranking layer consumes a versioned, bounded helpfulness input without publishing its
       formula; paid status never affects this input or ordering.
@@ -106,6 +106,19 @@ records needed to explain historical aggregates.
   and integration tests, `:modules:reviews:check`, and `./scripts/check.sh` pass. Ready for
   independent review.
 - 2026-07-27: Chunk 3 fast-forward merged to `main` at `5ac585d`.
+- 2026-07-28: Chunk 4 implemented on `feat/008-review-helpful-signals-http` from clean `main` at
+  `803a664`. `POST`/`DELETE /api/reviews/{id}/helpful` add and withdraw the caller's signal and
+  answer with the review's new aggregate only; the response deliberately omits whether the caller
+  currently has an active signal. Review and listing representations carry `helpfulCount`. The
+  listing resolves counts for a whole page in one grouped query, so the anonymous read path does not
+  degrade as a property accumulates reviews. `ReviewResponse.from` now always requires the count, so
+  a path that forgets it fails to compile instead of silently reporting zero. Self-signals are
+  `403 HELPFUL_SIGNAL_SELF_NOT_ALLOWED`, duplicates `409 HELPFUL_SIGNAL_ALREADY_ACTIVE`, and an
+  unpublished target is `404 REVIEW_NOT_FOUND` so the endpoint cannot probe the moderation queue.
+  Nine endpoint integration tests cover anonymous write refusal, anonymous count reads, add and
+  idempotent withdraw, duplicate conflict, self-signal refusal, unpublished and missing targets,
+  per-review counts in a listing, and the absence of any voter identity in every response body.
+  `:modules:reviews:check` and `./scripts/check.sh` pass. Ready for independent review.
 
 ## Final outcome
 

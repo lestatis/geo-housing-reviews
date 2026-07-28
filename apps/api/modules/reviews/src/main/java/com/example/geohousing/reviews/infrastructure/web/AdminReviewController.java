@@ -1,5 +1,6 @@
 package com.example.geohousing.reviews.infrastructure.web;
 
+import com.example.geohousing.reviews.application.HelpfulSignalQueryService;
 import com.example.geohousing.reviews.application.ReviewModerationService;
 import com.example.geohousing.reviews.application.ReviewQueryService;
 import com.example.geohousing.reviews.application.ReviewViewer;
@@ -7,7 +8,9 @@ import com.example.geohousing.reviews.domain.ModeratorId;
 import com.example.geohousing.reviews.domain.Review;
 import com.example.geohousing.reviews.domain.ReviewId;
 import com.example.geohousing.reviews.domain.ReviewNotFoundException;
+import com.example.geohousing.reviews.domain.ReviewStatus;
 import java.security.Principal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -34,19 +37,24 @@ class AdminReviewController {
 
   private final ReviewModerationService moderationService;
   private final ReviewQueryService queryService;
+  private final HelpfulSignalQueryService helpfulSignalQueryService;
 
   AdminReviewController(
-      ReviewModerationService moderationService, ReviewQueryService queryService) {
+      ReviewModerationService moderationService,
+      ReviewQueryService queryService,
+      HelpfulSignalQueryService helpfulSignalQueryService) {
     this.moderationService = moderationService;
     this.queryService = queryService;
+    this.helpfulSignalQueryService = helpfulSignalQueryService;
   }
 
   /** A single review as a moderator sees it: unpublished states included. */
   @GetMapping("/{reviewId}")
   ReviewResponse get(Principal principal, @PathVariable("reviewId") String reviewId) {
-    return ReviewResponse.from(
+    Review review =
         queryService.getById(
-            parseId(reviewId), ReviewViewer.moderator(WebAuthentication.authorId(principal))));
+            parseId(reviewId), ReviewViewer.moderator(WebAuthentication.authorId(principal)));
+    return withHelpfulCount(review);
   }
 
   @PostMapping("/{reviewId}/publish")
@@ -130,12 +138,27 @@ class AdminReviewController {
     return request.version();
   }
 
-  private static ReviewResponse respond(Supplier<Optional<Review>> action, ReviewId requestedId) {
+  private ReviewResponse respond(Supplier<Optional<Review>> action, ReviewId requestedId) {
     // In the admin context "not found" is honest — there is nothing to protect about an id that
     // has no review — and the attempt has already been audited by the service.
     return action
         .get()
-        .map(ReviewResponse::from)
+        .map(this::withHelpfulCount)
         .orElseThrow(() -> new ReviewNotFoundException(requestedId));
+  }
+
+  /**
+   * A moderator sees the same aggregate a reader does — how many people found the review helpful,
+   * never who. Signals only exist on published reviews, so anything else counts as zero without a
+   * query.
+   */
+  private ReviewResponse withHelpfulCount(Review review) {
+    long helpfulCount =
+        review.status() == ReviewStatus.PUBLISHED
+            ? helpfulSignalQueryService
+                .activeCountsForVisibleReviews(List.of(review.id()))
+                .getOrDefault(review.id(), 0L)
+            : 0L;
+    return ReviewResponse.from(review, helpfulCount);
   }
 }
