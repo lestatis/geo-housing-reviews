@@ -34,11 +34,12 @@ class ModerationCaseServiceTest {
   private final InMemoryModerationDecisionRepository decisions =
       new InMemoryModerationDecisionRepository();
   private final InMemoryModerationTargetLookup targets = new InMemoryModerationTargetLookup();
+  private final InMemoryModerationEffectApplier effects = new InMemoryModerationEffectApplier();
 
   private final ReportIntakeService intake =
       new ReportIntakeService(reports, cases, targets, CLOCK);
   private final ModerationCaseService service =
-      new ModerationCaseService(cases, decisions, reports, targets, POLICY, CLOCK);
+      new ModerationCaseService(cases, decisions, reports, targets, effects, POLICY, CLOCK);
 
   @Test
   void takingACasePutsItInReviewUnderANamedModerator() {
@@ -225,6 +226,88 @@ class ModerationCaseServiceTest {
     assertThat(decision.publicExplanation()).isEmpty();
     assertThat(decision.internalNote()).contains("referred to counsel");
     assertThat(decision.decidedBy()).isEqualTo(moderator);
+  }
+
+  @Test
+  void aDecisionTakesEffectOnTheContentAtTheVersionItJudged() {
+    ModerationTargetRef target = targets.givenReviewBy(UUID.randomUUID(), 4L);
+    ModerationCaseId caseId = reportedCase(target);
+    ModeratorId moderator = moderator();
+    service.assign(caseId, moderator);
+
+    service.decide(
+        caseId, moderator, DecisionAction.REMOVE, ReasonCode.of("DOXXING"), "Removed.", null);
+
+    assertThat(effects.applied)
+        .singleElement()
+        .satisfies(
+            applied -> {
+              assertThat(applied.target()).isEqualTo(target);
+              assertThat(applied.action()).isEqualTo(DecisionAction.REMOVE);
+              assertThat(applied.expectedVersion()).isEqualTo(4L);
+            });
+  }
+
+  @Test
+  void contentThatMovedUnderTheModeratorAbortsTheWholeDecision() {
+    ModerationCaseId caseId = reportedCase();
+    ModeratorId moderator = moderator();
+    service.assign(caseId, moderator);
+    effects.refuseAsConflict = true;
+
+    assertThatThrownBy(
+            () ->
+                service.decide(
+                    caseId,
+                    moderator,
+                    DecisionAction.REMOVE,
+                    ReasonCode.of("DOXXING"),
+                    "Removed.",
+                    null))
+        .isInstanceOf(ModerationEffectConflictException.class);
+
+    // Nothing recorded and the case still open: the moderator has to look again, because the text
+    // they judged is not the text that is published now, and their explanation may no longer fit.
+    assertThat(decisions.appended).isEmpty();
+    assertThat(cases.findById(caseId).orElseThrow().status())
+        .isEqualTo(ModerationCaseStatus.IN_REVIEW);
+    assertThat(reports.findByCase(caseId))
+        .allSatisfy(report -> assertThat(report.status()).isEqualTo(ReportStatus.LINKED));
+  }
+
+  @Test
+  void anUnassignedCaseNeverReachesTheContent() {
+    ModerationCaseId caseId = reportedCase();
+
+    assertThatThrownBy(
+            () ->
+                service.decide(
+                    caseId,
+                    moderator(),
+                    DecisionAction.REMOVE,
+                    ReasonCode.of("DOXXING"),
+                    "Removed.",
+                    null))
+        .isInstanceOf(IllegalModerationStateTransitionException.class);
+
+    // The accountability check runs before the effect, because an applied effect cannot be undone
+    // by throwing afterwards.
+    assertThat(effects.applied).isEmpty();
+  }
+
+  @Test
+  void aDecisionRefusedForWantOfAnExplanationNeverReachesTheContentEither() {
+    ModerationCaseId caseId = reportedCase();
+    ModeratorId moderator = moderator();
+    service.assign(caseId, moderator);
+
+    assertThatThrownBy(
+            () ->
+                service.decide(
+                    caseId, moderator, DecisionAction.REMOVE, ReasonCode.of("DOXXING"), " ", null))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    assertThat(effects.applied).isEmpty();
   }
 
   private ModerationCaseId reportedCase() {

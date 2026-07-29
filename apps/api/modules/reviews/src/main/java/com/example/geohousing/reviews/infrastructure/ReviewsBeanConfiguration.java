@@ -1,10 +1,12 @@
 package com.example.geohousing.reviews.infrastructure;
 
+import com.example.geohousing.reviews.api.ReviewModerationGateway;
 import com.example.geohousing.reviews.api.ReviewVerificationUpdater;
 import com.example.geohousing.reviews.application.HelpfulSignalQueryService;
 import com.example.geohousing.reviews.application.HelpfulSignalRepository;
 import com.example.geohousing.reviews.application.HelpfulSignalService;
 import com.example.geohousing.reviews.application.PropertyLookup;
+import com.example.geohousing.reviews.application.ReviewModerationGatewayAdapter;
 import com.example.geohousing.reviews.application.ReviewModerationRepository;
 import com.example.geohousing.reviews.application.ReviewModerationService;
 import com.example.geohousing.reviews.application.ReviewQueryService;
@@ -61,6 +63,12 @@ public class ReviewsBeanConfiguration {
   ReviewModerationService reviewModerationService(
       ReviewRepository reviewRepository, ReviewModerationRepository moderationRepository) {
     return new ReviewModerationService(reviewRepository, moderationRepository, Clock.systemUTC());
+  }
+
+  @Bean
+  ReviewModerationGateway reviewModerationGateway(
+      ReviewRepository reviewRepository, ReviewModerationService moderationService) {
+    return new ReviewModerationGatewayAdapter(reviewRepository, moderationService);
   }
 
   @Bean

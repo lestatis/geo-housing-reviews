@@ -14,11 +14,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Assigns cases to moderators and records what they decided.
+ * Assigns cases to moderators, applies what they decided to the content, and records the decision.
  *
- * <p>Applying a decision's effect on the content is deliberately not here: that crosses a module
- * boundary and arrives in chunk 4 through the owning module's published contract. What this owns is
- * the record — who decided, why, under which policy, and against which version of the content.
+ * <p>The content belongs to another module and is only ever reached through {@link
+ * ModerationEffectApplier}, which resolves to that module's published contract. What this module
+ * owns is the record — who decided, why, under which policy version, and against which version of
+ * the content.
  */
 public final class ModerationCaseService {
 
@@ -26,6 +27,7 @@ public final class ModerationCaseService {
   private final ModerationDecisionRepository decisionRepository;
   private final ReportRepository reportRepository;
   private final ModerationTargetLookup targetLookup;
+  private final ModerationEffectApplier effectApplier;
   private final PolicyVersion policyVersion;
   private final Clock clock;
 
@@ -34,12 +36,14 @@ public final class ModerationCaseService {
       ModerationDecisionRepository decisionRepository,
       ReportRepository reportRepository,
       ModerationTargetLookup targetLookup,
+      ModerationEffectApplier effectApplier,
       PolicyVersion policyVersion,
       Clock clock) {
     this.caseRepository = Objects.requireNonNull(caseRepository, "caseRepository");
     this.decisionRepository = Objects.requireNonNull(decisionRepository, "decisionRepository");
     this.reportRepository = Objects.requireNonNull(reportRepository, "reportRepository");
     this.targetLookup = Objects.requireNonNull(targetLookup, "targetLookup");
+    this.effectApplier = Objects.requireNonNull(effectApplier, "effectApplier");
     this.policyVersion = Objects.requireNonNull(policyVersion, "policyVersion");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
@@ -69,10 +73,11 @@ public final class ModerationCaseService {
       String publicExplanation,
       String internalNote) {
     ModerationCase moderationCase = require(caseId);
+    Long judgedVersion =
+        targetLookup.find(moderationCase.target()).map(ModeratableTarget::version).orElse(null);
 
-    // The decision is built first so its own rules — an adverse action owes the user an
-    // explanation — refuse before the case moves. A half-applied decision would leave a case
-    // marked decided with nothing recorded to explain it.
+    // Built before anything happens so its own rules — an adverse action owes the user an
+    // explanation — refuse while the case is still untouched.
     ModerationDecision decision =
         ModerationDecision.record(
             ModerationDecisionId.of(UUID.randomUUID()),
@@ -82,9 +87,23 @@ public final class ModerationCaseService {
             policyVersion,
             publicExplanation,
             internalNote,
-            targetLookup.find(moderationCase.target()).map(ModeratableTarget::version).orElse(null),
+            judgedVersion,
             moderatorId,
             clock);
+
+    // The case must be in review before anything is applied, so a decision never takes effect
+    // without a moderator accountable for it. Checked here rather than after the effect, because
+    // the effect is the part that cannot be undone by throwing.
+    moderationCase.requireDecidable();
+
+    // Effect first, then record (founder decision, 2026-07-29). If recording fails after this, the
+    // content is correctly withheld and the owning module's own audit row — written atomically with
+    // its mutation — already carries the action and reason; the case stays IN_REVIEW and is
+    // retryable. Recording first would risk an audit trail asserting a review was removed while it
+    // is still publicly visible, and an appeal referencing a decision that never took effect.
+    if (judgedVersion != null) {
+      effectApplier.apply(moderationCase.target(), action, judgedVersion, moderatorId, reasonCode);
+    }
 
     moderationCase.markDecided(clock);
     decisionRepository.append(decision);

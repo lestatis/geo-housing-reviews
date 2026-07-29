@@ -152,6 +152,31 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   leading wildcard because PITest matches fully-qualified names. All five module scores re-measured
   and holding. `./scripts/check.sh` passes. Ready for independent review.
 
+- 2026-07-29: Chunk 3 fast-forward merged to `main` at `84b58ff`.
+- 2026-07-29: Chunk 4 implemented on `feat/009-moderation-chunk4-reviews-gateway`. Reviews publishes
+  `ReviewModerationGateway` — `find` plus an `apply` carrying `expectedVersion` — with
+  `ModeratableReview`, `ReviewModerationEffect` and `ReviewModerationConflictException`. The
+  contract deliberately carries **no review content**: moderation needs the author (to refuse a
+  self-report) and the version (to stamp a decision and detect staleness), while a moderator who
+  must read the review uses reviews' own audited admin endpoint rather than having the text copied
+  into a second module. The reviews-side adapter adds no moderation logic — every effect goes
+  through `ReviewModerationService`, so the stale-version check and the audit row committed with the
+  mutation apply exactly as they do for reviews' own endpoints. Moderation gained
+  `implementation(project(":modules:reviews"))` and two adapters; the `DecisionAction →
+  ReviewModerationEffect` mapping lives in the adapter because whether an action even has a content
+  effect is a property of the target's module, and four actions deliberately have none.
+  `ModerationCaseService.decide` now **applies the effect before recording** (founder decision): if
+  recording fails afterwards the content is correctly withheld and reviews' own audit already
+  carries the action and reason, whereas recording first could leave a trail asserting a review was
+  removed while it is still visible. `ModerationCase.requireDecidable()` was added so the
+  accountability check runs before the irreversible part. 22 new tests (9 reviews adapter, 8
+  moderation adapters, 5 app integration) plus 4 new case-service tests. The api-only boundary rule
+  was proven non-vacuous for the new dependency: importing a reviews *internal* type failed
+  `ModuleBoundaryArchitectureTest`, then reverted. Mutation: reviews 91% (threshold 85), moderation
+  88% (85). The full report → case → decision flow cannot run end to end yet — moderation has no
+  persistence adapters until chunk 5 — so the app test exercises the ports Spring resolves to these
+  adapters. Ready for independent review.
+
 ## Final outcome
 
 Not yet complete.

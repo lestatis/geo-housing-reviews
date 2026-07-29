@@ -151,12 +151,25 @@ public final class ModerationCase {
    * {@code IN_REVIEW} means no decision exists without a moderator accountable for it.
    */
   public void markDecided(Clock clock) {
+    requireDecidable();
+    this.status = ModerationCaseStatus.DECIDED;
+    touch(clock);
+  }
+
+  /**
+   * Checks that a decision may be recorded without recording one.
+   *
+   * <p>Exists because applying a decision's effect on the content happens before the case moves,
+   * and that effect cannot be undone by throwing afterwards. The caller asks first, acts, then
+   * marks — so an unassigned case never produces a change to someone's content.
+   *
+   * @throws IllegalModerationStateTransitionException if the case is not being worked
+   */
+  public void requireDecidable() {
     if (status != ModerationCaseStatus.IN_REVIEW) {
       throw new IllegalModerationStateTransitionException(
           "only an IN_REVIEW case can be decided, was " + status);
     }
-    this.status = ModerationCaseStatus.DECIDED;
-    touch(clock);
   }
 
   /** Records that the affected user has appealed the decision. */
