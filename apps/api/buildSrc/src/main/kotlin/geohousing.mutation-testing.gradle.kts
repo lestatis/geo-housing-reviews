@@ -62,9 +62,11 @@ val mutationTest = tasks.register<JavaExec>("mutationTest") {
                 "--reportDir", pitestReportDir.get().asFile.absolutePath,
                 "--targetClasses", mutationTesting.targetClasses.get().joinToString(","),
                 "--targetTests", "com.example.geohousing.${project.name}.*",
-                // The target glob matches test classes sharing the package, so PITest would
-                // otherwise mutate the tests themselves and report meaningless survivors.
-                "--excludedClasses", "*Test,*Test\$*,*IT,*IT\$*",
+                // The target glob matches anything sharing the package, so without this PITest
+                // mutates the tests and their in-memory doubles too. Mutating a fake measures
+                // nothing about the production code and quietly pads the denominator.
+                // Globs match the fully-qualified name, so the leading wildcard is required.
+                "--excludedClasses", "*Test,*Test\$*,*IT,*IT\$*,*.InMemory*,*.Fake*",
                 "--sourceDirs", mainSourceSet.java.srcDirs.joinToString(",") { it.absolutePath },
                 "--outputFormats", "XML,HTML",
                 "--mutationThreshold", mutationTesting.mutationThreshold.get().toString(),

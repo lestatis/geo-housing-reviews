@@ -2,17 +2,18 @@
 
 ## Objective
 
-Implement plan 010, chunk 2: a Cucumber acceptance harness so endpoint behaviour is written in
-language a non-developer can check, plus feature files for the MVP loops that have endpoints today.
+Implement plan 009, chunk 3: the moderation application layer — repository ports, report intake that
+converges onto one live case per target, case assignment and decision recording. First chunk written
+test-first under ADR-0009.
 
 ## Active branch
 
-`feat/010-cucumber-acceptance`, branched from clean `main` at `52e2b43`. Local only; not pushed.
-Awaiting a fresh independent review before merge.
+`feat/009-moderation-chunk3-application`, branched from clean `main` at `f2ea810`. Local only; not
+pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/010-bdd-and-mutation-testing.md`, chunk 2 of 3. ADR-0009.
+No issue. `docs/plans/009-moderation-module.md`, chunk 3 of 8.
 
 ## Current status
 
@@ -20,96 +21,105 @@ completed, awaiting independent review
 
 ## Completed work
 
-- Cucumber dependencies in `app/build.gradle.kts` via `cucumber-bom`.
-- `AcceptanceTest` — the `@Suite` runner over `classpath:features`.
-- `AcceptanceWorld` — `@CucumberContextConfiguration @SpringBootTest @AutoConfigureMockMvc`, one
-  Postgres container for the whole suite, and the same stub `JwtDecoder` the JUnit endpoint tests
-  use so scenarios run through the real security chain.
-- `ScenarioState` and `TestApi`, both scenario-scoped.
-- Six step-definition classes: actors, catalogue, reviews, trust, moderation, outcomes.
-- Four feature files, 16 scenarios: `find-property`, `submit-experience`, `verify-relationship`,
-  `moderate-and-administer`.
-- Gherkin rules added to `.claude/rules/testing.md`.
+- Ports: `ReportRepository`, `ModerationCaseRepository`, `ModerationDecisionRepository`
+  (append-only), and the outbound `ModerationTargetLookup` with its `ModeratableTarget` record.
+- Application exceptions: `ModerationTargetNotFoundException`, `SelfReportNotAllowedException`,
+  `DuplicateReportException`, `ModerationCaseNotFoundException`.
+- `ReportIntakeService` and `ModerationCaseService`.
+- Four in-memory fakes and 22 application tests.
+- Killed the `touch()` mutation survivors carried over from chunk 2; `moderation` threshold raised
+  75 → 85.
+- Two mutation-tooling fixes in `geohousing.mutation-testing` (see below).
 
 ## Remaining work
 
-Plan 010 chunk 3 is now just "plan 009 resumes test-first" — the rules landed in chunks 1 and 2, so
-there is no separate documentation chunk left. Next real work is plan 009 chunk 3 (moderation
-application layer), written test-first.
+Chunks 4–8 of plan 009. Chunk 4 (`reviews.api` inbound port + the adapter satisfying
+`ModerationTargetLookup`) is next and needs a new branch from `main`.
 
 ## Decisions made
 
-- **Step definitions grouped by domain, not by Given/When/Then.** The plan sketched the keyword
-  split; domain grouping scales better, because the step library grows per feature area and plan 009
-  will add reporting steps to it. Noted as a deliberate deviation.
-- **Outcome steps are phrased by meaning, not status code.** "the content is reported as not found"
-  carries the privacy rule a 404 exists to enforce; "returns 404" would hide it. This is the main
-  reason the feature files are worth reading.
-- **`ScenarioState` and `TestApi` are `@ScenarioScope`.** Cucumber shares one Spring context across
-  every scenario; a singleton would leak one scenario's actors and ids into the next, and the
-  symptom would look like a flaky test rather than shared state.
-- **One container for the whole suite.** The 14 JUnit endpoint classes each start their own;
-  consolidating as they migrate is the main speed argument for the on-touch migration.
-- **Loop 4 has no feature file yet.** "Report/dispute → resolve safely" has no endpoints — plan 009
-  is building them — so its scenarios arrive with plan 009 chunk 6 rather than as a file of skipped
-  scenarios that would report green while proving nothing.
-- **`moderate-and-administer` asserts against the verification queue**, because no review queue
-  endpoint exists yet. Reworded from "the moderation queue" so the scenario does not describe
-  something the system lacks.
+- **Test-first, genuinely.** Ports, exceptions and service stubs throwing
+  `UnsupportedOperationException` went in first so the tests compiled and failed on behaviour rather
+  than compilation; 22 tests were written and watched fail; then the services were implemented.
+- **`ModerationTargetLookup` is declared with no adapter.** Same pattern reviews used for
+  `PropertyLookup` in plan 005: the port states what this module needs, and chunk 4 satisfies it
+  through `reviews.api`. Keeping the dependency inverted is what stops moderation reaching into
+  another module's tables.
+- **`ModerationDecisionRepository` has no `save`.** Append-only in the port, not just by convention,
+  because an appeal must be able to show what was decided rather than what a decision later became.
+- **Intake builds the report before opening a case.** A report the domain refuses (an `OTHER` with
+  nothing written) would otherwise leave an orphan case for a moderator to puzzle over.
+- **`decide` builds the decision before moving the case.** An adverse action missing its explanation
+  refuses while the case is still `IN_REVIEW`; the alternative leaves a case marked decided with
+  nothing recorded to explain it.
+- **`APPROVE` dismisses the reports; anything else conclusive resolves them.** Recording an unupheld
+  concern as "resolved" would overstate what happened, and that difference is what a reporter is
+  owed. `ESCALATE` leaves reports open — it has decided nothing yet.
+- **A refused report leaves no trace.** Tests assert both the case and report stores stay empty,
+  because a partially-written refusal would turn the reporting endpoint into a way to probe for
+  content.
 
 ## Assumptions
 
-- Publishing inside a `Given` step arranges its own moderator ("PublishingModerator") rather than
-  requiring the feature file to introduce one. Scenarios about reading should not be cluttered with
-  moderation plumbing.
+- Any moderator may decide a case that is `IN_REVIEW`, not only its assignee — a supervisor override
+  is legitimate, and the decision records who made it either way. Worth revisiting if recusal rules
+  get stricter.
 
 ## Files changed
 
-- `apps/api/app/build.gradle.kts`
-- new `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/` (8 classes)
-- new `apps/api/app/src/test/resources/features/` (4 feature files)
-- `.claude/rules/testing.md`, `docs/plans/010-bdd-and-mutation-testing.md`,
-  `docs/handoffs/current-task.md`
+- 10 new files under
+  `apps/api/modules/moderation/src/main/java/com/example/geohousing/moderation/application/`
+- 6 new files under the matching test package (4 fakes, 2 test classes)
+- `apps/api/modules/moderation/src/test/.../domain/ModerationCaseTest.java` (2 new tests)
+- `apps/api/modules/moderation/build.gradle.kts` (threshold 75 → 85)
+- `apps/api/buildSrc/src/main/kotlin/geohousing.mutation-testing.gradle.kts` (exclusion glob)
+- `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.acceptance.AcceptanceTest'`
-- `cd apps/api && ./gradlew :app:spotlessApply`
+- `cd apps/api && ./gradlew :modules:moderation:test -PskipMutation` (red, then green)
+- `cd apps/api && ./gradlew :modules:<each>:mutationTest --rerun-tasks`
+- `cd apps/api && ./gradlew :modules:moderation:spotlessApply`
 - `./scripts/check.sh`
 
 ## Tests and verification
 
-All passed on 2026-07-28. 16 scenarios across four feature files, 0 failures, 0 skipped — verified by
-reading the JUnit XML per feature rather than trusting `BUILD SUCCESSFUL`, since a suite that
-discovers nothing also reports success.
+All passed on 2026-07-28. 22 new application tests (11 intake, 11 case service) plus 2 new domain
+tests. The red phase was real and observed: every one of the 22 failed on
+`UnsupportedOperationException` before the services existed.
 
-**Proven non-vacuous two ways**, because a scenario suite that cannot fail is documentation wearing a
-test's clothes:
+**Mutation results after this chunk**, all modules re-measured against their thresholds:
 
-1. Changing `REVIEW_NOT_FOUND` from 404 to 403 in `ReviewsExceptionHandler` failed exactly one
-   scenario — "an author sees their own unpublished review but a stranger is told it does not
-   exist". The scenarios therefore test real application behaviour, and this one guards a privacy
-   rule specifically.
-2. An intentionally undefined step failed its scenario rather than being skipped, confirming
-   Cucumber 7's strictness is in force.
+| Module | Score | Threshold |
+|---|---|---|
+| identity | 83% | 80 |
+| properties | 76% | 75 |
+| reviews | 89% | 85 |
+| verification | 89% | 85 |
+| moderation | **87%** (was 76%) | **85** (was 75) |
 
-Both experiments were reverted; `git status` confirms no production file was left modified.
+**Two tooling defects found and fixed while doing this**, both of which had been inflating scores:
+
+1. PITest was mutating the in-memory test doubles — they live in the `application` package, so the
+   existing `*Test` exclusion missed them. Mutating a fake measures nothing about production code
+   and pads the denominator.
+2. The first fix (`InMemory*`) silently did nothing, because PITest globs match fully-qualified
+   names. Corrected to `*.InMemory*`, verified by confirming the mutated-file list now contains only
+   production classes.
 
 ## Known failures
 
-None observed. The IDE reports unresolved `io.cucumber` imports; that is a stale IDE classpath after
-the module gained the dependency — Gradle compiles and runs the suite.
+None observed.
 
 ## Risks and unresolved questions
 
-- The 16 scenarios overlap the JUnit endpoint tests in places. That is expected during on-touch
-  migration and is not duplication to eliminate now: they sit at different altitudes until an area's
-  JUnit class is migrated.
-- `TestApi.grantAdministrator` writes the role via SQL because identity exposes no
-  bootstrap-an-admin endpoint. It verifies the grant took effect, but it is the one place a scenario
-  reaches past the API.
-- Scenario count will grow fastest in plan 009; if suite runtime becomes a problem the answer is
-  tagging (`@slow`) rather than deleting coverage.
+- `properties` remains 1 point above its threshold and is the most likely module to block a future
+  chunk.
+- Remaining `moderation` survivors are mostly `Appeal` accessors and `removed call to
+  checkInvariants` after a valid transition, which is an equivalent mutant — killing it would require
+  asserting a state the aggregate cannot reach. Chunk 8 (appeals) will cover the accessors naturally.
+- The mutation step now dominates `./scripts/check.sh` when cold; the run exceeded 10 minutes on this
+  branch. If it becomes a drag, narrow `targetClasses` rather than lowering thresholds.
 
 ## Human actions required
 
@@ -118,8 +128,7 @@ None.
 ## Recommended next action
 
 Independent review of this branch in a fresh session, then merge. When requested, start plan 009
-chunk 3 (moderation application layer) from `main`, written test-first, and kill the `touch()`
-mutation survivors in `ModerationCase` as part of it.
+chunk 4 (`reviews.api` inbound port and the moderation-side adapter) from `main`.
 
 ## Last updated
 

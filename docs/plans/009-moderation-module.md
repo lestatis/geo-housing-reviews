@@ -130,6 +130,28 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   cross-module dependency. `:modules:moderation:check`, the ArchUnit boundary rules and
   `./scripts/check.sh` pass. Ready for independent review.
 
+- 2026-07-28: Chunk 2 fast-forward merged to `main` at `b4956ba`.
+- 2026-07-28: Chunk 3 implemented on `feat/009-moderation-chunk3-application`, and the first chunk
+  written test-first under ADR-0009. Ports, exceptions and service stubs went in so the tests could
+  compile and fail on behaviour; 22 tests were written and watched fail on
+  `UnsupportedOperationException`; then the services were implemented to green. Added
+  `ReportRepository`, `ModerationCaseRepository`, `ModerationDecisionRepository` (append-only — no
+  `save`, because an appeal must show what was decided rather than what a decision later became),
+  and the outbound `ModerationTargetLookup` port with no adapter yet, exactly as reviews declared
+  `PropertyLookup` before the properties contract existed. `ReportIntakeService` converges every
+  report about one target onto one live case, refuses a self-report, a duplicate live report and a
+  report about content that does not exist — and builds the report before opening a case, so a
+  report the domain refuses leaves no orphan case behind. `ModerationCaseService` assigns and records
+  decisions, building the decision before moving the case so an adverse action missing its
+  explanation refuses while the case is still `IN_REVIEW`; a conclusive outcome resolves the reports
+  that fed it, while `APPROVE` dismisses them, because recording an unupheld concern as "resolved"
+  would overstate what happened. The `touch()` mutation survivors from chunk 2 were killed by
+  asserting that every transition stamps `updatedAt`. Mutation score for `moderation` rose 76% → 87%
+  and its threshold was raised 75 → 85. Two tooling fixes fell out of this: PITest was also mutating
+  the in-memory test doubles (they share the `application` package), and the exclusion glob needed a
+  leading wildcard because PITest matches fully-qualified names. All five module scores re-measured
+  and holding. `./scripts/check.sh` passes. Ready for independent review.
+
 ## Final outcome
 
 Not yet complete.

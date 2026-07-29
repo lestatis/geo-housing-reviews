@@ -140,6 +140,47 @@ class ModerationCaseTest {
   }
 
   @Test
+  void everyTransitionRecordsWhenItHappened() {
+    // Mutation testing found this gap: nothing asserted that a transition stamps updatedAt, so
+    // dropping the stamp entirely would have gone unnoticed — and a case whose updatedAt never
+    // moves is one no queue can sort by "least recently touched".
+    ModerationCase moderationCase = openCase();
+    assertThat(moderationCase.updatedAt()).isEqualTo(T0);
+
+    moderationCase.assignTo(moderator(), at(60));
+    assertThat(moderationCase.updatedAt()).isEqualTo(T0.plusSeconds(60));
+
+    moderationCase.reclassify(RiskLevel.HIGH, at(120));
+    assertThat(moderationCase.updatedAt()).isEqualTo(T0.plusSeconds(120));
+
+    moderationCase.markDecided(at(180));
+    assertThat(moderationCase.updatedAt()).isEqualTo(T0.plusSeconds(180));
+
+    moderationCase.markAppealed(at(240));
+    assertThat(moderationCase.updatedAt()).isEqualTo(T0.plusSeconds(240));
+
+    moderationCase.close(at(300));
+    assertThat(moderationCase.updatedAt()).isEqualTo(T0.plusSeconds(300));
+  }
+
+  @Test
+  void aCaseRemembersWhatItWasOpenedWith() {
+    ModerationCaseId id = ModerationCaseId.of(UUID.randomUUID());
+    ModerationTargetRef target = ModerationTargetRef.review(UUID.randomUUID());
+
+    ModerationCase moderationCase =
+        ModerationCase.open(id, target, CaseTrigger.AUTOMATED, RiskLevel.HIGH, CLOCK);
+
+    assertThat(moderationCase.id()).isEqualTo(id);
+    assertThat(moderationCase.target()).isEqualTo(target);
+    assertThat(moderationCase.trigger()).isEqualTo(CaseTrigger.AUTOMATED);
+    assertThat(moderationCase.riskLevel()).isEqualTo(RiskLevel.HIGH);
+    assertThat(moderationCase.openedAt()).isEqualTo(T0);
+    assertThat(moderationCase.createdAt()).isEqualTo(T0);
+    assertThat(moderationCase.version()).isZero();
+  }
+
+  @Test
   void persistedStateThatContradictsTheInvariantsIsRefused() {
     // A reconstitute that accepted anything would let a corrupt row become a live aggregate.
     assertThatThrownBy(
@@ -196,5 +237,10 @@ class ModerationCaseTest {
 
   private static ModeratorId moderator() {
     return ModeratorId.of(UUID.randomUUID());
+  }
+
+  /** A clock reading the given number of seconds after the scenario's start. */
+  private static Clock at(int secondsAfterStart) {
+    return Clock.fixed(T0.plusSeconds(secondsAfterStart), ZoneOffset.UTC);
   }
 }
