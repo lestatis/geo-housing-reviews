@@ -80,6 +80,12 @@ score rather than an error.
   and `maxParallelForks` in `geohousing.java-conventions` do that, and the on-touch migration of
   endpoint tests into the shared Cucumber harness (above) removes containers permanently as it
   proceeds.
+
+  Verified with `./gradlew check --rerun-tasks --no-build-cache` (nothing cached, nothing skipped)
+  on 2026-07-29: **1m 45s**, all 35 app suites and 205 tests, plus all five mutation runs. The same
+  work took **13m 59s** before. Measure this way or not at all — a plain `--rerun-tasks` still reads
+  the build cache, and a gate whose `:app:test` is `UP-TO-DATE` finishes in seconds while proving
+  nothing about cost.
 - Two ways of expressing endpoint behaviour coexist until on-touch migration completes. This is
   deliberate and time-bounded per area, not permanent.
 - Mutation scores can be gamed by assertions that kill mutants without checking meaning. The gate

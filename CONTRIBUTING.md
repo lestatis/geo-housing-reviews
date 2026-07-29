@@ -87,12 +87,33 @@ Most of the cost is container startup: nearly every `:app` integration test clas
 PostgreSQL container. Two failure modes are worth recognising:
 
 - **Orphaned containers.** A build killed mid-run leaves containers behind, because Testcontainers'
-  reaper dies with the JVM. They accumulate and starve the machine. Check and clear with:
+  reaper dies with the JVM. They accumulate and starve the machine. Check with:
 
   ```bash
   docker ps -q --filter label=org.testcontainers=true | wc -l
   docker rm -f $(docker ps -aq --filter label=org.testcontainers=true)
   ```
+
+  If removal fails with `could not kill container: permission denied` — including under `sudo` —
+  the shim state is wedged and no amount of privilege will signal them. The full recovery is three
+  steps, and stopping after the second leaves the machine unable to run any integration test:
+
+  ```bash
+  sudo systemctl restart docker          # 1. clears the wedged containers
+  pgrep -c docker-proxy                  # 2. these survive the restart
+  sudo pkill -f docker-proxy && sudo systemctl restart docker   # 3. release their ports
+  ```
+
+  Step 3 is the one that is easy to miss. Each leaked container leaves a root-owned `docker-proxy`
+  holding an ephemeral port; the daemon restart removes the containers but not these processes.
+  Until they are killed, every new container fails with
+  `failed to bind host port 0.0.0.0:<port>/tcp: address already in use`, which surfaces as
+  `initializationError` on most `:app` test classes rather than as anything resembling a Docker
+  problem.
+
+  Observed on 2026-07-29 with Docker 29.6.1, cgroup v2 and the systemd cgroup driver: 113 orphaned
+  containers left 264 orphaned proxies holding 269 ports. Prevention is cheaper than recovery — let
+  the gate finish rather than killing it mid-run.
 
 - **`NoSuchFileException: .../test-results/test/binary/in-progress-results-generic.bin`.** Not a test
   failure — an interrupted run left Gradle's test bookkeeping inconsistent. Remove
