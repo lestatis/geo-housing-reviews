@@ -34,6 +34,16 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+
+    // Most integration test classes start their own PostgreSQL container, so the suite spends its
+    // time waiting on container startup rather than on CPU. Running a few test JVMs side by side
+    // overlaps that waiting. Isolation is unchanged: each class already owns its own container, so
+    // forking changes only how many wait at once.
+    //
+    // Deliberately a small fraction of the available processors, not all of them: every fork can
+    // hold a database container, and starving the machine of memory makes the suite slower, not
+    // faster.
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 5).coerceIn(1, 4)
 }
 
 tasks.named("check") {

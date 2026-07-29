@@ -73,6 +73,13 @@ score rather than an error.
 
 - `./scripts/check.sh` grows by ~55s when the mutation step runs cold (five modules). `-PskipMutation`
   exists for fast local iteration; CI and pre-review runs must not use it.
+- The mutation step is *not* what makes the gate slow. Measured on 2026-07-29, the cost is dominated
+  by `:app:test`, where 31 of 32 test classes start their own PostgreSQL container. Gradle already
+  skips unchanged work correctly — a no-op gate finishes in about a second — so running the gate
+  less often saves nothing; the fix is to make container startup overlap. `apps/api/gradle.properties`
+  and `maxParallelForks` in `geohousing.java-conventions` do that, and the on-touch migration of
+  endpoint tests into the shared Cucumber harness (above) removes containers permanently as it
+  proceeds.
 - Two ways of expressing endpoint behaviour coexist until on-touch migration completes. This is
   deliberate and time-bounded per area, not permanent.
 - Mutation scores can be gamed by assertions that kill mutants without checking meaning. The gate

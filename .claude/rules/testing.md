@@ -8,6 +8,14 @@
   (`mutationTesting { }`, ADR-0009). Raise the threshold when a chunk leaves the score above it;
   never lower it to make a build pass — a threshold that only moves down measures nothing.
 - `-PskipMutation` is for local iteration only. Never use it for a pre-review or CI run.
+- Iterate with a scoped check (`:modules:<module>:test -PskipMutation`, or a single `--tests` class);
+  run the full `./scripts/check.sh` once per chunk, before requesting review. Do not defer the gate
+  to the end of a module — every chunk merges, so an unverified chunk becomes the next one's
+  baseline and a later failure has no bisect point.
+- A killed build leaves Testcontainers instances running, because the reaper dies with the JVM.
+  Clear them before trusting any timing (see CONTRIBUTING.md "Required checks").
+- Read `./scripts/check.sh`'s own exit code. A background-task summary may report its wrapper's
+  status, which is not the same thing.
 - New endpoint behaviour is expressed as a Gherkin scenario in `app/src/test/resources/features/`
   (ADR-0009). Write the scenario first — it is the failing test. Existing JUnit endpoint classes
   migrate when a chunk next touches that area; do not migrate them as a separate campaign.

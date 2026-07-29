@@ -85,7 +85,10 @@ A change is done only when:
 - the PR description explains what changed, why, tests, risks, and follow-ups;
 - unresolved uncertainty is stated explicitly, not hidden.
 
-Run `./scripts/check.sh` before requesting review. Once code exists, use the repository-provided build commands documented in each app directory.
+Run `./scripts/check.sh` before requesting review — once per chunk, not once per module. Iterate with
+a scoped check (`./gradlew :modules:<module>:test -PskipMutation`) and see `CONTRIBUTING.md`
+"Required checks" for what the gate covers and how to recover when it behaves oddly. Once code
+exists, use the repository-provided build commands documented in each app directory.
 
 ## 7. Review expectations
 
