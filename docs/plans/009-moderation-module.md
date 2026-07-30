@@ -75,7 +75,11 @@ to report anything.
 6. **Reporter endpoints**: `POST /api/reports` and a reporter reading only their own report status.
 7. **Admin queue endpoints**: list/assign/decide, RFC 7807 advice scoped to the moderation web
    package, audit for every action.
-8. **Appeals**: author submission and admin appeal decision with the different-decider rule.
+8. **Appeals**, split once the work was understood:
+   - **8a — reinstatement capability**: `V4.5` widens the audited action vocabulary, and reviews
+     gains an appeal-only way back from a terminal decision.
+   - **8b — appeals proper**: appeal persistence, author submission, admin appeal decision with the
+     different-decider rule, and overturn wired to reinstatement.
 
 ## Verification
 
@@ -242,6 +246,24 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
 
   Loop 5's feature file grew from 4 to 10 scenarios; the suite is now 30. Mutation: moderation 86%
   (threshold 85). `./scripts/check.sh` passes in 4m05s. Ready for independent review.
+
+- 2026-07-29: Chunk 7 fast-forward merged to `main` at `0c3a740`.
+- 2026-07-30: Chunk 8 split into 8a and 8b. Designing the appeal endpoints surfaced a blocker worth
+  a founder decision: `REJECTED` and `REMOVED` are terminal and `restore` only works from `HIDDEN`,
+  so an overturned appeal could record an outcome but never give the content back. An appeals
+  process that cannot return the content is a hollow remedy — a takedown demand that succeeds and
+  then loses on appeal would still get exactly what it wanted. Recorded as `P-014`: reinstatement
+  through an appeal-only audited path.
+- 2026-07-30: Chunk 8a implemented on `feat/009-moderation-chunk8a-reinstate`, test-first. `V4.5`
+  widens the `review_moderation_audit_event` action CHECK to include `REINSTATE`, verified
+  statement-by-statement on scratch Postgres before any test — including that an unknown action is
+  still rejected, so widening the vocabulary did not turn the column into free text.
+  `Review.reinstate` refuses anything not terminal, so it can never stand in for an ordinary publish;
+  `ReviewModerationService.reinstate` audits it like any other action; the published
+  `ReviewModerationEffect` gains `REINSTATE`. `Review`'s own javadoc and `DOMAIN_MODEL.md` now say
+  terminal means terminal except by appeal, since leaving them claiming otherwise would be the
+  documentation lying about an invariant. 6 new domain tests, 2 gateway tests, 1 migration test.
+  Mutation: reviews 90% (threshold 85). `./scripts/check.sh` passes. Ready for independent review.
 
 ## Final outcome
 

@@ -253,6 +253,66 @@ class ReviewTest {
         .isInstanceOf(IllegalArgumentException.class);
   }
 
+  @Test
+  void anAppealCanBringBackARemovedReview() {
+    Review review = publishedReview();
+    review.remove(LATER);
+    assertThat(review.isTerminal()).isTrue();
+
+    review.reinstate(EVEN_LATER);
+
+    // Terminal means terminal for every ordinary path; an appeal is the one case where the decision
+    // itself may have been wrong, and a takedown that survives a successful appeal is a takedown
+    // that worked anyway.
+    assertThat(review.status()).isEqualTo(ReviewStatus.PUBLISHED);
+    assertThat(review.isTerminal()).isFalse();
+  }
+
+  @Test
+  void anAppealCanBringBackARejectedReview() {
+    Review review = pendingReview();
+    review.reject(LATER);
+
+    review.reinstate(EVEN_LATER);
+
+    assertThat(review.status()).isEqualTo(ReviewStatus.PUBLISHED);
+  }
+
+  @Test
+  void reinstatingIsOnlyForContentThatWasTakenDown() {
+    // The door is narrow on purpose: it exists to undo a terminal decision, not as a general
+    // publish. Anything still live has an ordinary transition for whatever needs to happen to it.
+    Review published = publishedReview();
+    assertThatThrownBy(() -> published.reinstate(LATER))
+        .isInstanceOf(IllegalReviewStateTransitionException.class);
+
+    Review pending = pendingReview();
+    assertThatThrownBy(() -> pending.reinstate(LATER))
+        .isInstanceOf(IllegalReviewStateTransitionException.class);
+  }
+
+  @Test
+  void reinstatementStampsWhenItHappened() {
+    Review review = publishedReview();
+    review.remove(LATER);
+
+    review.reinstate(EVEN_LATER);
+
+    assertThat(review.updatedAt()).isEqualTo(EVEN_LATER.instant());
+  }
+
+  private static Review pendingReview() {
+    Review review = draftWithContent();
+    review.submit(LATER);
+    return review;
+  }
+
+  private static Review publishedReview() {
+    Review review = pendingReview();
+    review.publish(LATER);
+    return review;
+  }
+
   private static ReviewVersion contentVersion(int number) {
     return new ReviewVersion(
         UUID.randomUUID(),

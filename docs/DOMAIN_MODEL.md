@@ -50,6 +50,14 @@ Stable aggregate identity and current lifecycle state.
 - `moderation_version`;
 - `ranking_version`.
 
+Removal and rejection are terminal for every ordinary path. The single exception is reinstatement
+after an appeal overturns the decision that took the review down (`P-014`), which is audited like any
+other moderation action.
+
+Rejection and removal are terminal for every ordinary path. The single exception is reinstatement
+after an appeal overturns the decision that took the review down (`P-014`), audited like any other
+moderation action and reachable only through the moderation module's appeal path.
+
 ### ReviewVersion
 
 Immutable content version:

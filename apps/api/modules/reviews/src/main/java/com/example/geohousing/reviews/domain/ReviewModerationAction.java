@@ -10,5 +10,7 @@ public enum ReviewModerationAction {
   REJECT,
   HIDE,
   RESTORE,
-  REMOVE
+  REMOVE,
+  /** Undoes a terminal decision after an appeal overturned it (V4.5). */
+  REINSTATE
 }

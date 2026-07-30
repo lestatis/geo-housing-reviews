@@ -7,6 +7,7 @@ import com.example.geohousing.reviews.api.ModeratableReview;
 import com.example.geohousing.reviews.api.ReviewModerationConflictException;
 import com.example.geohousing.reviews.api.ReviewModerationEffect;
 import com.example.geohousing.reviews.domain.AuthorId;
+import com.example.geohousing.reviews.domain.IllegalReviewStateTransitionException;
 import com.example.geohousing.reviews.domain.PropertyRef;
 import com.example.geohousing.reviews.domain.Recommendation;
 import com.example.geohousing.reviews.domain.RelationshipType;
@@ -97,6 +98,29 @@ class ReviewModerationGatewayAdapterTest {
     apply(toRestore, ReviewModerationEffect.HIDE, "PRIVACY_RISK");
     assertThat(apply(toRestore, ReviewModerationEffect.RESTORE, "RESOLVED")).isTrue();
     assertThat(statusOf(toRestore)).isEqualTo(ReviewStatus.PUBLISHED);
+  }
+
+  @Test
+  void anOverturnedTakedownBringsTheReviewBack() {
+    Review review = published();
+    apply(review, ReviewModerationEffect.REMOVE, "DOXXING");
+    assertThat(statusOf(review)).isEqualTo(ReviewStatus.REMOVED);
+
+    boolean applied = apply(review, ReviewModerationEffect.REINSTATE, "APPEAL_UPHELD");
+
+    // Without this, a takedown demand that succeeds and then loses on appeal still gets what it
+    // wanted. The audit carries the reinstatement like any other action.
+    assertThat(applied).isTrue();
+    assertThat(statusOf(review)).isEqualTo(ReviewStatus.PUBLISHED);
+    assertThat(moderationRepository.applied).isEqualTo(2);
+  }
+
+  @Test
+  void reinstatementCannotStandInForAnOrdinaryPublish() {
+    Review awaitingModeration = pending();
+
+    assertThatThrownBy(() -> apply(awaitingModeration, ReviewModerationEffect.REINSTATE, "X"))
+        .isInstanceOf(IllegalReviewStateTransitionException.class);
   }
 
   @Test

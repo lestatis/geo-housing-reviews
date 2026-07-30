@@ -24,7 +24,9 @@ import java.util.UUID;
  * <p>The publication state machine is {@code DRAFT → PENDING_MODERATION → PUBLISHED}, with {@code
  * PUBLISHED ⇄ HIDDEN} for temporary withdrawal and two terminal states — {@code REJECTED} (from
  * moderation) and {@code REMOVED}. A terminal review rejects all further mutation; the author
- * starts a fresh review instead (the one-live-review index excludes terminal states).
+ * starts a fresh review instead (the one-live-review index excludes terminal states). The single
+ * exception is {@link #reinstate}, which an overturned appeal uses to undo a takedown (DECISION_LOG
+ * {@code P-014}) — terminal therefore means terminal except by appeal.
  *
  * <p>Editing a published review sends it back to {@code PENDING_MODERATION}: pre-publication
  * moderation is the MVP default (docs/MODERATION.md), so changed content is re-checked before it is
@@ -244,6 +246,33 @@ public final class Review {
   public void updateVerificationTier(VerificationTier tier, Clock clock) {
     ensureMutable();
     this.verificationTier = Objects.requireNonNull(tier, "tier");
+    touch(clock);
+  }
+
+  /**
+   * Brings a rejected or removed review back into public view after an appeal overturned the
+   * decision that took it down.
+   *
+   * <p>This is the one way out of a terminal state, and it exists because the alternative is worse.
+   * MODERATION.md requires an appeal to be able to change an outcome; without a way back, a
+   * takedown demand that succeeds and then loses on appeal still gets exactly what it wanted, which
+   * is the capture the anti-capture rules exist to prevent.
+   *
+   * <p>Narrow on purpose: it refuses anything that is not terminal, so it can never stand in for an
+   * ordinary publish or restore. The caller reaching it is the moderation module's appeal path, and
+   * the transition is audited like every other moderation action.
+   *
+   * @throws IllegalReviewStateTransitionException if the review was not taken down
+   */
+  public void reinstate(Clock clock) {
+    if (!isTerminal()) {
+      throw new IllegalReviewStateTransitionException(
+          "only a review that was taken down can be reinstated, was " + status);
+    }
+    status = ReviewStatus.PUBLISHED;
+    if (publishedAt == null) {
+      publishedAt = clock.instant();
+    }
     touch(clock);
   }
 

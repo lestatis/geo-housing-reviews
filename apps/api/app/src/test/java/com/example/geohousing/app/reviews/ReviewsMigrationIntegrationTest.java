@@ -240,6 +240,30 @@ class ReviewsMigrationIntegrationTest {
         notApplicable);
   }
 
+  @Test
+  void theAuditTrailAcceptsAReinstatementButStillRefusesAnUnknownAction() {
+    Integer applied =
+        jdbcTemplate.queryForObject(
+            "select count(*) from flyway_schema_history where version = '4.5' and success = true",
+            Integer.class);
+    assertThat(applied).isEqualTo(1);
+
+    // Reinstatement is the one way back from a terminal decision, so it has to be auditable.
+    assertThatCode(() -> insertAuditEvent("REINSTATE")).doesNotThrowAnyException();
+    // Widening the vocabulary must not have turned the column into a free-text field.
+    assertThatThrownBy(() -> insertAuditEvent("UNDELETE"))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  private void insertAuditEvent(String action) {
+    jdbcTemplate.update(
+        "insert into reviews.review_moderation_audit_event"
+            + " (id, moderator_account_id, action, review_id, reason_code, outcome)"
+            + " values (gen_random_uuid(), gen_random_uuid(), ?, gen_random_uuid(),"
+            + "  'APPEAL_UPHELD', 'APPLIED')",
+        action);
+  }
+
   private void insertHelpfulSignal(UUID reviewId, UUID voterAccountId) {
     jdbcTemplate.update(
         "insert into reviews.review_helpful_signal (review_id, voter_account_id) values (?, ?)",

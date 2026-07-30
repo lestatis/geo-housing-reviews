@@ -61,6 +61,8 @@ public final class ReviewModerationGatewayAdapter implements ReviewModerationGat
             case HIDE -> moderationService.hide(moderator, id, expectedVersion, reasonCode);
             case RESTORE -> moderationService.restore(moderator, id, expectedVersion, reasonCode);
             case REMOVE -> moderationService.remove(moderator, id, expectedVersion, reasonCode);
+            case REINSTATE ->
+                moderationService.reinstate(moderator, id, expectedVersion, reasonCode);
           };
       return affected.isPresent();
     } catch (ReviewVersionConflictException conflict) {

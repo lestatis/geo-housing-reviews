@@ -13,5 +13,10 @@ public enum ReviewModerationEffect {
   REJECT,
   HIDE,
   RESTORE,
-  REMOVE
+  REMOVE,
+  /**
+   * Undoes a terminal decision after an appeal overturned it. The only way back from REJECT or
+   * REMOVE, and reachable only through the appeal path.
+   */
+  REINSTATE
 }

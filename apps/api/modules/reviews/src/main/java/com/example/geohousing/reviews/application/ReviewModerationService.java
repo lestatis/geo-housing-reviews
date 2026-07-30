@@ -102,6 +102,21 @@ public final class ReviewModerationService {
         Review::remove);
   }
 
+  /**
+   * Brings back a review an appeal found should never have been taken down. Audited like any other
+   * action, with the moderator who decided the appeal and its reason code.
+   */
+  public Optional<Review> reinstate(
+      ModeratorId moderatorId, ReviewId reviewId, long expectedVersion, String reasonCode) {
+    return apply(
+        moderatorId,
+        ReviewModerationAction.REINSTATE,
+        reviewId,
+        expectedVersion,
+        reasonCode,
+        Review::reinstate);
+  }
+
   private Optional<Review> apply(
       ModeratorId moderatorId,
       ReviewModerationAction action,

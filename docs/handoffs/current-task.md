@@ -2,17 +2,17 @@
 
 ## Objective
 
-Implement plan 009, chunk 7: the moderator queue over HTTP — list, read, assign, decide — which is
-what makes MVP loop 5 ("operate without database access") real.
+Implement plan 009, chunk 8a: give reviews an appeal-only way back from a terminal decision, so that
+chunk 8b's appeals can actually deliver a remedy.
 
 ## Active branch
 
-`feat/009-moderation-chunk7-admin-queue`, branched from clean `main` at `d9184dd`. Local only; not
+`feat/009-moderation-chunk8a-reinstate`, branched from clean `main` at `0c3a740`. Local only; not
 pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 7 of 8.
+No issue. `docs/plans/009-moderation-module.md`, chunk 8a of 8 (chunk 8 was split — see below).
 
 ## Current status
 
@@ -20,75 +20,68 @@ completed, awaiting independent review
 
 ## Completed work
 
-- Six new scenarios in `moderate-and-administer.feature`, written first and watched fail.
-- `ModerationQueueService`, `ModerationCaseSummary`, `ModerationCaseDetail`;
-  `ModerationCaseRepository.findQueue()` and its JPA/in-memory implementations.
-- `ModerationCaseService.claim`.
-- `AdminModerationController` plus six response/request records.
-- `ModerationQueueServiceTest` (9 tests) and admin step definitions.
+- `V4.5__allow_reinstate_moderation_action.sql` widening the audited action CHECK.
+- `Review.reinstate`, `ReviewModerationAction.REINSTATE`, `ReviewModerationService.reinstate`.
+- `ReviewModerationEffect.REINSTATE` on the published contract, handled by the gateway adapter.
+- `DECISION_LOG` `P-014`; `DOMAIN_MODEL.md` and `Review`'s javadoc corrected.
+- 6 domain tests, 2 gateway tests, 1 migration test.
 
 ## Remaining work
 
-Chunk 8 — appeals — is the last chunk of plan 009.
+Chunk 8b: appeal persistence, `POST /api/appeals`, the appellant's own view, the admin appeal queue
+and decision, with overturn wired to `REINSTATE`. That is the last chunk of plan 009.
 
 ## Decisions made
 
-- **The queue carries a concern count, not reporters.** One account can raise at most one live
-  report per target, so the count already answers the question a moderator has (one complaint or
-  twenty?) without naming anyone. Identities would add nothing to that judgement and would invite
-  deciding by who complained rather than by what the content says — the failure mode MODERATION.md's
-  anti-capture rules exist to prevent.
-- **The case detail carries each concern's category, description and timestamp.** That is the
-  substance a moderator judges against; the reporter is not part of it.
-- **`decide` claims the case in the same call when nobody holds it.** The accountability rule is
-  that a decision names a moderator, not that they clicked twice to get there. This also settles the
-  note left in the chunk-3 handoff.
-- **`claim` does not displace an existing assignee.** The case record keeps saying who owns it while
-  the decision records who actually made it — a supervisor deciding does not quietly steal the case.
-- **`assign` reads the case back rather than composing a response from the write**, so the concern
-  count in the response is one nobody had to invent.
-- **`ModerationDecisionResponse` carries the internal note** and is therefore admin-only by
-  construction. Its javadoc says so, because reusing it in a reporter- or author-facing view is the
-  obvious future mistake.
+- **Chunk 8 was split.** Reinstatement is a reviews-module capability with its own migration and its
+  own invariant change; appeals are a moderation feature. Shipping them as one branch would have put
+  a domain-invariant change and a feature behind a single review.
+- **`P-014`: terminal means terminal except by appeal.** An appeals process that cannot return the
+  content is a hollow remedy, and a takedown that survives a successful appeal is a takedown that
+  worked. Founder decision, 2026-07-30.
+- **The door is deliberately narrow.** `reinstate` refuses anything not terminal, so it cannot stand
+  in for an ordinary publish or restore; the only caller will be the appeal path, and every use is
+  audited with its moderator and reason code.
+- **The docs were corrected, not just extended.** `Review`'s javadoc said "a terminal review rejects
+  all further mutation" and `DOMAIN_MODEL.md` implied the same. Leaving them would be documentation
+  lying about an invariant.
 
 ## Assumptions
 
-- The queue is every non-closed case, oldest first. Ordering by when the case opened is ordering by
-  how long its first reporter has waited, which seemed the only fair queue; filtering and paging can
-  come when an operator asks for them.
+- Reinstating sets `publishedAt` only when it was never set, so a review rejected before its first
+  publication gets a publication time while a removed-then-restored one keeps its original.
 
 ## Files changed
 
-- `app/src/test/resources/features/moderate-and-administer.feature` (4 → 10 scenarios)
-- `app/src/test/.../acceptance/ModerationSteps.java`, `ScenarioState.java`
-- 3 new files in `modules/moderation/.../application/`; `ModerationCaseRepository`,
-  `ModerationCaseService`, `ModerationBeanConfiguration`
-- 7 new files in `modules/moderation/.../infrastructure/web/`
-- `JpaModerationCaseRepository`, `SpringDataModerationCaseRepository`, and the in-memory case fake
-- new `modules/moderation/src/test/.../application/ModerationQueueServiceTest.java`
-- `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
+- new `modules/reviews/src/main/resources/db/migration/reviews/V4.5__allow_reinstate_moderation_action.sql`
+- `Review`, `ReviewModerationAction`, `ReviewModerationService`, `ReviewModerationEffect`,
+  `ReviewModerationGatewayAdapter`
+- `modules/reviews/src/test/.../domain/ReviewTest.java`,
+  `.../application/ReviewModerationGatewayAdapterTest.java`
+- `app/src/test/.../reviews/ReviewsMigrationIntegrationTest.java`
+- `docs/DECISION_LOG.md`, `docs/DOMAIN_MODEL.md`, `docs/plans/009-moderation-module.md`,
+  `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :app:test --tests '*AcceptanceTest'` (red first, then green)
-- `cd apps/api && ./gradlew :modules:moderation:test -PskipMutation`
-- `cd apps/api && ./gradlew :modules:moderation:mutationTest --rerun-tasks`
-- `./scripts/check.sh` → `EXIT=0`, 4m 05s
+- scratch Postgres: V4.1-V4.3 + V4.5 applied, `REINSTATE` accepted and `UNDELETE` rejected
+- `cd apps/api && ./gradlew :modules:reviews:test -PskipMutation` (red on the new tests, then green)
+- `cd apps/api && ./gradlew :app:test --tests \'*ReviewsMigrationIntegrationTest\'`
+- `cd apps/api && ./gradlew :modules:reviews:mutationTest --rerun-tasks`
+- `./scripts/check.sh` -> `EXIT=0`, 4m 12s
 
 ## Tests and verification
 
-All passed on 2026-07-29. The acceptance suite is **30 scenarios**, 0 failures, 0 skipped. Mutation:
-moderation 86% (threshold 85) — up from sitting exactly on the line, because the new application
-code arrived with its own tests.
+All passed on 2026-07-30. Mutation: reviews 90% (threshold 85).
 
-Loop 5 now proves itself end to end over HTTP: a reported review appears in the queue, a moderator
-opens the case and sees two concerns without any reporter identity, decides `REMOVE`, and the review
-disappears from the public listing. Dismissing a concern instead leaves it standing.
+The migration was verified on scratch Postgres before any test was written, and the probe checks
+both directions: `REINSTATE` is accepted, and an unknown action is still rejected by the constraint,
+so widening the vocabulary did not turn the column into a free-text field. A first attempt at that
+probe omitted the `id` column and failed on a null violation rather than the CHECK — it proved
+nothing and was redone.
 
-One defect was found and fixed during the work: the step that locates a case used a JsonPath filter
-with an index inside the expression (`...[?(...)].caseId[0]`), which yields a `JSONArray` rather than
-a value. Read as a list and asserted to hold exactly one match — the same mistake I made earlier in
-this session, now caught by its own assertion instead of a cast error.
+The domain tests were written before `reinstate` existed and failed to compile, which is the red
+phase for a new method.
 
 ## Known failures
 
@@ -96,13 +89,14 @@ None observed.
 
 ## Risks and unresolved questions
 
-- The queue has no paging or filtering. Fine at launch volume, and the ordering is deliberate, but
-  it is the first thing a real operator will ask for.
-- Nothing bounds how long a case may sit unassigned. `firstResponseAt` records the wait but nothing
-  reports on it; an SLA view belongs with the analytics module.
-- Assignment is not exclusive: two moderators can hold and decide the same case in sequence, and the
-  second decision simply appends. That is deliberate for a two-person launch team, but it will not
-  survive a larger roster without an explicit "already decided" guard at the endpoint.
+- Nothing yet calls `reinstate`. It is dead code until chunk 8b, which is the argument for reviewing
+  the two chunks close together even though they merge separately.
+- `reinstate` returns content to `PUBLISHED` without re-moderating it. That is the point — the appeal
+  already decided the takedown was wrong — but it does mean an overturn bypasses the pre-moderation
+  default in `P-005`.
+- The one-live-review index excludes terminal states, so reinstating a removed review could in
+  principle collide with a fresh review the author started in the meantime. Chunk 8b should decide
+  what happens then; the database would refuse the reinstatement.
 
 ## Human actions required
 
@@ -111,9 +105,8 @@ None.
 ## Recommended next action
 
 Independent review of this branch in a fresh session, then merge. When requested, start plan 009
-chunk 8 (appeals: author submission and admin appeal decision, with the different-decider rule
-already enforced by the schema and the domain) from `main`.
+chunk 8b (appeals) from `main`.
 
 ## Last updated
 
-2026-07-29
+2026-07-30
