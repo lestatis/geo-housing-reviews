@@ -16,6 +16,12 @@ final class InMemoryModerationDecisionRepository implements ModerationDecisionRe
   }
 
   @Override
+  public java.util.Optional<ModerationDecision> findById(
+      com.example.geohousing.moderation.domain.ModerationDecisionId decisionId) {
+    return appended.stream().filter(d -> d.id().equals(decisionId)).findFirst();
+  }
+
+  @Override
   public List<ModerationDecision> findByCase(ModerationCaseId caseId) {
     return appended.stream().filter(decision -> decision.caseId().equals(caseId)).toList();
   }

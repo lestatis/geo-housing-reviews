@@ -1,11 +1,16 @@
 package com.example.geohousing.moderation.infrastructure.web;
 
+import com.example.geohousing.moderation.application.AppealAlreadyFiledException;
+import com.example.geohousing.moderation.application.AppealNotFoundException;
 import com.example.geohousing.moderation.application.DuplicateReportException;
 import com.example.geohousing.moderation.application.ModerationCaseNotFoundException;
 import com.example.geohousing.moderation.application.ModerationEffectConflictException;
 import com.example.geohousing.moderation.application.ModerationTargetNotFoundException;
+import com.example.geohousing.moderation.application.NotTheAffectedAuthorException;
+import com.example.geohousing.moderation.application.NothingToAppealException;
 import com.example.geohousing.moderation.application.ReportNotFoundException;
 import com.example.geohousing.moderation.application.SelfReportNotAllowedException;
+import com.example.geohousing.moderation.domain.AppealDeciderConflictException;
 import com.example.geohousing.moderation.domain.IllegalModerationStateTransitionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -94,6 +99,56 @@ class ModerationExceptionHandler {
         "Not allowed in this state",
         "MODERATION_STATE_CONFLICT",
         exception.getMessage());
+  }
+
+  /**
+   * Forbidden, not hidden: the caller can see their content was acted on, so refusing plainly
+   * discloses nothing they could not already tell.
+   */
+  @ExceptionHandler(NotTheAffectedAuthorException.class)
+  ProblemDetail handleNotTheAuthor(NotTheAffectedAuthorException exception) {
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "Not your decision to appeal",
+        "NOT_THE_AFFECTED_AUTHOR",
+        "Only the author a decision was made against may appeal it.");
+  }
+
+  /** Due process, not a malformed request — hence 403 rather than 400. */
+  @ExceptionHandler(AppealDeciderConflictException.class)
+  ProblemDetail handleAppealDeciderConflict(AppealDeciderConflictException exception) {
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "Cannot hear this appeal",
+        "APPEAL_DECIDER_CONFLICT",
+        "An appeal must be decided by someone other than the moderator who decided the case.");
+  }
+
+  @ExceptionHandler(AppealAlreadyFiledException.class)
+  ProblemDetail handleAppealAlreadyFiled(AppealAlreadyFiledException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Already appealed",
+        "APPEAL_ALREADY_FILED",
+        "This decision has already been appealed.");
+  }
+
+  @ExceptionHandler(NothingToAppealException.class)
+  ProblemDetail handleNothingToAppeal(NothingToAppealException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Nothing to appeal",
+        "NOTHING_TO_APPEAL",
+        "No decision that took anything away was made about this content.");
+  }
+
+  @ExceptionHandler(AppealNotFoundException.class)
+  ProblemDetail handleAppealNotFound(AppealNotFoundException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Appeal not found",
+        "APPEAL_NOT_FOUND",
+        "No appeal was found for this identifier.");
   }
 
   @ExceptionHandler(IllegalArgumentException.class)

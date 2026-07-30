@@ -24,6 +24,7 @@ public class ScenarioState {
   private String currentReviewId;
   private String currentVerificationCaseId;
   private String currentReportId;
+  private String currentAppealId;
   private MvcResult lastResult;
 
   public void rememberActor(String name, String bearerToken) {
@@ -110,6 +111,18 @@ public class ScenarioState {
       throw new IllegalStateException("this scenario has not filed a report yet");
     }
     return currentReportId;
+  }
+
+  public void rememberAppeal(String appealId) {
+    this.currentAppealId = appealId;
+  }
+
+  /** The appeal the scenario is talking about — "that appeal" in the feature files. */
+  public String currentAppealId() {
+    if (currentAppealId == null) {
+      throw new IllegalStateException("this scenario has not filed an appeal yet");
+    }
+    return currentAppealId;
   }
 
   public void rememberResult(MvcResult result) {

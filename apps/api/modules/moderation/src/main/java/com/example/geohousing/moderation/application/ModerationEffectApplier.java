@@ -28,4 +28,19 @@ public interface ModerationEffectApplier {
       long expectedVersion,
       ModeratorId decidedBy,
       ReasonCode reasonCode);
+
+  /**
+   * Undoes a decision's effect on the content after an appeal overturned it.
+   *
+   * <p>Which decisions can be undone, and how, is the target module's business — a withheld review
+   * is restored, a removed one reinstated, and an action that never touched the content is a no-op.
+   *
+   * @throws ModerationEffectConflictException if the content could not be put back
+   */
+  void reverse(
+      ModerationTargetRef target,
+      DecisionAction action,
+      long expectedVersion,
+      ModeratorId decidedBy,
+      ReasonCode reasonCode);
 }

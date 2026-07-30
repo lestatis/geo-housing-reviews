@@ -61,6 +61,59 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
     }
   }
 
+  @Override
+  public void reverse(
+      ModerationTargetRef target,
+      DecisionAction action,
+      long expectedVersion,
+      ModeratorId decidedBy,
+      ReasonCode reasonCode) {
+    Objects.requireNonNull(target, "target");
+    Objects.requireNonNull(action, "action");
+    Objects.requireNonNull(decidedBy, "decidedBy");
+    Objects.requireNonNull(reasonCode, "reasonCode");
+    if (target.type() != ModerationTargetType.REVIEW) {
+      throw new IllegalArgumentException("no effect is wired for target type " + target.type());
+    }
+
+    Optional<ReviewModerationEffect> undo = undoEffectOf(action);
+    if (undo.isEmpty()) {
+      return;
+    }
+    try {
+      // The version the decision judged is long stale by now — the takedown itself bumped it — so
+      // the reversal reads the review's current version rather than trusting the recorded one.
+      long current =
+          gateway.find(target.id()).map(review -> review.version()).orElse(expectedVersion);
+      gateway.apply(target.id(), undo.get(), current, decidedBy.value(), reasonCode.value());
+    } catch (ReviewModerationConflictException conflict) {
+      throw new ModerationEffectConflictException(conflict.getMessage());
+    } catch (IllegalStateException | IllegalArgumentException refused) {
+      // The owning module would not take the content back — most likely the author has since
+      // published a replacement, and the one-live-review rule will not hold two. The appeal is not
+      // silently marked overturned on content that is still gone; the moderator is told.
+      throw new ModerationEffectConflictException(
+          "the content could not be put back: " + refused.getMessage());
+    }
+  }
+
+  /**
+   * How each adverse decision is undone.
+   *
+   * <p>A withheld review is restored and a rejected or removed one reinstated — the narrow
+   * appeal-only door added for exactly this (DECISION_LOG {@code P-014}). The rest never touched
+   * the content, so there is nothing to put back: an account restriction is identity's to lift, and
+   * a request for changes left the review where it was.
+   */
+  private static Optional<ReviewModerationEffect> undoEffectOf(DecisionAction action) {
+    return switch (action) {
+      case HIDE -> Optional.of(ReviewModerationEffect.RESTORE);
+      case REJECT, REMOVE -> Optional.of(ReviewModerationEffect.REINSTATE);
+      case APPROVE, APPROVE_WITH_REDACTION, REQUEST_CHANGES, RESTRICT_ACCOUNT, ESCALATE ->
+          Optional.empty();
+    };
+  }
+
   /**
    * Which decisions change what a reader sees.
    *

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 
@@ -41,6 +42,13 @@ public class ModerationSteps {
   @When("{word} opens that case")
   public void opensThatCase(String actor) throws Exception {
     api.perform(api.authorized(get("/api/admin/moderation/cases/" + currentCaseId(actor)), actor));
+  }
+
+  @Given("{word} decided that case as {string} for {string} explaining {string}")
+  public void decidedThatCase(String actor, String action, String reasonCode, String explanation)
+      throws Exception {
+    decidesThatCase(actor, action, reasonCode, explanation);
+    assertThat(api.lastStatus()).as("deciding the case").isEqualTo(200);
   }
 
   @When("{word} decides that case as {string} for {string} explaining {string}")

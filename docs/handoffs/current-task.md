@@ -2,17 +2,18 @@
 
 ## Objective
 
-Implement plan 009, chunk 8a: give reviews an appeal-only way back from a terminal decision, so that
-chunk 8b's appeals can actually deliver a remedy.
+Implement plan 009, chunk 8b: appeals — author submission, the appellant's own view, the admin
+appeals queue and decision, with an overturn that actually puts the content back. Last chunk of the
+plan.
 
 ## Active branch
 
-`feat/009-moderation-chunk8a-reinstate`, branched from clean `main` at `0c3a740`. Local only; not
+`feat/009-moderation-chunk8b-appeals`, branched from clean `main` at `8bf2413`. Local only; not
 pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 8a of 8 (chunk 8 was split — see below).
+No issue. `docs/plans/009-moderation-module.md`, chunk 8b of 8 — the plan is now **Complete**.
 
 ## Current status
 
@@ -20,68 +21,71 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `V4.5__allow_reinstate_moderation_action.sql` widening the audited action CHECK.
-- `Review.reinstate`, `ReviewModerationAction.REINSTATE`, `ReviewModerationService.reinstate`.
-- `ReviewModerationEffect.REINSTATE` on the published contract, handled by the gateway adapter.
-- `DECISION_LOG` `P-014`; `DOMAIN_MODEL.md` and `Review`'s javadoc corrected.
-- 6 domain tests, 2 gateway tests, 1 migration test.
+- 6 appeal scenarios in `report-and-dispute.feature`, written first and watched fail.
+- `AppealRepository` port, JPA entity/mapper/adapter; `ModerationDecisionRepository.findById`.
+- `ModerationEffectApplier.reverse` and its reviews-side implementation.
+- `AppealService`: file, findOwn, pending, uphold, overturn.
+- `POST /api/appeals`, `GET /api/appeals/{id}`, `GET /api/admin/moderation/appeals`,
+  `POST /api/admin/moderation/appeals/{id}/decide`, plus four records and five error mappings.
+- `AppealServiceTest` (10 tests), `InMemoryAppealRepository`, `reverse` on the effect fake.
 
 ## Remaining work
 
-Chunk 8b: appeal persistence, `POST /api/appeals`, the appellant's own view, the admin appeal queue
-and decision, with overturn wired to `REINSTATE`. That is the last chunk of plan 009.
+None for plan 009. Right of reply and representative claims remain a future plan (`P-013`).
 
 ## Decisions made
 
-- **Chunk 8 was split.** Reinstatement is a reviews-module capability with its own migration and its
-  own invariant change; appeals are a moderation feature. Shipping them as one branch would have put
-  a domain-invariant change and a feature behind a single review.
-- **`P-014`: terminal means terminal except by appeal.** An appeals process that cannot return the
-  content is a hollow remedy, and a takedown that survives a successful appeal is a takedown that
-  worked. Founder decision, 2026-07-30.
-- **The door is deliberately narrow.** `reinstate` refuses anything not terminal, so it cannot stand
-  in for an ordinary publish or restore; the only caller will be the appeal path, and every use is
-  audited with its moderator and reason code.
-- **The docs were corrected, not just extended.** `Review`'s javadoc said "a terminal review rejects
-  all further mutation" and `DOMAIN_MODEL.md` implied the same. Leaving them would be documentation
-  lying about an invariant.
+- **An appellant names the content, not a decision id.** An author knows their review was taken
+  down; handing them an internal identifier to quote back would be a worse interface and would leak
+  case structure.
+- **The reversal reads the review's current version, not the recorded one.** The takedown itself
+  moved the version, so trusting `affectedTargetVersion` would fail every reversal as stale.
+- **A refused reinstatement leaves the appeal PENDING.** This is the collision flagged in 8a: if the
+  author published a replacement, the one-live-review rule will not hold two and the owning module
+  refuses. Marking the appeal "overturned" over content that is still gone would make the audit
+  trail assert something untrue, so the moderator is told and can uphold with an explanation.
+- **The decider conflict is checked before the effect.** Reinstating content cannot be undone by
+  throwing afterwards.
+- **The appellant's view names neither moderator; the admin view names the original decider**,
+  because whoever picks the appeal up needs to know it is not them.
+- **`APPEAL_DECIDER_CONFLICT` is 403, not 400.** Due process, not a malformed request.
 
 ## Assumptions
 
-- Reinstating sets `publishedAt` only when it was never set, so a review rejected before its first
-  publication gets a publication time while a removed-then-restored one keeps its original.
+- The appealable decision is the latest one on the target's live case whose action took something
+  away. An approval is not appealable by its beneficiary.
 
 ## Files changed
 
-- new `modules/reviews/src/main/resources/db/migration/reviews/V4.5__allow_reinstate_moderation_action.sql`
-- `Review`, `ReviewModerationAction`, `ReviewModerationService`, `ReviewModerationEffect`,
-  `ReviewModerationGatewayAdapter`
-- `modules/reviews/src/test/.../domain/ReviewTest.java`,
-  `.../application/ReviewModerationGatewayAdapterTest.java`
-- `app/src/test/.../reviews/ReviewsMigrationIntegrationTest.java`
-- `docs/DECISION_LOG.md`, `docs/DOMAIN_MODEL.md`, `docs/plans/009-moderation-module.md`,
-  `docs/handoffs/current-task.md`
+- `app/src/test/resources/features/report-and-dispute.feature` (8 -> 14 scenarios)
+- new `app/src/test/.../acceptance/AppealSteps.java`; `ScenarioState`, `ModerationSteps`
+- 6 new files in `modules/moderation/.../application/`; `ModerationEffectApplier`,
+  `ModerationDecisionRepository`
+- 3 new files in `modules/moderation/.../infrastructure/persistence/`; `ModerationJpaMapper`,
+  `JpaModerationDecisionRepository`
+- 6 new files in `modules/moderation/.../infrastructure/web/`; `ModerationExceptionHandler`
+- `ReviewsModerationEffectApplier`, `ModerationBeanConfiguration`
+- new `modules/moderation/src/test/.../application/AppealServiceTest.java`,
+  `InMemoryAppealRepository.java`; `InMemoryModerationEffectApplier`,
+  `InMemoryModerationDecisionRepository`
+- `docs/plans/009-moderation-module.md` (closed), `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- scratch Postgres: V4.1-V4.3 + V4.5 applied, `REINSTATE` accepted and `UNDELETE` rejected
-- `cd apps/api && ./gradlew :modules:reviews:test -PskipMutation` (red on the new tests, then green)
-- `cd apps/api && ./gradlew :app:test --tests \'*ReviewsMigrationIntegrationTest\'`
-- `cd apps/api && ./gradlew :modules:reviews:mutationTest --rerun-tasks`
-- `./scripts/check.sh` -> `EXIT=0`, 4m 12s
+- `cd apps/api && ./gradlew :app:test --tests \'*AcceptanceTest\'` (red first, then green)
+- `cd apps/api && ./gradlew :modules:moderation:test -PskipMutation`
+- `cd apps/api && ./gradlew :modules:moderation:mutationTest --rerun-tasks`
+- `./scripts/check.sh` -> `EXIT=0`, 4m 11s
 
 ## Tests and verification
 
-All passed on 2026-07-30. Mutation: reviews 90% (threshold 85).
+All passed on 2026-07-30. Acceptance suite: **36 scenarios**, 0 failures, 0 skipped. Mutation:
+moderation 85% (threshold 85).
 
-The migration was verified on scratch Postgres before any test was written, and the probe checks
-both directions: `REINSTATE` is accepted, and an unknown action is still rejected by the constraint,
-so widening the vocabulary did not turn the column into a free-text field. A first attempt at that
-probe omitted the `id` column and failed on a null violation rather than the CHECK — it proved
-nothing and was redone.
-
-The domain tests were written before `reinstate` existed and failed to compile, which is the red
-phase for a new method.
+Loop 4 now works end to end including the dispute half: a resident reports a published review, a
+moderator removes it with a reason and an explanation, the author appeals, and a *different*
+moderator overturning it puts the review back in the public listing — asserted by reading the
+listing, not by trusting a status field.
 
 ## Known failures
 
@@ -89,14 +93,15 @@ None observed.
 
 ## Risks and unresolved questions
 
-- Nothing yet calls `reinstate`. It is dead code until chunk 8b, which is the argument for reviewing
-  the two chunks close together even though they merge separately.
-- `reinstate` returns content to `PUBLISHED` without re-moderating it. That is the point — the appeal
-  already decided the takedown was wrong — but it does mean an overturn bypasses the pre-moderation
-  default in `P-005`.
-- The one-live-review index excludes terminal states, so reinstating a removed review could in
-  principle collide with a fresh review the author started in the meantime. Chunk 8b should decide
-  what happens then; the database would refuse the reinstatement.
+- **Moderation is exactly on its mutation threshold again (85 vs 85).** The next chunk touching it
+  must add assertions before it can merge.
+- The appeal resolves against the *live* case for the target. A case closed after its decision would
+  leave nothing to appeal; nothing closes cases automatically today, so this is latent rather than
+  live, but chunk-7's note about case lifecycle applies here too.
+- An overturned appeal republishes without re-moderation, bypassing the `P-005` pre-moderation
+  default. Deliberate — the appeal already decided the takedown was wrong — but worth confirming.
+- Nothing notifies an author that a decision was made or an appeal resolved. They have to look. The
+  notifications module is where that belongs.
 
 ## Human actions required
 
@@ -104,8 +109,9 @@ None.
 
 ## Recommended next action
 
-Independent review of this branch in a fresh session, then merge. When requested, start plan 009
-chunk 8b (appeals) from `main`.
+Independent review of this branch in a fresh session, then merge — after which plan 009 is closed.
+The next task is a new plan; the open MVP gaps are the search module (loop 1's discovery half) and
+the admin web app, with right of reply and representative claims as the moderation follow-on.
 
 ## Last updated
 

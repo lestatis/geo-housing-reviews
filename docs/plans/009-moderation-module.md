@@ -1,6 +1,6 @@
 # Moderation Module: Reports, Cases, Decisions and Appeals
 
-Status: Active
+Status: Complete
 Owner: Claude
 Related issue: none
 Last updated: 2026-07-28
@@ -24,7 +24,7 @@ ROADMAP Phase 3's last open item.
       reaches a user.
 - [x] A decision's effect on a review is applied through the reviews module's published contract
       with its stale-version check; moderation never writes reviews' tables.
-- [ ] Exactly one appeal per decision, decided by an account other than the original decider, with
+- [x] Exactly one appeal per decision, decided by an account other than the original decider, with
       the outcome and explanation recorded; negative paths have explicit tests.
 - [x] An owner or developer takedown demand travels the same audited workflow as any other report.
 
@@ -265,6 +265,40 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   documentation lying about an invariant. 6 new domain tests, 2 gateway tests, 1 migration test.
   Mutation: reviews 90% (threshold 85). `./scripts/check.sh` passes. Ready for independent review.
 
+- 2026-07-30: Chunk 8a fast-forward merged to `main` at `8bf2413`.
+- 2026-07-30: Chunk 8b implemented on `feat/009-moderation-chunk8b-appeals`, scenarios first.
+  Appeal persistence, `AppealService`, `POST /api/appeals`, the appellant's own view, and the admin
+  appeals queue and decision. An appellant names the content rather than a decision id: an author
+  knows their review was taken down and should not need an internal identifier to say so.
+
+  Overturning reverses the decision through the port's new `reverse` operation — a withheld review
+  is restored, a rejected or removed one reinstated through the appeal-only door from 8a. The
+  reversal reads the review's *current* version rather than the one the decision recorded, because
+  the takedown itself moved it.
+
+  The collision flagged in 8a is handled rather than left: if the owning module refuses to take the
+  content back — most likely because the author published a replacement and the one-live-review rule
+  will not hold two — the appeal is **not** marked overturned. The moderator is told and can uphold
+  with an explanation instead, because recording "overturned" over content that is still gone would
+  be the audit trail asserting something untrue.
+
+  The appellant's view carries neither moderator's identity; the admin view names the original
+  decider, because whoever picks the appeal up needs to know it is not them. 6 new scenarios (36
+  total), 10 service tests. Mutation: moderation 85% (threshold 85). `./scripts/check.sh` passes.
+  Ready for independent review.
+
 ## Final outcome
 
-Not yet complete.
+Complete at 8 chunks (chunk 8 delivered as 8a and 8b), pending independent review of the last two.
+
+MVP loop 4 — report, dispute, resolve — works end to end: a resident reports a published review, the
+concerns converge on one case, a moderator decides it with a reason code and a user-facing
+explanation, the effect is applied to the content, and the author can appeal to a different
+moderator who can put the review back. MVP loop 5 works too: an operator runs the whole thing over
+HTTP without database access.
+
+Deliberately not built, and not blocking: right of reply and representative claims (plan 010 in the
+original numbering — now a future plan); a `MODERATOR` role distinct from `ADMIN`; automated
+classifiers; IP/device abuse metadata; rate limiting on reporting; account restrictions as a
+mechanism; notification emails for outcomes. Queue paging, SLA reporting and exclusive case
+assignment are named in the chunk-7 handoff as the first things a real operator will ask for.

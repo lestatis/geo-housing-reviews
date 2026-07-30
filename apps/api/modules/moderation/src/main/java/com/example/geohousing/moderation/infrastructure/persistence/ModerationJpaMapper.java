@@ -1,5 +1,9 @@
 package com.example.geohousing.moderation.infrastructure.persistence;
 
+import com.example.geohousing.moderation.domain.Appeal;
+import com.example.geohousing.moderation.domain.AppealId;
+import com.example.geohousing.moderation.domain.AppealStatus;
+import com.example.geohousing.moderation.domain.AppellantId;
 import com.example.geohousing.moderation.domain.CaseTrigger;
 import com.example.geohousing.moderation.domain.DecisionAction;
 import com.example.geohousing.moderation.domain.ModerationCase;
@@ -117,5 +121,35 @@ final class ModerationJpaMapper {
         entity.affectedTargetVersion(),
         ModeratorId.of(entity.decidedByAccountId()),
         entity.decidedAt());
+  }
+
+  static AppealJpaEntity toEntity(Appeal appeal) {
+    return new AppealJpaEntity(
+        appeal.id().value(),
+        appeal.decisionId().value(),
+        appeal.appellantId().value(),
+        appeal.appealText(),
+        appeal.status().name(),
+        appeal.outcomeExplanation().orElse(null),
+        appeal.originalDecider().value(),
+        appeal.decidedBy().map(ModeratorId::value).orElse(null),
+        appeal.createdAt(),
+        appeal.decidedAt().orElse(null),
+        appeal.version());
+  }
+
+  static Appeal toDomain(AppealJpaEntity entity) {
+    return Appeal.reconstitute(
+        AppealId.of(entity.id()),
+        ModerationDecisionId.of(entity.decisionId()),
+        AppellantId.of(entity.appellantAccountId()),
+        entity.appealText(),
+        AppealStatus.valueOf(entity.status()),
+        entity.outcomeExplanation(),
+        ModeratorId.of(entity.originalDeciderAccountId()),
+        entity.decidedByAccountId() == null ? null : ModeratorId.of(entity.decidedByAccountId()),
+        entity.createdAt(),
+        entity.decidedAt(),
+        entity.version());
   }
 }

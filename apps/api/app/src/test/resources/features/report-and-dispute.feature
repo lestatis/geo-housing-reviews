@@ -74,3 +74,80 @@ Feature: Report content and have the concern resolved safely
     And Nino published a review of "Avlabari Court" saying "კარგი მდებარეობა"
     When Dato reports that review for "OTHER" saying ""
     Then the request is refused as invalid
+
+  Scenario: an author whose review was removed can appeal the decision
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And Nino created the property "Sololaki Court"
+    And Nino published a review of "Sololaki Court" saying "მეზობლის ნომერი 8"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Your review named a neighbour."
+    When Nino appeals saying "The flat number was my own."
+    Then the request succeeds
+    And the appeal is awaiting a decision
+
+  Scenario: only the author affected by a decision may appeal it
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And Nino created the property "Krtsanisi Villas"
+    And Nino published a review of "Krtsanisi Villas" saying "ცუდი დაცვა"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    When Dato appeals saying "I want it back too."
+    Then the request is rejected as forbidden
+
+  Scenario: a decision is appealed once
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And Nino created the property "Mukhiani Blocks"
+    And Nino published a review of "Mukhiani Blocks" saying "ლიფტი ჩერდება"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    And Nino appealed saying "It was my own flat."
+    When Nino appeals saying "Please look again."
+    Then the request is refused as a conflict
+
+  Scenario: an overturned appeal brings the review back
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And an administrator "Tekla"
+    And Nino created the property "Bagebi Terraces"
+    And Nino published a review of "Bagebi Terraces" saying "სამშენებლო ხმაური ღამით"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    And Nino appealed saying "Nothing in it identifies anyone."
+    When Tekla overturns that appeal explaining "The review named nobody."
+    Then the request succeeds
+    When an anonymous visitor asks for the reviews of "Bagebi Terraces"
+    Then the listing contains 1 review
+
+  Scenario: an upheld appeal leaves the decision standing
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And an administrator "Tekla"
+    And Nino created the property "Saburtalo Rise"
+    And Nino published a review of "Saburtalo Rise" saying "მეზობლის ტელეფონი"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    And Nino appealed saying "I disagree."
+    When Tekla upholds that appeal explaining "The flat number identified a neighbour."
+    Then the request succeeds
+    When an anonymous visitor asks for the reviews of "Saburtalo Rise"
+    Then the listing contains 0 reviews
+
+  Scenario: the moderator being appealed against cannot hear the appeal
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And Nino created the property "Vashlijvari Court"
+    And Nino published a review of "Vashlijvari Court" saying "წყალი ხშირად ითიშება"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    And Nino appealed saying "Please reconsider."
+    When Mari overturns that appeal explaining "On reflection, I was wrong."
+    Then the request is rejected as forbidden

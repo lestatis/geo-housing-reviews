@@ -13,7 +13,9 @@ final class InMemoryModerationEffectApplier implements ModerationEffectApplier {
   record Applied(ModerationTargetRef target, DecisionAction action, long expectedVersion) {}
 
   final List<Applied> applied = new ArrayList<>();
+  final List<Applied> reversed = new ArrayList<>();
   boolean refuseAsConflict;
+  boolean refuseReverse;
 
   @Override
   public void apply(
@@ -26,5 +28,18 @@ final class InMemoryModerationEffectApplier implements ModerationEffectApplier {
       throw new ModerationEffectConflictException("the content changed under the moderator");
     }
     applied.add(new Applied(target, action, expectedVersion));
+  }
+
+  @Override
+  public void reverse(
+      ModerationTargetRef target,
+      DecisionAction action,
+      long expectedVersion,
+      ModeratorId decidedBy,
+      ReasonCode reasonCode) {
+    if (refuseReverse) {
+      throw new ModerationEffectConflictException("the content could not be put back");
+    }
+    reversed.add(new Applied(target, action, expectedVersion));
   }
 }

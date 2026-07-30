@@ -12,5 +12,8 @@ public interface ModerationDecisionRepository {
 
   void append(ModerationDecision decision);
 
+  java.util.Optional<ModerationDecision> findById(
+      com.example.geohousing.moderation.domain.ModerationDecisionId decisionId);
+
   List<ModerationDecision> findByCase(ModerationCaseId caseId);
 }
