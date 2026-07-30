@@ -34,6 +34,9 @@ public class ReviewsModerationTargetLookup implements ModerationTargetLookup {
     }
     return gateway
         .find(ref.id())
-        .map(review -> new ModeratableTarget(ref, review.authorAccountId(), review.version()));
+        .map(
+            review ->
+                new ModeratableTarget(
+                    ref, review.authorAccountId(), review.version(), review.published()));
   }
 }

@@ -5,6 +5,7 @@ import com.example.geohousing.moderation.application.ReportRepository;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
 import com.example.geohousing.moderation.domain.ModerationTargetRef;
 import com.example.geohousing.moderation.domain.Report;
+import com.example.geohousing.moderation.domain.ReportId;
 import com.example.geohousing.moderation.domain.ReportStatus;
 import com.example.geohousing.moderation.domain.ReporterId;
 import java.util.List;
@@ -34,6 +35,12 @@ public class JpaReportRepository implements ReportRepository {
         .findByReporterAccountIdAndTargetTypeAndTargetIdAndStatusIn(
             reporterId.value(), target.type().name(), target.id(), LIVE_STATUSES)
         .map(ModerationJpaMapper::toDomain);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<Report> findById(ReportId reportId) {
+    return reports.findById(reportId.value()).map(ModerationJpaMapper::toDomain);
   }
 
   @Override

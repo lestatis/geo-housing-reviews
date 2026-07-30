@@ -86,6 +86,19 @@ class ReportIntakeServiceTest {
   }
 
   @Test
+  void contentTheReporterCouldNotHaveSeenIsReportedAsMissing() {
+    // A review awaiting moderation, or already withdrawn, must not be confirmed to exist by the
+    // reporting endpoint. Otherwise anyone could probe identifiers to discover unpublished content.
+    ModerationTargetRef hidden = targets.givenReview(UUID.randomUUID(), 1L, false);
+
+    assertThatThrownBy(() -> intake.file(reporter(), hidden, ReportCategory.PERSONAL_DATA, null))
+        .isInstanceOf(ModerationTargetNotFoundException.class);
+
+    assertThat(cases.byId).isEmpty();
+    assertThat(reports.byId).isEmpty();
+  }
+
+  @Test
   void anAuthorCannotReportTheirOwnContent() {
     UUID author = UUID.randomUUID();
     ModerationTargetRef target = targets.givenReviewBy(author, 1L);

@@ -12,8 +12,12 @@ final class InMemoryModerationTargetLookup implements ModerationTargetLookup {
   private final Map<ModerationTargetRef, ModeratableTarget> targets = new LinkedHashMap<>();
 
   ModerationTargetRef givenReviewBy(UUID authorAccountId, long version) {
+    return givenReview(authorAccountId, version, true);
+  }
+
+  ModerationTargetRef givenReview(UUID authorAccountId, long version, boolean visible) {
     ModerationTargetRef ref = ModerationTargetRef.review(UUID.randomUUID());
-    targets.put(ref, new ModeratableTarget(ref, authorAccountId, version));
+    targets.put(ref, new ModeratableTarget(ref, authorAccountId, version, visible));
     return ref;
   }
 

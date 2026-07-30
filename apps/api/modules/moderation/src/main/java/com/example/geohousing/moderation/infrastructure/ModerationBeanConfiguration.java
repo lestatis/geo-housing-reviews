@@ -6,6 +6,7 @@ import com.example.geohousing.moderation.application.ModerationDecisionRepositor
 import com.example.geohousing.moderation.application.ModerationEffectApplier;
 import com.example.geohousing.moderation.application.ModerationTargetLookup;
 import com.example.geohousing.moderation.application.ReportIntakeService;
+import com.example.geohousing.moderation.application.ReportQueryService;
 import com.example.geohousing.moderation.application.ReportRepository;
 import com.example.geohousing.moderation.domain.PolicyVersion;
 import java.time.Clock;
@@ -32,6 +33,11 @@ public class ModerationBeanConfiguration {
       ModerationTargetLookup targetLookup) {
     return new ReportIntakeService(
         reportRepository, caseRepository, targetLookup, Clock.systemUTC());
+  }
+
+  @Bean
+  ReportQueryService reportQueryService(ReportRepository reportRepository) {
+    return new ReportQueryService(reportRepository);
   }
 
   /**

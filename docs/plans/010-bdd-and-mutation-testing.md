@@ -17,9 +17,8 @@ enforced property of the build rather than a claim. See ADR-0009.
 - [x] Thresholds are set from measured baselines, and the gate is proven non-vacuous.
 - [x] Endpoint behaviour can be expressed as Gherkin scenarios driven through the real HTTP stack,
       with a step-definition library built from the helpers the existing endpoint tests duplicate.
-- [x] Four of the five MVP loops have a feature file. Loop 4 ("Report/dispute → resolve safely")
-      has no endpoints yet — plan 009 is building them — so its feature file arrives with plan 009
-      chunk 6 rather than as a file of skipped scenarios.
+- [x] All five MVP loops have a feature file. Loop 4 ("Report/dispute → resolve safely") arrived
+      with plan 009 chunk 6, once reporting had endpoints to describe — 24 scenarios in total.
 - [x] `.claude/rules/testing.md` and `AGENTS.md` §6 require test-first for domain/application logic,
       Gherkin for new endpoint behaviour, and the mutation gate.
 

@@ -1,0 +1,113 @@
+package com.example.geohousing.moderation.infrastructure.web;
+
+import com.example.geohousing.moderation.application.DuplicateReportException;
+import com.example.geohousing.moderation.application.ModerationCaseNotFoundException;
+import com.example.geohousing.moderation.application.ModerationEffectConflictException;
+import com.example.geohousing.moderation.application.ModerationTargetNotFoundException;
+import com.example.geohousing.moderation.application.ReportNotFoundException;
+import com.example.geohousing.moderation.application.SelfReportNotAllowedException;
+import com.example.geohousing.moderation.domain.IllegalModerationStateTransitionException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+/**
+ * Maps moderation errors to RFC 7807 Problem Details (see {@code docs/API_GUIDELINES.md}).
+ *
+ * <p>Scoped to this module's web package, so one module's advice never answers for another's
+ * exceptions. 401 stays with the security chain.
+ */
+@RestControllerAdvice(basePackages = "com.example.geohousing.moderation.infrastructure.web")
+class ModerationExceptionHandler {
+
+  /**
+   * Content the caller may not see is reported as missing. Anything else would turn the reporting
+   * endpoint into a way to discover unpublished or removed reviews by probing identifiers.
+   */
+  @ExceptionHandler(ModerationTargetNotFoundException.class)
+  ProblemDetail handleTargetNotFound(ModerationTargetNotFoundException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Content not found",
+        "REPORT_TARGET_NOT_FOUND",
+        "No reportable content was found for this identifier.");
+  }
+
+  /**
+   * Someone else's report is missing rather than forbidden, for the same reason: a 403 would
+   * confirm that a report exists for that identifier.
+   */
+  @ExceptionHandler(ReportNotFoundException.class)
+  ProblemDetail handleReportNotFound(ReportNotFoundException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Report not found",
+        "REPORT_NOT_FOUND",
+        "No report was found for this identifier.");
+  }
+
+  /**
+   * Forbidden rather than hidden: the author wrote the content, so they already know it exists and
+   * explaining the refusal discloses nothing they could not see.
+   */
+  @ExceptionHandler(SelfReportNotAllowedException.class)
+  ProblemDetail handleSelfReport(SelfReportNotAllowedException exception) {
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "Cannot report your own content",
+        "SELF_REPORT_NOT_ALLOWED",
+        "An author cannot report their own content. Edit or remove it instead.");
+  }
+
+  @ExceptionHandler(DuplicateReportException.class)
+  ProblemDetail handleDuplicateReport(DuplicateReportException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Report already open",
+        "REPORT_ALREADY_EXISTS",
+        "You already have an open report about this content.");
+  }
+
+  @ExceptionHandler(ModerationCaseNotFoundException.class)
+  ProblemDetail handleCaseNotFound(ModerationCaseNotFoundException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Case not found",
+        "MODERATION_CASE_NOT_FOUND",
+        "No moderation case was found for this identifier.");
+  }
+
+  @ExceptionHandler(ModerationEffectConflictException.class)
+  ProblemDetail handleEffectConflict(ModerationEffectConflictException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Content changed",
+        "MODERATION_TARGET_CHANGED",
+        "The content changed since it was read. Review it again before deciding.");
+  }
+
+  @ExceptionHandler(IllegalModerationStateTransitionException.class)
+  ProblemDetail handleIllegalTransition(IllegalModerationStateTransitionException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Not allowed in this state",
+        "MODERATION_STATE_CONFLICT",
+        exception.getMessage());
+  }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  ProblemDetail handleInvalidRequest(IllegalArgumentException exception) {
+    return problem(
+        HttpStatus.BAD_REQUEST, "Invalid request", "INVALID_REQUEST", exception.getMessage());
+  }
+
+  private static ProblemDetail problem(
+      HttpStatus status, String title, String code, String detail) {
+    ProblemDetail problem = ProblemDetail.forStatus(status);
+    problem.setTitle(title);
+    problem.setDetail(detail);
+    problem.setProperty("code", code);
+    return problem;
+  }
+}

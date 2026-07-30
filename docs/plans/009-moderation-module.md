@@ -14,19 +14,19 @@ ROADMAP Phase 3's last open item.
 
 ## Acceptance criteria
 
-- [ ] The `moderation` schema owns reports, cases, decisions and appeals in the `V6.x` namespace,
+- [x] The `moderation` schema owns reports, cases, decisions and appeals in the `V6.x` namespace,
       with no foreign key into another module's tables; many reports about one target converge on a
       single live case, and one account cannot report the same content repeatedly.
-- [ ] A signed-in account can report a review it can see; a reporter reads only their own report's
+- [x] A signed-in account can report a review it can see; a reporter reads only their own report's
       status and never the case, another reporter, or a decision's internal note.
-- [ ] Decisions are append-only and carry action, reason code, policy version, the judged content
+- [x] Decisions are append-only and carry action, reason code, policy version, the judged content
       version, a user-visible explanation for anything adverse, and an internal note that never
       reaches a user.
-- [ ] A decision's effect on a review is applied through the reviews module's published contract
+- [x] A decision's effect on a review is applied through the reviews module's published contract
       with its stale-version check; moderation never writes reviews' tables.
 - [ ] Exactly one appeal per decision, decided by an account other than the original decider, with
       the outcome and explanation recorded; negative paths have explicit tests.
-- [ ] An owner or developer takedown demand travels the same audited workflow as any other report.
+- [x] An owner or developer takedown demand travels the same audited workflow as any other report.
 
 ## Non-goals
 
@@ -200,6 +200,28 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   reviews' own audit row written. 9 persistence tests (both races included), 5 flow tests, 2 new
   adapter tests. Mutation: reviews 91% (85), moderation 87% (85). `./scripts/check.sh` passes in
   3m48s. Ready for independent review.
+
+- 2026-07-29: Chunk 5 fast-forward merged to `main` at `fedd42f`.
+- 2026-07-29: Chunk 6 implemented on `feat/009-moderation-chunk6-reporter-endpoints`, written
+  outside-in: `report-and-dispute.feature` went in first and its eight scenarios were watched fail
+  as undefined steps before any endpoint existed. `POST /api/reports` and
+  `GET /api/reports/{id}` are the whole reporter surface — there is deliberately no listing and no
+  path to a case.
+
+  Writing the scenarios first paid for itself immediately. "Reporting a review that is not public
+  does not confirm it exists" failed against a working implementation, because
+  `ModerationTargetLookup` returned any review regardless of publication state — so an unpublished
+  review could be reported, and the response confirmed it existed. Fixed by making visibility a
+  *fact* the port reports (`ModeratableTarget.visible`) and the *policy* the service applies: a
+  moderator works withdrawn content all the time, while a reporter must not learn it exists.
+
+  A reporter sees a coarser status than moderation keeps: `AWAITING_MODERATION` / `RESOLVED` /
+  `DISMISSED`, never the internal `OPEN`/`LINKED` distinction, which is queue plumbing and would let
+  a reporter infer how busy moderation is. A scenario asserts the response mentions no case, no
+  other reporter, no moderator and no internal note.
+
+  Loop 4 completes the acceptance suite at 24 scenarios across all five MVP loops. Mutation:
+  moderation 85% (threshold 85). `./scripts/check.sh` passes in 4m05s. Ready for independent review.
 
 ## Final outcome
 

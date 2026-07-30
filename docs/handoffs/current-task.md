@@ -2,17 +2,18 @@
 
 ## Objective
 
-Implement plan 009, chunk 5: JPA persistence for reports, cases and decisions, so the moderation
-module can actually run — and with it, the report → case → decision → effect flow end to end.
+Implement plan 009, chunk 6: the reporter-facing endpoints, plus MVP loop 4's Gherkin feature file
+that plan 010 deferred until reporting had endpoints to describe.
 
 ## Active branch
 
-`feat/009-moderation-chunk5-persistence`, branched from clean `main` at `c466200`. Local only; not
-pushed. Awaiting a fresh independent review before merge.
+`feat/009-moderation-chunk6-reporter-endpoints`, branched from clean `main` at `fedd42f`. Local
+only; not pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 5 of 8.
+No issue. `docs/plans/009-moderation-module.md`, chunk 6 of 8; completes an acceptance criterion of
+`docs/plans/010-bdd-and-mutation-testing.md`.
 
 ## Current status
 
@@ -20,79 +21,73 @@ completed, awaiting independent review
 
 ## Completed work
 
-- Three JPA entities, one mapper, three Spring Data repositories, three port adapters under
-  `moderation.infrastructure.persistence`.
-- `ModerationBeanConfiguration` wiring `ReportIntakeService` and `ModerationCaseService`, with the
-  policy version read from configuration.
-- `GeoHousingApplication` gained moderation in `@EntityScan` and `@EnableJpaRepositories`.
-- `ModerationCaseAlreadyOpenException` plus race recovery in `ReportIntakeService`.
-- Two fixes to earlier chunks' code, both found by these tests (below).
-- 9 persistence integration tests, 5 flow integration tests, 2 new adapter tests.
+- `report-and-dispute.feature` — 8 scenarios, **written first** and watched fail as undefined steps.
+- `POST /api/reports` and `GET /api/reports/{reportId}` in a new `moderation.infrastructure.web`.
+- `ReportQueryService`, `ReportNotFoundException`, `ReportRepository.findById`.
+- `ModerationExceptionHandler` — RFC 7807, scoped to the moderation web package.
+- `ReporterFacingStatus`, `ReportResponse`, `SubmitReportRequest`, `ModerationWebAuthentication`.
+- `ReportSteps` acceptance steps; moderation gained `spring-boot-starter-web`.
+- A privacy fix in chunk 3/4 code that the scenarios caught (below).
 
 ## Remaining work
 
-Chunks 6–8: reporter endpoints, admin queue endpoints, appeals. Chunk 6 also brings loop 4's Gherkin
-feature file, which plan 010 deferred until reporting had endpoints.
+Chunks 7 and 8: the admin queue endpoints, then appeals. Until chunk 7 lands, a moderator still
+cannot work the queue over HTTP, so MVP loop 5 remains unmet.
 
 ## Decisions made
 
-- **The one-live-case race is recovered, not surfaced.** Intake catches
-  `ModerationCaseAlreadyOpenException`, re-reads, and attaches its report to the case that won.
-  Losing that race means convergence worked; reporting it as an error would punish the second
-  reporter for doing nothing wrong.
-- **Decisions are ordered by `(decided_at, id)`.** Ordering by timestamp alone is not a total order,
-  and an audit trail that reorders itself between reads is not one an appeal can rely on.
-- **`APPROVE` is conditional on current state.** It publishes content awaiting moderation, and is a
-  no-op on content already visible. See the defect note below.
-- **`save` refuses an aggregate that was never created** rather than silently inserting, and mutates
-  the loaded row in place so Hibernate's `@Version` check covers the read-modify-write.
-- **The decision entity has no mutator and no `@Version`**, matching a table with no `updated_at`.
-  Append-only is expressed three times over — port, entity, schema.
-- **Enums are stored by name.** The schema's CHECK constraints spell the values out, and an ordinal
-  would silently remap every stored row the moment a constant is inserted.
+- **Visibility is a fact on the port, a policy in the service.** `ModeratableTarget.visible` reports
+  whether the owning module shows the content publicly; `ReportIntakeService` decides what that
+  means. A moderator works withdrawn content routinely, while a reporter must not learn it exists —
+  one fact, two different rules, so the port must not bake either in.
+- **A reporter sees a coarser status than moderation keeps.** `AWAITING_MODERATION` / `RESOLVED` /
+  `DISMISSED`, never the internal `OPEN`/`LINKED` distinction. That distinction is queue plumbing,
+  and exposing it would let a reporter infer how busy moderation is and whether others reported the
+  same content.
+- **Someone else's report is 404, not 403.** A "forbidden" confirms a report exists for that
+  identifier, which is enough to learn that a given piece of content has been reported.
+- **Self-report is 403.** The author wrote the content, so they already know it exists; explaining
+  the refusal discloses nothing.
+- **No listing endpoint and no case identifier anywhere in the reporter surface.** A reporter is owed
+  the progress of their own concern and nothing more.
+- **No JUnit endpoint test class.** Under ADR-0009 new endpoint behaviour lives in Gherkin; adding a
+  parallel JUnit class would duplicate it at a second altitude for no gain.
 
 ## Assumptions
 
-- `moderation.policy-version` defaults to 1. Raising it is an operational act, since an appeal must
-  be judged under the policy in force when the decision was made.
+- Report categories and target types are parsed case-insensitively from the request and rejected as
+  `INVALID_REQUEST` when unknown, matching how the properties controller parses its enums.
 
 ## Files changed
 
-- 10 new files under `modules/moderation/.../infrastructure/persistence/`
-- new `modules/moderation/.../infrastructure/ModerationBeanConfiguration.java`
-- new `modules/moderation/.../application/ModerationCaseAlreadyOpenException.java`;
-  `ReportIntakeService` gained race recovery
-- `modules/moderation/.../infrastructure/reviews/ReviewsModerationEffectApplier.java` (APPROVE fix)
-- `app/src/main/java/com/example/geohousing/app/GeoHousingApplication.java` (scanning)
-- new `app/src/test/.../moderation/ModerationPersistenceIntegrationTest.java`,
-  `ModerationFlowIntegrationTest.java`; extended `ReviewsModerationAdapterTest`
-- `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
+- new `app/src/test/resources/features/report-and-dispute.feature`
+- new `app/src/test/.../acceptance/ReportSteps.java`; `ScenarioState` gained the current report
+- 6 new files under `modules/moderation/.../infrastructure/web/`
+- new `modules/moderation/.../application/ReportQueryService.java`,
+  `ReportNotFoundException.java`; `ReportRepository`/`JpaReportRepository`/fake gained `findById`
+- `ModeratableTarget` (visible), `ReviewsModerationTargetLookup`, `ReportIntakeService`
+- `modules/moderation/build.gradle.kts`, `ModerationBeanConfiguration`
+- `docs/plans/009-moderation-module.md`, `docs/plans/010-bdd-and-mutation-testing.md`,
+  `docs/handoffs/current-task.md`
 
 ## Commands run
 
+- `cd apps/api && ./gradlew :app:test --tests '*AcceptanceTest'` (red first, then green)
 - `cd apps/api && ./gradlew :modules:moderation:test -PskipMutation`
-- `cd apps/api && ./gradlew :app:test --tests '*ModerationPersistenceIntegrationTest' --tests '*ModerationFlowIntegrationTest'`
-- `cd apps/api && ./gradlew :modules:reviews:mutationTest :modules:moderation:mutationTest --rerun-tasks`
-- `./scripts/check.sh` → `EXIT=0`, 3m 48s
+- `cd apps/api && ./gradlew :modules:moderation:mutationTest --rerun-tasks`
+- `./scripts/check.sh` → `EXIT=0`, 4m 05s
 
 ## Tests and verification
 
-All passed on 2026-07-29. Mutation: reviews 91% (threshold 85), moderation 87% (85).
+All passed on 2026-07-29. The acceptance suite is now **24 scenarios across all five MVP loops**,
+0 failures, 0 skipped. Mutation: moderation 85% (threshold 85).
 
-**MVP loop 4 runs for the first time.** `ModerationFlowIntegrationTest` files a report against a
-published review, converges three reporters onto one case, assigns it, decides `REMOVE`, and proves
-the review is genuinely gone — plus the case decided, the reports closed out, the decision recorded
-with its user-facing explanation, and reviews' own audit row written for the effect.
-
-**Two defects in earlier chunks were found by these tests**, and both are the kind that only appear
-against a real database or a real flow:
-
-1. `findByCaseIdOrderByDecidedAtAsc` returned decisions in arbitrary order when two shared a
-   timestamp. Fixed with an id tiebreaker.
-2. `APPROVE` mapped to an unconditional `PUBLISH`, which throws `IllegalReviewStateTransitionException`
-   on an already-published review — the *common* case, since most reports are about published
-   content. Dismissing a report would have failed in production. Now `APPROVE` publishes only what is
-   awaiting moderation and does nothing to what was never withdrawn.
+**The scenarios caught a real privacy bug**, which is the whole argument for writing them first.
+"Reporting a review that is not public does not confirm it exists" failed against an implementation
+that otherwise worked: `ModerationTargetLookup` returned any review regardless of publication state,
+so an unpublished review could be reported and the 201 confirmed it existed. Anyone could have
+probed identifiers to discover content awaiting moderation. Now the port reports visibility and
+intake refuses invisible targets as not-found, with a unit test alongside the scenario.
 
 ## Known failures
 
@@ -100,13 +95,14 @@ None observed.
 
 ## Risks and unresolved questions
 
-- `alreadyVisible` reads the target before deciding the effect, so there is a read-then-write window.
-  The `expectedVersion` check on the write closes it: if the review changed in between, the apply is
-  refused as a conflict.
-- The moderation module now has no `-PskipMutation`-free margin to spare at 87% against a threshold
-  of 85. Chunk 6 should expect to add assertions.
-- Nothing exposes any of this over HTTP yet. A moderator still cannot work the queue without direct
-  service access — that is chunks 6 and 7, and until then MVP loop 5 remains unmet.
+- Moderation sits exactly **on** its mutation threshold (85 vs 85). The next chunk touching it will
+  have to add assertions before it can merge. That is the gate working as intended, but it will feel
+  like friction.
+- `ReporterFacingStatus` collapses `RESOLVED` and `DISMISSED` into distinct public values, so a
+  reporter does learn whether their concern was upheld. That seemed right — the content itself
+  already reveals it — but it is a product judgement worth confirming.
+- There is still no rate limit on reporting. The one-live-report-per-target index bounds abuse per
+  target, not across targets; that remains separate policy work (plan 009 non-goals).
 
 ## Human actions required
 
@@ -115,7 +111,7 @@ None.
 ## Recommended next action
 
 Independent review of this branch in a fresh session, then merge. When requested, start plan 009
-chunk 6 (reporter endpoints plus loop 4's Gherkin feature file) from `main`.
+chunk 7 (admin queue endpoints: list, assign, decide) from `main`.
 
 ## Last updated
 

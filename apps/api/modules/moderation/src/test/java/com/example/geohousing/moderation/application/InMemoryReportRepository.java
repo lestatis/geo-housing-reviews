@@ -26,6 +26,11 @@ final class InMemoryReportRepository implements ReportRepository {
   }
 
   @Override
+  public Optional<Report> findById(ReportId reportId) {
+    return Optional.ofNullable(byId.get(reportId));
+  }
+
+  @Override
   public List<Report> findByCase(ModerationCaseId caseId) {
     List<Report> found = new ArrayList<>();
     for (Report report : byId.values()) {

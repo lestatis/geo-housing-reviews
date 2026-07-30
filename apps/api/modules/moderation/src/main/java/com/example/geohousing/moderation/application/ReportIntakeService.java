@@ -57,6 +57,11 @@ public final class ReportIntakeService {
 
     ModeratableTarget content =
         targetLookup.find(target).orElseThrow(() -> new ModerationTargetNotFoundException(target));
+    if (!content.visible()) {
+      // Reported as missing, not refused: content awaiting moderation or already withdrawn is not
+      // something a reporter should be able to confirm the existence of by trying to report it.
+      throw new ModerationTargetNotFoundException(target);
+    }
     if (content.authorAccountId().equals(reporterId.value())) {
       throw new SelfReportNotAllowedException("an author cannot report their own content");
     }

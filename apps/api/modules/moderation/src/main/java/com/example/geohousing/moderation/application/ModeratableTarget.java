@@ -12,8 +12,13 @@ import java.util.UUID;
  * version is stamped onto a decision so an edit afterwards is visibly different from what the
  * moderator read. Nothing about the content itself crosses the boundary — moderation does not need
  * the text to run a case workflow.
+ *
+ * <p>{@code visible} reports a fact, not a policy: whether the owning module currently shows this
+ * to the public. Who may act on it given that fact is this module's decision — a moderator works
+ * withdrawn content all the time, while a reporter must not even learn it exists.
  */
-public record ModeratableTarget(ModerationTargetRef ref, UUID authorAccountId, long version) {
+public record ModeratableTarget(
+    ModerationTargetRef ref, UUID authorAccountId, long version, boolean visible) {
 
   public ModeratableTarget {
     Objects.requireNonNull(ref, "ref");

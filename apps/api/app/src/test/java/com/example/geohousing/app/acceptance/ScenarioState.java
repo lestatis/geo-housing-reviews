@@ -23,6 +23,7 @@ public class ScenarioState {
 
   private String currentReviewId;
   private String currentVerificationCaseId;
+  private String currentReportId;
   private MvcResult lastResult;
 
   public void rememberActor(String name, String bearerToken) {
@@ -92,6 +93,18 @@ public class ScenarioState {
       throw new IllegalStateException("this scenario has not opened a verification case yet");
     }
     return currentVerificationCaseId;
+  }
+
+  public void rememberReport(String reportId) {
+    this.currentReportId = reportId;
+  }
+
+  /** The report the scenario is talking about — "that report" in the feature files. */
+  public String currentReportId() {
+    if (currentReportId == null) {
+      throw new IllegalStateException("this scenario has not filed a report yet");
+    }
+    return currentReportId;
   }
 
   public void rememberResult(MvcResult result) {
