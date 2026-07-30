@@ -2,17 +2,17 @@
 
 ## Objective
 
-Implement plan 009, chunk 4: give moderation a way to reach the content it moderates — a published
-`reviews.api` gateway and the moderation-side adapters — and make a decision actually take effect.
+Implement plan 009, chunk 5: JPA persistence for reports, cases and decisions, so the moderation
+module can actually run — and with it, the report → case → decision → effect flow end to end.
 
 ## Active branch
 
-`feat/009-moderation-chunk4-reviews-gateway`, branched from clean `main` at `84b58ff`. Local only;
-not pushed. Awaiting a fresh independent review before merge.
+`feat/009-moderation-chunk5-persistence`, branched from clean `main` at `c466200`. Local only; not
+pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 4 of 8.
+No issue. `docs/plans/009-moderation-module.md`, chunk 5 of 8.
 
 ## Current status
 
@@ -20,101 +20,93 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `reviews.api` gained `ModeratableReview`, `ReviewModerationEffect`,
-  `ReviewModerationConflictException` and `ReviewModerationGateway`.
-- `ReviewModerationGatewayAdapter` in reviews, wired in `ReviewsBeanConfiguration`.
-- Moderation gained `implementation(project(":modules:reviews"))`, the `ModerationEffectApplier`
-  port, `ModerationEffectConflictException`, and two `@Component` adapters under
-  `moderation.infrastructure.reviews`.
-- `ModerationCaseService.decide` reordered to apply-then-record; `ModerationCase.requireDecidable()`
-  added.
-- 22 new tests plus 4 new case-service tests.
+- Three JPA entities, one mapper, three Spring Data repositories, three port adapters under
+  `moderation.infrastructure.persistence`.
+- `ModerationBeanConfiguration` wiring `ReportIntakeService` and `ModerationCaseService`, with the
+  policy version read from configuration.
+- `GeoHousingApplication` gained moderation in `@EntityScan` and `@EnableJpaRepositories`.
+- `ModerationCaseAlreadyOpenException` plus race recovery in `ReportIntakeService`.
+- Two fixes to earlier chunks' code, both found by these tests (below).
+- 9 persistence integration tests, 5 flow integration tests, 2 new adapter tests.
 
 ## Remaining work
 
-Chunks 5–8. Chunk 5 (persistence adapters) is next and is what finally lets the whole report → case
-→ decision flow run end to end.
+Chunks 6–8: reporter endpoints, admin queue endpoints, appeals. Chunk 6 also brings loop 4's Gherkin
+feature file, which plan 010 deferred until reporting had endpoints.
 
 ## Decisions made
 
-- **The contract carries no review content.** Moderation needs the author and the version, nothing
-  more. A moderator who must read the review uses reviews' own audited admin endpoint; copying the
-  text out would put the same sensitive material in a second module under a second set of access
-  rules. A test pins the record to exactly four components.
-- **Apply the effect before recording the decision** (founder, 2026-07-29). If recording fails
-  afterwards, the content is correctly withheld and reviews' own audit row — written atomically with
-  its mutation — already carries the action and reason; the case stays `IN_REVIEW` and is retryable.
-  Recording first risks an audit trail asserting a review was removed while it is still publicly
-  visible, and an appeal referencing a decision that never took effect.
-- **`requireDecidable()` added to the domain** so the accountability check runs *before* the
-  irreversible part. An effect cannot be undone by throwing afterwards.
-- **Two ports, not one.** Reading about content and changing it are different authorities, and a
-  future target type may support one without the other.
-- **The action → effect mapping lives in the adapter.** Whether an action even has a content effect
-  is a property of the target's module. Four actions map to nothing:
-  `APPROVE_WITH_REDACTION`/`REQUEST_CHANGES` need a content-editing path that does not exist,
-  `RESTRICT_ACCOUNT` is identity's, and `ESCALATE` has decided nothing. Each is still a recorded
-  decision.
-- **The adapters refuse a non-`REVIEW` target rather than returning empty**, because a silent empty
-  would read as "content does not exist" and quietly drop real reports.
+- **The one-live-case race is recovered, not surfaced.** Intake catches
+  `ModerationCaseAlreadyOpenException`, re-reads, and attaches its report to the case that won.
+  Losing that race means convergence worked; reporting it as an error would punish the second
+  reporter for doing nothing wrong.
+- **Decisions are ordered by `(decided_at, id)`.** Ordering by timestamp alone is not a total order,
+  and an audit trail that reorders itself between reads is not one an appeal can rely on.
+- **`APPROVE` is conditional on current state.** It publishes content awaiting moderation, and is a
+  no-op on content already visible. See the defect note below.
+- **`save` refuses an aggregate that was never created** rather than silently inserting, and mutates
+  the loaded row in place so Hibernate's `@Version` check covers the read-modify-write.
+- **The decision entity has no mutator and no `@Version`**, matching a table with no `updated_at`.
+  Append-only is expressed three times over — port, entity, schema.
+- **Enums are stored by name.** The schema's CHECK constraints spell the values out, and an ordinal
+  would silently remap every stored row the moment a constant is inserted.
 
 ## Assumptions
 
-- `judgedVersion` is null only when the target lookup finds nothing; `decide` then records the
-  decision without applying an effect. That path is reachable if content disappears between intake
-  and decision, and is worth a second look in chunk 7 when the admin endpoints exist.
+- `moderation.policy-version` defaults to 1. Raising it is an operational act, since an appeal must
+  be judged under the policy in force when the decision was made.
 
 ## Files changed
 
-- 4 new files in `modules/reviews/.../api/`, 1 new adapter + `ReviewsBeanConfiguration`
-- new `modules/reviews/src/test/.../ReviewModerationGatewayAdapterTest.java`
-- `modules/moderation/build.gradle.kts`; 2 new files in `moderation/application/`; 2 new adapters in
-  `moderation/infrastructure/reviews/`
-- `ModerationCaseService`, `ModerationCase`, and their tests; new
-  `InMemoryModerationEffectApplier`, `ReviewsModerationAdapterTest`
-- new `app/src/test/.../moderation/ModerationReviewGatewayIntegrationTest.java`
+- 10 new files under `modules/moderation/.../infrastructure/persistence/`
+- new `modules/moderation/.../infrastructure/ModerationBeanConfiguration.java`
+- new `modules/moderation/.../application/ModerationCaseAlreadyOpenException.java`;
+  `ReportIntakeService` gained race recovery
+- `modules/moderation/.../infrastructure/reviews/ReviewsModerationEffectApplier.java` (APPROVE fix)
+- `app/src/main/java/com/example/geohousing/app/GeoHousingApplication.java` (scanning)
+- new `app/src/test/.../moderation/ModerationPersistenceIntegrationTest.java`,
+  `ModerationFlowIntegrationTest.java`; extended `ReviewsModerationAdapterTest`
 - `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- `cd apps/api && ./gradlew :modules:reviews:test :modules:moderation:test -PskipMutation`
-- `cd apps/api && ./gradlew :app:test --tests '*ModerationReviewGatewayIntegrationTest'`
-- `cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.architecture.*'`
+- `cd apps/api && ./gradlew :modules:moderation:test -PskipMutation`
+- `cd apps/api && ./gradlew :app:test --tests '*ModerationPersistenceIntegrationTest' --tests '*ModerationFlowIntegrationTest'`
 - `cd apps/api && ./gradlew :modules:reviews:mutationTest :modules:moderation:mutationTest --rerun-tasks`
-- `./scripts/check.sh`
+- `./scripts/check.sh` → `EXIT=0`, 3m 48s
 
 ## Tests and verification
 
-All passed on 2026-07-29. 9 reviews-adapter tests, 8 moderation-adapter tests, 15 case-service tests
-(4 new), and 5 app integration tests. Mutation: reviews 91% (threshold 85), moderation 88% (85).
+All passed on 2026-07-29. Mutation: reviews 91% (threshold 85), moderation 87% (85).
 
-**The api-only boundary rule was proven non-vacuous for the new dependency**: importing a reviews
-*internal* type (`ReviewStatus`) into a moderation adapter failed
-`ModuleBoundaryArchitectureTest > modules_should_only_be_reached_through_their_api_package`, then
-was reverted and the rule went green again. Until this chunk the rule had nothing to catch for
-moderation, since the module had no cross-module dependency at all.
+**MVP loop 4 runs for the first time.** `ModerationFlowIntegrationTest` files a report against a
+published review, converges three reporters onto one case, assigns it, decides `REMOVE`, and proves
+the review is genuinely gone — plus the case decided, the reports closed out, the decision recorded
+with its user-facing explanation, and reviews' own audit row written for the effect.
 
-The app integration test proves the edge in a running context: a published review is removed through
-the moderation port and genuinely disappears from the public listing, a stale version is refused,
-and reviews' own audit row is written for the effect.
+**Two defects in earlier chunks were found by these tests**, and both are the kind that only appear
+against a real database or a real flow:
+
+1. `findByCaseIdOrderByDecidedAtAsc` returned decisions in arbitrary order when two shared a
+   timestamp. Fixed with an id tiebreaker.
+2. `APPROVE` mapped to an unconditional `PUBLISH`, which throws `IllegalReviewStateTransitionException`
+   on an already-published review — the *common* case, since most reports are about published
+   content. Dismissing a report would have failed in production. Now `APPROVE` publishes only what is
+   awaiting moderation and does nothing to what was never withdrawn.
 
 ## Known failures
 
-None observed. The IDE repeatedly reported unresolved `com.example.geohousing.reviews` imports in
-moderation sources — a stale IDE classpath after the module gained the dependency; Gradle compiles
-and runs them.
+None observed.
 
 ## Risks and unresolved questions
 
-- **Scope note, stated plainly**: the plan said this chunk would prove "a report opens a case, a
-  moderator decides REMOVE, and the review disappears". The report → case half cannot run in a
-  Spring context yet because moderation has no repository implementations until chunk 5, so the app
-  test drives the moderation *ports* instead. The cross-module edge is genuinely proven; the
-  full-flow proof moves to chunk 5.
-- The apply-then-record window is real and accepted. If moderation's write fails, reviews' audit
-  holds the action and reason but the user-facing explanation is lost until the moderator retries.
-- `ModerationCaseService` now has seven constructor parameters. Chunk 7 should consider whether the
-  decision path wants its own smaller collaborator.
+- `alreadyVisible` reads the target before deciding the effect, so there is a read-then-write window.
+  The `expectedVersion` check on the write closes it: if the review changed in between, the apply is
+  refused as a conflict.
+- The moderation module now has no `-PskipMutation`-free margin to spare at 87% against a threshold
+  of 85. Chunk 6 should expect to add assertions.
+- Nothing exposes any of this over HTTP yet. A moderator still cannot work the queue without direct
+  service access — that is chunks 6 and 7, and until then MVP loop 5 remains unmet.
 
 ## Human actions required
 
@@ -123,7 +115,7 @@ None.
 ## Recommended next action
 
 Independent review of this branch in a fresh session, then merge. When requested, start plan 009
-chunk 5 (persistence adapters and their integration tests) from `main`.
+chunk 6 (reporter endpoints plus loop 4's Gherkin feature file) from `main`.
 
 ## Last updated
 

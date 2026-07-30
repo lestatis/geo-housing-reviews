@@ -177,6 +177,30 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   persistence adapters until chunk 5 — so the app test exercises the ports Spring resolves to these
   adapters. Ready for independent review.
 
+- 2026-07-29: Chunks 3 and 4 fast-forward merged to `main` (`84b58ff`, `8729c4a`).
+- 2026-07-29: Chunk 5 implemented on `feat/009-moderation-chunk5-persistence`. JPA entities, a
+  mapper and adapters for all three ports, wired into the app's entity and repository scanning
+  (moderation was absent from both lists, which is what a missing-bean failure first surfaced).
+  Both partial unique indexes are translated at the port: the one-live-case index into
+  `ModerationCaseAlreadyOpenException`, which intake now *catches and recovers from* — a report that
+  loses the race to open a case re-reads and joins the case that won, because losing that race means
+  convergence worked, not that the reporter did anything wrong. The one-live-report index maps to
+  the existing `DuplicateReportException`.
+
+  Two real defects surfaced while testing. Decisions were ordered by `decided_at` alone, which is
+  not a total order when two decisions share an instant — an audit trail that reorders itself
+  between reads is not one an appeal can rely on; the query now breaks ties on id. And
+  `APPROVE` was mapped to an unconditional `PUBLISH`, which throws on an already-published review —
+  i.e. on the *common* case of a report heard and not upheld. It now publishes only content that is
+  awaiting moderation and is a no-op on content that was never withdrawn.
+
+  MVP loop 4 runs end to end for the first time: `ModerationFlowIntegrationTest` files a report,
+  converges three reporters onto one case, works it, and proves a `REMOVE` genuinely removes the
+  review, with the case decided, reports closed out, the decision recorded with its explanation, and
+  reviews' own audit row written. 9 persistence tests (both races included), 5 flow tests, 2 new
+  adapter tests. Mutation: reviews 91% (85), moderation 87% (85). `./scripts/check.sh` passes in
+  3m48s. Ready for independent review.
+
 ## Final outcome
 
 Not yet complete.

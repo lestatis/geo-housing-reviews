@@ -11,6 +11,7 @@ import com.example.geohousing.moderation.domain.ReporterId;
 import com.example.geohousing.moderation.domain.RiskLevel;
 import java.time.Clock;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -70,11 +71,30 @@ public final class ReportIntakeService {
         Report.file(
             ReportId.of(UUID.randomUUID()), target, reporterId, category, description, clock);
 
-    ModerationCase moderationCase =
-        caseRepository.findLiveByTarget(target).orElseGet(() -> openCaseFor(target));
+    ModerationCase moderationCase = liveOrNewCaseFor(target);
     report.linkTo(moderationCase.id());
     reportRepository.create(report);
     return report;
+  }
+
+  /**
+   * The live case for this target, opening one if there is none.
+   *
+   * <p>Two reports about the same content can arrive at once, both find no case, and both try to
+   * open one. The partial unique index lets exactly one win; the loser is not a failure but proof
+   * that convergence worked, so it re-reads and joins the case that won. Without this the second
+   * reporter would get an error for doing nothing wrong.
+   */
+  private ModerationCase liveOrNewCaseFor(ModerationTargetRef target) {
+    Optional<ModerationCase> existing = caseRepository.findLiveByTarget(target);
+    if (existing.isPresent()) {
+      return existing.get();
+    }
+    try {
+      return openCaseFor(target);
+    } catch (ModerationCaseAlreadyOpenException lostTheRace) {
+      return caseRepository.findLiveByTarget(target).orElseThrow(() -> lostTheRace);
+    }
   }
 
   private ModerationCase openCaseFor(ModerationTargetRef target) {

@@ -49,10 +49,33 @@ class ReviewsModerationAdapterTest {
 
   @Test
   void eachActionWithAContentEffectReachesTheRightOne() {
-    assertThat(applyAndCapture(DecisionAction.APPROVE)).contains(ReviewModerationEffect.PUBLISH);
     assertThat(applyAndCapture(DecisionAction.REJECT)).contains(ReviewModerationEffect.REJECT);
     assertThat(applyAndCapture(DecisionAction.HIDE)).contains(ReviewModerationEffect.HIDE);
     assertThat(applyAndCapture(DecisionAction.REMOVE)).contains(ReviewModerationEffect.REMOVE);
+  }
+
+  @Test
+  void approvingContentAwaitingModerationPublishesIt() {
+    // The pre-moderation queue clearing: the review is not yet visible, so approval makes it so.
+    UUID reviewId = registerReview(false);
+
+    applyTo(reviewId, DecisionAction.APPROVE);
+
+    assertThat(gateway.calls)
+        .extracting(Call::effect)
+        .containsExactly(ReviewModerationEffect.PUBLISH);
+  }
+
+  @Test
+  void approvingContentThatIsAlreadyVisibleChangesNothing() {
+    // A report was heard and not upheld. The review was never withdrawn, so there is nothing to
+    // restore — and an unconditional publish would throw, which is the common case, not the rare
+    // one.
+    UUID reviewId = registerReview(true);
+
+    applyTo(reviewId, DecisionAction.APPROVE);
+
+    assertThat(gateway.calls).isEmpty();
   }
 
   @Test
@@ -119,6 +142,23 @@ class ReviewsModerationAdapterTest {
                     ModeratorId.of(UUID.randomUUID()),
                     ReasonCode.of("PRIVACY_RISK")))
         .doesNotThrowAnyException();
+  }
+
+  private UUID registerReview(boolean published) {
+    UUID reviewId = UUID.randomUUID();
+    gateway.reviews.put(
+        reviewId, new ModeratableReview(reviewId, UUID.randomUUID(), 1L, published));
+    gateway.calls.clear();
+    return reviewId;
+  }
+
+  private void applyTo(UUID reviewId, DecisionAction action) {
+    applier.apply(
+        ModerationTargetRef.review(reviewId),
+        action,
+        1L,
+        ModeratorId.of(UUID.randomUUID()),
+        ReasonCode.of("REASON"));
   }
 
   private Optional<ReviewModerationEffect> applyAndCapture(DecisionAction action) {

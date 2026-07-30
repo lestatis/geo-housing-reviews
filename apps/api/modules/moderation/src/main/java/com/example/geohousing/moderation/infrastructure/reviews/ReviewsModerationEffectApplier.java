@@ -47,7 +47,7 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
       throw new IllegalArgumentException("no effect is wired for target type " + target.type());
     }
 
-    Optional<ReviewModerationEffect> effect = contentEffectOf(action);
+    Optional<ReviewModerationEffect> effect = contentEffectOf(action, target);
     if (effect.isEmpty()) {
       return;
     }
@@ -64,18 +64,30 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
   /**
    * Which decisions change what a reader sees.
    *
+   * <p>{@code APPROVE} depends on where the content already is. Approving a review that is awaiting
+   * moderation publishes it — that is the pre-moderation queue clearing. Approving one that is
+   * already published means a report was heard and not upheld, and the right effect is none at all:
+   * the review was never withdrawn, so there is nothing to restore. Mapping it to an unconditional
+   * publish would throw on the more common of the two.
+   *
    * <p>The four with no effect are deliberate, not omissions. {@code APPROVE_WITH_REDACTION} and
    * {@code REQUEST_CHANGES} need a content-editing path that does not exist yet; {@code
    * RESTRICT_ACCOUNT} is identity's to apply, not reviews'; and {@code ESCALATE} is a handoff that
    * has decided nothing. Each is still a recorded decision with its reason and explanation.
    */
-  private static Optional<ReviewModerationEffect> contentEffectOf(DecisionAction action) {
+  private Optional<ReviewModerationEffect> contentEffectOf(
+      DecisionAction action, ModerationTargetRef target) {
     return switch (action) {
-      case APPROVE -> Optional.of(ReviewModerationEffect.PUBLISH);
+      case APPROVE ->
+          alreadyVisible(target) ? Optional.empty() : Optional.of(ReviewModerationEffect.PUBLISH);
       case REJECT -> Optional.of(ReviewModerationEffect.REJECT);
       case HIDE -> Optional.of(ReviewModerationEffect.HIDE);
       case REMOVE -> Optional.of(ReviewModerationEffect.REMOVE);
       case APPROVE_WITH_REDACTION, REQUEST_CHANGES, RESTRICT_ACCOUNT, ESCALATE -> Optional.empty();
     };
+  }
+
+  private boolean alreadyVisible(ModerationTargetRef target) {
+    return gateway.find(target.id()).map(review -> review.published()).orElse(false);
   }
 }
