@@ -11,5 +11,5 @@ interface SpringDataModerationCaseRepository extends JpaRepository<ModerationCas
   Optional<ModerationCaseJpaEntity> findByTargetTypeAndTargetIdAndStatusNot(
       String targetType, UUID targetId, String closedStatus);
 
-  List<ModerationCaseJpaEntity> findByStatusOrderByOpenedAtAsc(String status);
+  List<ModerationCaseJpaEntity> findByStatusNotOrderByOpenedAtAsc(String closedStatus);
 }

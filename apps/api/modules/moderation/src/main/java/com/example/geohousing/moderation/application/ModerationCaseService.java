@@ -3,6 +3,7 @@ package com.example.geohousing.moderation.application;
 import com.example.geohousing.moderation.domain.DecisionAction;
 import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
+import com.example.geohousing.moderation.domain.ModerationCaseStatus;
 import com.example.geohousing.moderation.domain.ModerationDecision;
 import com.example.geohousing.moderation.domain.ModerationDecisionId;
 import com.example.geohousing.moderation.domain.ModeratorId;
@@ -56,6 +57,21 @@ public final class ModerationCaseService {
     moderationCase.assignTo(moderatorId, clock);
     caseRepository.save(moderationCase);
     return moderationCase;
+  }
+
+  /**
+   * Takes the case if nobody holds it, and leaves an existing assignment alone.
+   *
+   * <p>Lets a moderator decide in one call without an assign round trip. An existing assignee is
+   * not displaced: the case record keeps saying who owns it, while the decision records who
+   * actually made it — which is the part accountability depends on.
+   */
+  public void claim(ModerationCaseId caseId, ModeratorId moderatorId) {
+    ModerationCase moderationCase = require(caseId);
+    if (moderationCase.status() == ModerationCaseStatus.OPEN) {
+      moderationCase.assignTo(moderatorId, clock);
+      caseRepository.save(moderationCase);
+    }
   }
 
   /**

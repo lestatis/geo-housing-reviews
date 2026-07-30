@@ -6,6 +6,7 @@ import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
 import com.example.geohousing.moderation.domain.ModerationCaseStatus;
 import com.example.geohousing.moderation.domain.ModerationTargetRef;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
@@ -36,6 +37,14 @@ public class JpaModerationCaseRepository implements ModerationCaseRepository {
         .findByTargetTypeAndTargetIdAndStatusNot(
             target.type().name(), target.id(), ModerationCaseStatus.CLOSED.name())
         .map(ModerationJpaMapper::toDomain);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<ModerationCase> findQueue() {
+    return cases.findByStatusNotOrderByOpenedAtAsc(ModerationCaseStatus.CLOSED.name()).stream()
+        .map(ModerationJpaMapper::toDomain)
+        .toList();
   }
 
   @Override

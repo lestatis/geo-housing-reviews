@@ -223,6 +223,26 @@ process: a forward fix may stop new writes but must never delete or rewrite exis
   Loop 4 completes the acceptance suite at 24 scenarios across all five MVP loops. Mutation:
   moderation 85% (threshold 85). `./scripts/check.sh` passes in 4m05s. Ready for independent review.
 
+- 2026-07-29: Chunk 6 fast-forward merged to `main` at `d9184dd`.
+- 2026-07-29: Chunk 7 implemented on `feat/009-moderation-chunk7-admin-queue`, scenarios first.
+  `GET /api/admin/moderation/cases`, `GET .../{id}`, `POST .../{id}/assign` and
+  `POST .../{id}/decide` complete MVP loop 5: an operator can now work the queue entirely over HTTP,
+  with no database access.
+
+  The queue carries a **concern count, not reporters**. One account can raise at most one live
+  report per target, so the count already answers the question a moderator has — one complaint or
+  twenty — and identities would add nothing while inviting decisions based on who complained. The
+  case detail carries each concern's category, description and timestamp, which is the substance to
+  judge; a scenario asserts no account id of anyone the scenario introduced appears in the response.
+
+  `decide` claims the case in the same call when nobody holds it. The accountability rule is that a
+  decision names a moderator, not that they clicked twice to get there. `claim` deliberately does
+  not displace an existing assignee: the case keeps saying who owns it while the decision records
+  who actually made it.
+
+  Loop 5's feature file grew from 4 to 10 scenarios; the suite is now 30. Mutation: moderation 86%
+  (threshold 85). `./scripts/check.sh` passes in 4m05s. Ready for independent review.
+
 ## Final outcome
 
 Not yet complete.

@@ -59,6 +59,11 @@ public class ScenarioState {
     return Set.copyOf(helpfulVoters);
   }
 
+  /** Every account this scenario introduced, for asserting that none of them leaks into a view. */
+  public java.util.Collection<String> knownAccountIds() {
+    return java.util.Set.copyOf(actorAccountIds.values());
+  }
+
   public void rememberProperty(String name, String propertyId) {
     propertyIds.put(name, propertyId);
   }

@@ -2,18 +2,17 @@
 
 ## Objective
 
-Implement plan 009, chunk 6: the reporter-facing endpoints, plus MVP loop 4's Gherkin feature file
-that plan 010 deferred until reporting had endpoints to describe.
+Implement plan 009, chunk 7: the moderator queue over HTTP — list, read, assign, decide — which is
+what makes MVP loop 5 ("operate without database access") real.
 
 ## Active branch
 
-`feat/009-moderation-chunk6-reporter-endpoints`, branched from clean `main` at `fedd42f`. Local
-only; not pushed. Awaiting a fresh independent review before merge.
+`feat/009-moderation-chunk7-admin-queue`, branched from clean `main` at `d9184dd`. Local only; not
+pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/009-moderation-module.md`, chunk 6 of 8; completes an acceptance criterion of
-`docs/plans/010-bdd-and-mutation-testing.md`.
+No issue. `docs/plans/009-moderation-module.md`, chunk 7 of 8.
 
 ## Current status
 
@@ -21,54 +20,53 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `report-and-dispute.feature` — 8 scenarios, **written first** and watched fail as undefined steps.
-- `POST /api/reports` and `GET /api/reports/{reportId}` in a new `moderation.infrastructure.web`.
-- `ReportQueryService`, `ReportNotFoundException`, `ReportRepository.findById`.
-- `ModerationExceptionHandler` — RFC 7807, scoped to the moderation web package.
-- `ReporterFacingStatus`, `ReportResponse`, `SubmitReportRequest`, `ModerationWebAuthentication`.
-- `ReportSteps` acceptance steps; moderation gained `spring-boot-starter-web`.
-- A privacy fix in chunk 3/4 code that the scenarios caught (below).
+- Six new scenarios in `moderate-and-administer.feature`, written first and watched fail.
+- `ModerationQueueService`, `ModerationCaseSummary`, `ModerationCaseDetail`;
+  `ModerationCaseRepository.findQueue()` and its JPA/in-memory implementations.
+- `ModerationCaseService.claim`.
+- `AdminModerationController` plus six response/request records.
+- `ModerationQueueServiceTest` (9 tests) and admin step definitions.
 
 ## Remaining work
 
-Chunks 7 and 8: the admin queue endpoints, then appeals. Until chunk 7 lands, a moderator still
-cannot work the queue over HTTP, so MVP loop 5 remains unmet.
+Chunk 8 — appeals — is the last chunk of plan 009.
 
 ## Decisions made
 
-- **Visibility is a fact on the port, a policy in the service.** `ModeratableTarget.visible` reports
-  whether the owning module shows the content publicly; `ReportIntakeService` decides what that
-  means. A moderator works withdrawn content routinely, while a reporter must not learn it exists —
-  one fact, two different rules, so the port must not bake either in.
-- **A reporter sees a coarser status than moderation keeps.** `AWAITING_MODERATION` / `RESOLVED` /
-  `DISMISSED`, never the internal `OPEN`/`LINKED` distinction. That distinction is queue plumbing,
-  and exposing it would let a reporter infer how busy moderation is and whether others reported the
-  same content.
-- **Someone else's report is 404, not 403.** A "forbidden" confirms a report exists for that
-  identifier, which is enough to learn that a given piece of content has been reported.
-- **Self-report is 403.** The author wrote the content, so they already know it exists; explaining
-  the refusal discloses nothing.
-- **No listing endpoint and no case identifier anywhere in the reporter surface.** A reporter is owed
-  the progress of their own concern and nothing more.
-- **No JUnit endpoint test class.** Under ADR-0009 new endpoint behaviour lives in Gherkin; adding a
-  parallel JUnit class would duplicate it at a second altitude for no gain.
+- **The queue carries a concern count, not reporters.** One account can raise at most one live
+  report per target, so the count already answers the question a moderator has (one complaint or
+  twenty?) without naming anyone. Identities would add nothing to that judgement and would invite
+  deciding by who complained rather than by what the content says — the failure mode MODERATION.md's
+  anti-capture rules exist to prevent.
+- **The case detail carries each concern's category, description and timestamp.** That is the
+  substance a moderator judges against; the reporter is not part of it.
+- **`decide` claims the case in the same call when nobody holds it.** The accountability rule is
+  that a decision names a moderator, not that they clicked twice to get there. This also settles the
+  note left in the chunk-3 handoff.
+- **`claim` does not displace an existing assignee.** The case record keeps saying who owns it while
+  the decision records who actually made it — a supervisor deciding does not quietly steal the case.
+- **`assign` reads the case back rather than composing a response from the write**, so the concern
+  count in the response is one nobody had to invent.
+- **`ModerationDecisionResponse` carries the internal note** and is therefore admin-only by
+  construction. Its javadoc says so, because reusing it in a reporter- or author-facing view is the
+  obvious future mistake.
 
 ## Assumptions
 
-- Report categories and target types are parsed case-insensitively from the request and rejected as
-  `INVALID_REQUEST` when unknown, matching how the properties controller parses its enums.
+- The queue is every non-closed case, oldest first. Ordering by when the case opened is ordering by
+  how long its first reporter has waited, which seemed the only fair queue; filtering and paging can
+  come when an operator asks for them.
 
 ## Files changed
 
-- new `app/src/test/resources/features/report-and-dispute.feature`
-- new `app/src/test/.../acceptance/ReportSteps.java`; `ScenarioState` gained the current report
-- 6 new files under `modules/moderation/.../infrastructure/web/`
-- new `modules/moderation/.../application/ReportQueryService.java`,
-  `ReportNotFoundException.java`; `ReportRepository`/`JpaReportRepository`/fake gained `findById`
-- `ModeratableTarget` (visible), `ReviewsModerationTargetLookup`, `ReportIntakeService`
-- `modules/moderation/build.gradle.kts`, `ModerationBeanConfiguration`
-- `docs/plans/009-moderation-module.md`, `docs/plans/010-bdd-and-mutation-testing.md`,
-  `docs/handoffs/current-task.md`
+- `app/src/test/resources/features/moderate-and-administer.feature` (4 → 10 scenarios)
+- `app/src/test/.../acceptance/ModerationSteps.java`, `ScenarioState.java`
+- 3 new files in `modules/moderation/.../application/`; `ModerationCaseRepository`,
+  `ModerationCaseService`, `ModerationBeanConfiguration`
+- 7 new files in `modules/moderation/.../infrastructure/web/`
+- `JpaModerationCaseRepository`, `SpringDataModerationCaseRepository`, and the in-memory case fake
+- new `modules/moderation/src/test/.../application/ModerationQueueServiceTest.java`
+- `docs/plans/009-moderation-module.md`, `docs/handoffs/current-task.md`
 
 ## Commands run
 
@@ -79,15 +77,18 @@ cannot work the queue over HTTP, so MVP loop 5 remains unmet.
 
 ## Tests and verification
 
-All passed on 2026-07-29. The acceptance suite is now **24 scenarios across all five MVP loops**,
-0 failures, 0 skipped. Mutation: moderation 85% (threshold 85).
+All passed on 2026-07-29. The acceptance suite is **30 scenarios**, 0 failures, 0 skipped. Mutation:
+moderation 86% (threshold 85) — up from sitting exactly on the line, because the new application
+code arrived with its own tests.
 
-**The scenarios caught a real privacy bug**, which is the whole argument for writing them first.
-"Reporting a review that is not public does not confirm it exists" failed against an implementation
-that otherwise worked: `ModerationTargetLookup` returned any review regardless of publication state,
-so an unpublished review could be reported and the 201 confirmed it existed. Anyone could have
-probed identifiers to discover content awaiting moderation. Now the port reports visibility and
-intake refuses invisible targets as not-found, with a unit test alongside the scenario.
+Loop 5 now proves itself end to end over HTTP: a reported review appears in the queue, a moderator
+opens the case and sees two concerns without any reporter identity, decides `REMOVE`, and the review
+disappears from the public listing. Dismissing a concern instead leaves it standing.
+
+One defect was found and fixed during the work: the step that locates a case used a JsonPath filter
+with an index inside the expression (`...[?(...)].caseId[0]`), which yields a `JSONArray` rather than
+a value. Read as a list and asserted to hold exactly one match — the same mistake I made earlier in
+this session, now caught by its own assertion instead of a cast error.
 
 ## Known failures
 
@@ -95,14 +96,13 @@ None observed.
 
 ## Risks and unresolved questions
 
-- Moderation sits exactly **on** its mutation threshold (85 vs 85). The next chunk touching it will
-  have to add assertions before it can merge. That is the gate working as intended, but it will feel
-  like friction.
-- `ReporterFacingStatus` collapses `RESOLVED` and `DISMISSED` into distinct public values, so a
-  reporter does learn whether their concern was upheld. That seemed right — the content itself
-  already reveals it — but it is a product judgement worth confirming.
-- There is still no rate limit on reporting. The one-live-report-per-target index bounds abuse per
-  target, not across targets; that remains separate policy work (plan 009 non-goals).
+- The queue has no paging or filtering. Fine at launch volume, and the ordering is deliberate, but
+  it is the first thing a real operator will ask for.
+- Nothing bounds how long a case may sit unassigned. `firstResponseAt` records the wait but nothing
+  reports on it; an SLA view belongs with the analytics module.
+- Assignment is not exclusive: two moderators can hold and decide the same case in sequence, and the
+  second decision simply appends. That is deliberate for a two-person launch team, but it will not
+  survive a larger roster without an explicit "already decided" guard at the endpoint.
 
 ## Human actions required
 
@@ -111,7 +111,8 @@ None.
 ## Recommended next action
 
 Independent review of this branch in a fresh session, then merge. When requested, start plan 009
-chunk 7 (admin queue endpoints: list, assign, decide) from `main`.
+chunk 8 (appeals: author submission and admin appeal decision, with the different-decider rule
+already enforced by the schema and the domain) from `main`.
 
 ## Last updated
 

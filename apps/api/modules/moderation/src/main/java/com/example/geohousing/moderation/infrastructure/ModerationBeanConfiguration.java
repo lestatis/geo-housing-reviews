@@ -4,6 +4,7 @@ import com.example.geohousing.moderation.application.ModerationCaseRepository;
 import com.example.geohousing.moderation.application.ModerationCaseService;
 import com.example.geohousing.moderation.application.ModerationDecisionRepository;
 import com.example.geohousing.moderation.application.ModerationEffectApplier;
+import com.example.geohousing.moderation.application.ModerationQueueService;
 import com.example.geohousing.moderation.application.ModerationTargetLookup;
 import com.example.geohousing.moderation.application.ReportIntakeService;
 import com.example.geohousing.moderation.application.ReportQueryService;
@@ -33,6 +34,14 @@ public class ModerationBeanConfiguration {
       ModerationTargetLookup targetLookup) {
     return new ReportIntakeService(
         reportRepository, caseRepository, targetLookup, Clock.systemUTC());
+  }
+
+  @Bean
+  ModerationQueueService moderationQueueService(
+      ModerationCaseRepository caseRepository,
+      ReportRepository reportRepository,
+      ModerationDecisionRepository decisionRepository) {
+    return new ModerationQueueService(caseRepository, reportRepository, decisionRepository);
   }
 
   @Bean
