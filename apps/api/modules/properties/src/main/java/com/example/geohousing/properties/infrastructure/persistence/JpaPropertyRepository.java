@@ -1,6 +1,8 @@
 package com.example.geohousing.properties.infrastructure.persistence;
 
+import com.example.geohousing.properties.application.PropertyMatch;
 import com.example.geohousing.properties.application.PropertyRepository;
+import com.example.geohousing.properties.domain.Coordinates;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
 import java.util.List;
@@ -37,5 +39,31 @@ public class JpaPropertyRepository implements PropertyRepository {
   @Transactional
   public void create(Property property) {
     properties.save(PropertyJpaMapper.toEntity(property));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<PropertyMatch> search(
+      String text, Coordinates point, double radiusMeters, int limit) {
+    boolean hasText = text != null && !text.isBlank();
+    boolean hasPoint = point != null;
+    return properties
+        .search(
+            hasText,
+            hasText ? text.trim() : "",
+            hasPoint,
+            hasPoint ? point.latitude() : 0d,
+            hasPoint ? point.longitude() : 0d,
+            radiusMeters,
+            limit)
+        .stream()
+        .map(
+            row ->
+                new PropertyMatch(
+                    PropertyId.of(row.getId()),
+                    row.getCanonicalName(),
+                    row.getScore(),
+                    row.getDistanceMeters()))
+        .toList();
   }
 }

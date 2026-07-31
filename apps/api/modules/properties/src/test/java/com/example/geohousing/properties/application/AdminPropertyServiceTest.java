@@ -144,6 +144,18 @@ class AdminPropertyServiceTest {
   }
 
   private static final class SingleProperty implements PropertyRepository {
+
+    @Override
+    public java.util.List<PropertyMatch> search(
+        String text,
+        com.example.geohousing.properties.domain.Coordinates point,
+        double radiusMeters,
+        int limit) {
+      // Search is proven against a real PostgreSQL (trigram scoring and PostGIS distance are the
+      // database's, not this fake's); these use-case tests do not exercise it.
+      throw new UnsupportedOperationException("search is covered by PropertySearchIntegrationTest");
+    }
+
     private final Property property;
 
     private SingleProperty(Property property) {
