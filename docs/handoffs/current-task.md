@@ -2,17 +2,17 @@
 
 ## Objective
 
-Implement plan 011, chunk 1: the catalogue search query — `V3.4` trigram/PostGIS indexes and the
-ranked native query, proven against real PostgreSQL. No endpoint yet.
+Implement plan 011, chunk 2: the search service and endpoint, loop 1 scenarios — and a fix-forward
+on a visibility bug shipped in chunk 1.
 
 ## Active branch
 
-`feat/011-property-search-chunk1-query`, branched from clean `main` at `08fe4b2`. Local only; not
+`feat/011-property-search-chunk2-endpoint`, branched from clean `main` at `776a700`. Local only; not
 pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/011-property-search.md`, chunk 1 of 2.
+No issue. `docs/plans/011-property-search.md`, chunk 2 of 2 — the plan is now **Complete**.
 
 ## Current status
 
@@ -20,74 +20,71 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `V3.4__add_property_search_indexes.sql`: `pg_trgm`, GIN trigram indexes on canonical name, alias
-  name, street and city, plus a partial index on active rows.
-- `SpringDataPropertyRepository.search(...)` — ranked native query.
-- `PropertySearchProjection`, `PropertyMatch`, `PropertyRepository.search(...)` and its adapter.
-- `PropertySearchIntegrationTest` (12 tests), `PropertyMatchTest` (4 tests).
-- The four in-module `PropertyRepository` fakes gained the new method.
+- **Fix**: search no longer filters to `ACTIVE`. `V3.5` replaces the partial index; the query now
+  excludes only `HIDDEN` and `MERGED`.
+- `PropertySearchQuery` (validation and clamping), `PropertySearchService`, bean wiring.
+- `GET /api/properties/search`, `PropertySearchHitResponse`, `PropertySearchResponse`.
+- 6 loop 1 scenarios and their steps; `ScenarioState` remembers the last created property.
+- `PropertyQueryService` javadoc corrected.
+- `PropertySearchQueryTest` (8 tests); the chunk-1 integration test corrected and extended.
 
 ## Remaining work
 
-Chunk 2: `PropertySearchQuery` with validation and clamping, `PropertySearchService`,
-`GET /api/properties/search`, loop 1 scenarios, and the `PropertyQueryService` javadoc correction.
+None for plan 011. Remaining MVP Must-have gaps: admin interface, right of reply, basic analytics.
 
 ## Decisions made
 
-- **Built in `properties`, not the `search` module.** Search needs `property`, `property_alias` and
-  `address`; another module may not read them, so it would need a projection — infrastructure for
-  scale nobody has measured. ARCHITECTURE §8 prescribes trigram + PostGIS over the owning tables,
-  and §5 gives `search` no responsibilities section, unlike every implemented module. **This is the
-  decision most worth pushing back on.**
-- **`word_similarity` (`<%`), not `similarity` (`%`).** Measured on real data:
-  `similarity(\'orbi\', \'Orbi Sea Towers Residence\')` = 0.19, *below* the 0.3 threshold, so the
-  building would not be returned at all. Word similarity scores it 1.0. The plan\'s original query
-  shape was wrong and validating it first is what caught it.
-- **Query on the left of `<%`.** EXPLAIN shows the reverse order plans a sequential scan even with
-  the index present.
-- **Trigram, not `tsvector`.** PostgreSQL ships no Georgian full-text configuration and the launch
-  market is Georgian/Russian/English (`P-002`); trigram is language-agnostic and typo-tolerant.
-- **`ACTIVE` only.** DRAFT awaits an administrator, HIDDEN was withdrawn, MERGED points elsewhere.
-- **The in-module fakes throw rather than return an empty list** for `search`, so a use-case test
-  that starts depending on search fails loudly instead of silently seeing no results.
+- **A user-contributed DRAFT property is findable.** This is the fix. `PropertyCatalogService`
+  already rules that DRAFT is publicly readable and only an administrator hiding one withholds it.
+  Properties are created DRAFT and stay so until activated, so filtering search to ACTIVE meant a
+  resident could create a property, review it, and never find it again — including their own.
+- **`V3.5` rather than editing `V3.4`.** Migrations are append-only once merged, so the corrective
+  index drops the old one and adds the right one.
+- **A search with neither text nor point is refused.** An empty search returns the catalogue ordered
+  by nothing in particular — the listing endpoint\'s job — and at scale it is a table scan any caller
+  could trigger at will.
+- **Half a point is no point.** A latitude without a longitude is discarded rather than treated as a
+  location, which would search from the equator and quietly return nothing.
+- **The service is deliberately thin.** Ranking belongs to the database; duplicating any of it in
+  Java would create a second place for relevance to disagree with itself.
 
 ## Assumptions
 
-- The 0.3 `pg_trgm.similarity_threshold` default is relied on implicitly. If match quality needs
-  tuning it should be set in the query, not globally.
+- Default radius 2 km, max 50 km; default limit 20, max 50. Chosen for a city-scale launch (`P-001`,
+  Batumi only) rather than measured.
 
 ## Files changed
 
-- new `modules/properties/src/main/resources/db/migration/properties/V3.4__add_property_search_indexes.sql`
-- new `modules/properties/.../infrastructure/persistence/PropertySearchProjection.java`;
-  `SpringDataPropertyRepository`, `JpaPropertyRepository`
-- new `modules/properties/.../application/PropertyMatch.java`; `PropertyRepository`
-- new `app/src/test/.../properties/PropertySearchIntegrationTest.java`
-- new `modules/properties/src/test/.../application/PropertyMatchTest.java`; four existing test fakes
-- new `docs/plans/011-property-search.md`; `docs/handoffs/current-task.md`
+- new `modules/properties/src/main/resources/db/migration/properties/V3.5__index_searchable_properties.sql`
+- `SpringDataPropertyRepository` (visibility filter + javadoc)
+- new `modules/properties/.../application/PropertySearchQuery.java`, `PropertySearchService.java`;
+  `PropertyQueryService` javadoc; `PropertiesBeanConfiguration`
+- new `modules/properties/.../infrastructure/web/PropertySearchHitResponse.java`,
+  `PropertySearchResponse.java`; `PropertyController`
+- `app/src/test/resources/features/find-property.feature` (4 -> 10 scenarios);
+  `CatalogueSteps`, `ScenarioState`
+- new `modules/properties/src/test/.../application/PropertySearchQueryTest.java`;
+  `PropertySearchIntegrationTest` corrected
+- `docs/plans/011-property-search.md` (closed), `docs/handoffs/current-task.md`
 
 ## Commands run
 
-- scratch PostgreSQL: `pg_available_extensions` check, V3.1-V3.4 applied, then each search term run
-  separately against seeded data
+- `cd apps/api && ./gradlew :app:test --tests \'*AcceptanceTest\'` (red first, then green)
 - `cd apps/api && ./gradlew :app:test --tests \'*PropertySearchIntegrationTest\'`
 - `cd apps/api && ./gradlew :modules:properties:mutationTest --rerun-tasks`
-- `./scripts/check.sh` -> `EXIT=0`, 4m 56s
+- `./scripts/check.sh` -> `EXIT=0`, 4m 48s
 
 ## Tests and verification
 
-All passed on 2026-07-30. Mutation: properties 76% (threshold 75).
+All passed on 2026-07-30. Acceptance suite: **42 scenarios**, 0 failures. Mutation: properties 77%
+(threshold 75).
 
-12 integration tests cover what only a real database can prove: name fragment, typo (`orbe`),
-Georgian alias against an English name, street and city fragments, proximity with distance ordering,
-a tight radius excluding what is outside it, the limit, no false positives on gibberish, all three
-excluded statuses, and that the GIN index can serve the predicate (asserted with `enable_seqscan`
-off, since four rows would always plan a scan otherwise).
+MVP loop 1 now works end to end: a resident finds a building by a name fragment, a misspelling, its
+Georgian name or its street — or by proximity — and reaches its reviews.
 
-One verification mistake worth recording: an early scratch run appeared to prove typo and Georgian
-matching, but a `\\set` at the top of the SQL file overrode the `-v` parameter, so all three runs
-actually queried the same term. Re-run per term, the results held — but the first pass proved
-nothing.
+**The scenarios caught the chunk-1 visibility bug**, which is the second time this session that
+writing them first has found something the unit tests agreed with. The chunk-1 integration test had
+encoded the wrong rule *and explained it in a comment*, so it would never have failed on its own.
 
 ## Known failures
 
@@ -95,11 +92,14 @@ None observed.
 
 ## Risks and unresolved questions
 
-- Properties is back to 76% against a threshold of 75, its usual margin. Chunk 2 adds a service and
-  a query object, both of which need their own tests.
-- Nothing is reachable over HTTP yet; the search exists only as a port method.
-- `ST_Distance` is computed for every candidate row when a point is supplied. Fine at launch
-  volume, and `ST_DWithin` bounds the candidate set first, but it is the query to watch.
+- `V3.4`\'s `property_active_idx` existed only briefly and is dropped by `V3.5`. Anyone who deployed
+  between the two gets the drop cleanly; nothing depended on it.
+- Search has no paging — a bounded limit only. Fine for a single-city launch, first thing to revisit
+  when the catalogue grows.
+- Ranking is trigram score then distance. No signal for review count, verification or recency yet;
+  that is a ranking decision, not a search one, and belongs with the ranking work `P-012` started.
+- `ST_Distance` is computed per candidate row when a point is given. `ST_DWithin` bounds the
+  candidates first, so this is a watch item rather than a problem.
 
 ## Human actions required
 
@@ -107,8 +107,9 @@ None.
 
 ## Recommended next action
 
-Independent review of this branch in a fresh session, then merge. When requested, start plan 011
-chunk 2 (service, endpoint and loop 1 scenarios) from `main`.
+Independent review of this branch in a fresh session, then merge — plan 011 then closes. The next
+task is a new plan; the open MVP Must-haves are the admin interface (where Playwright would finally
+earn its place), right of reply, and basic analytics.
 
 ## Last updated
 

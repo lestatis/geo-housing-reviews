@@ -29,7 +29,7 @@ public final class PropertyQueryService {
 
   /**
    * The most recently created properties, newest first. The requested limit is clamped to {@code
-   * [1, MAX_LIMIT]}; richer listing/filtering is the search module's job.
+   * [1, MAX_LIMIT]}; richer matching is PropertySearchService's job.
    */
   public List<Property> listRecent(Integer requestedLimit) {
     int limit = requestedLimit == null ? DEFAULT_LIMIT : requestedLimit;

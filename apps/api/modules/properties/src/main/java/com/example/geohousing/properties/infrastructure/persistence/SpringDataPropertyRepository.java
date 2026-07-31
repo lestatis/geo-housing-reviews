@@ -60,9 +60,11 @@ interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, 
    * <p>The query is on the left of {@code <%} on purpose: that is the operand order the GIN trigram
    * indexes from V3.4 can serve. Verified with EXPLAIN — the reverse order plans a sequential scan.
    *
-   * <p>Only ACTIVE rows are searchable. DRAFT is awaiting an administrator, HIDDEN was withdrawn,
-   * and MERGED already points elsewhere; returning any of them would either leak a queue or send
-   * someone to a dead record.
+   * <p>Searchable is "not withheld and not superseded". DRAFT is deliberately included: this
+   * module's own rule is that a user-contributed property is already publicly readable, and
+   * excluding drafts would mean a resident could create a property, review it, and never find it
+   * again — including their own. Only HIDDEN (an administrator withdrew it) and MERGED (it points
+   * elsewhere) are held back.
    *
    * <p>Native SQL for the same reason as the duplicate finder (ADR-0007): PostGIS distance without
    * a hibernate-spatial dependency.
@@ -87,7 +89,7 @@ interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, 
                  END AS distanceMeters
           FROM properties.property p
           LEFT JOIN properties.address addr ON addr.id = p.address_id
-          WHERE p.status = 'ACTIVE'
+          WHERE p.status NOT IN ('HIDDEN', 'MERGED')
             AND (NOT :hasText
                  OR lower(:text) <% lower(p.canonical_name)
                  OR lower(:text) <% lower(addr.street)

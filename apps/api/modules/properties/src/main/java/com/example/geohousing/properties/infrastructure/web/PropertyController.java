@@ -4,6 +4,8 @@ import com.example.geohousing.properties.application.CreatePropertyCommand;
 import com.example.geohousing.properties.application.PropertyCreationResult;
 import com.example.geohousing.properties.application.PropertyCreationService;
 import com.example.geohousing.properties.application.PropertyQueryService;
+import com.example.geohousing.properties.application.PropertySearchQuery;
+import com.example.geohousing.properties.application.PropertySearchService;
 import com.example.geohousing.properties.domain.Address;
 import com.example.geohousing.properties.domain.Coordinates;
 import com.example.geohousing.properties.domain.Property;
@@ -34,10 +36,15 @@ class PropertyController {
 
   private final PropertyCreationService creationService;
   private final PropertyQueryService queryService;
+  private final PropertySearchService searchService;
 
-  PropertyController(PropertyCreationService creationService, PropertyQueryService queryService) {
+  PropertyController(
+      PropertyCreationService creationService,
+      PropertyQueryService queryService,
+      PropertySearchService searchService) {
     this.creationService = creationService;
     this.queryService = queryService;
+    this.searchService = searchService;
   }
 
   /**
@@ -77,6 +84,27 @@ class PropertyController {
     List<PropertyResponse> items =
         queryService.listRecent(limit).stream().map(PropertyResponse::from).toList();
     return new PropertyListResponse(items);
+  }
+
+  /**
+   * Finds properties by name, alias, address fragment, proximity, or a combination.
+   *
+   * <p>Anonymous, like the rest of the catalogue (DECISION_LOG P-011): a review platform has to be
+   * browsable before it asks anyone for an account.
+   */
+  @GetMapping("/search")
+  PropertySearchResponse search(
+      @RequestParam(name = "q", required = false) String text,
+      @RequestParam(name = "lat", required = false) Double latitude,
+      @RequestParam(name = "lng", required = false) Double longitude,
+      @RequestParam(name = "radiusMeters", required = false) Double radiusMeters,
+      @RequestParam(name = "limit", required = false) Integer limit) {
+    return new PropertySearchResponse(
+        searchService
+            .search(PropertySearchQuery.of(text, latitude, longitude, radiusMeters, limit))
+            .stream()
+            .map(PropertySearchHitResponse::from)
+            .toList());
   }
 
   private static PropertyType parseType(String type) {

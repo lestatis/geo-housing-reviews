@@ -8,6 +8,7 @@ import com.example.geohousing.properties.application.PropertyCatalogService;
 import com.example.geohousing.properties.application.PropertyCreationService;
 import com.example.geohousing.properties.application.PropertyQueryService;
 import com.example.geohousing.properties.application.PropertyRepository;
+import com.example.geohousing.properties.application.PropertySearchService;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,5 +48,10 @@ public class PropertiesBeanConfiguration {
   AdminPropertyService adminPropertyService(
       PropertyRepository propertyRepository, PropertyAdminRepository propertyAdminRepository) {
     return new AdminPropertyService(propertyRepository, propertyAdminRepository, Clock.systemUTC());
+  }
+
+  @Bean
+  PropertySearchService propertySearchService(PropertyRepository propertyRepository) {
+    return new PropertySearchService(propertyRepository);
   }
 }

@@ -36,3 +36,40 @@ Feature: Find a property and understand the experience of living there
     Then the request succeeds
     And the review shows 1 helpful signal
     And no voter identity appears in the response
+
+  Scenario: a resident finds a building by part of its name
+    Given a resident "Nino"
+    And Nino created the property "Orbi Sea Towers Residence"
+    When an anonymous visitor searches for "orbi"
+    Then the request succeeds
+    And the results include "Orbi Sea Towers Residence"
+
+  Scenario: a misspelt name still finds the building
+    Given a resident "Dato"
+    And Dato created the property "Alliance Palace"
+    When an anonymous visitor searches for "alliancce"
+    Then the results include "Alliance Palace"
+
+  Scenario: a property somebody added is findable straight away
+    Given a resident "Ana"
+    And Ana created the property "Vake Garden House"
+    When an anonymous visitor searches for "vake garden"
+    Then the results include "Vake Garden House"
+
+  Scenario: a property an administrator withdrew is not findable
+    Given a resident "Giorgi"
+    And an administrator "Mari"
+    And Giorgi created the property "Withdrawn Tower"
+    And Mari withdraws that property
+    When an anonymous visitor searches for "withdrawn tower"
+    Then the results do not include "Withdrawn Tower"
+
+  Scenario: searching for nothing in particular is refused
+    When an anonymous visitor searches for ""
+    Then the request is refused as invalid
+
+  Scenario: nothing matches gibberish
+    Given a resident "Salome"
+    And Salome created the property "Digomi Heights"
+    When an anonymous visitor searches for "qqzzxx"
+    Then the results are empty

@@ -25,6 +25,7 @@ public class ScenarioState {
   private String currentVerificationCaseId;
   private String currentReportId;
   private String currentAppealId;
+  private String lastCreatedPropertyId;
   private MvcResult lastResult;
 
   public void rememberActor(String name, String bearerToken) {
@@ -67,6 +68,15 @@ public class ScenarioState {
 
   public void rememberProperty(String name, String propertyId) {
     propertyIds.put(name, propertyId);
+    this.lastCreatedPropertyId = propertyId;
+  }
+
+  /** The property most recently created — "that property" in the feature files. */
+  public String lastCreatedPropertyId() {
+    if (lastCreatedPropertyId == null) {
+      throw new IllegalStateException("this scenario has not created a property yet");
+    }
+    return lastCreatedPropertyId;
   }
 
   public String propertyIdFor(String propertyName) {

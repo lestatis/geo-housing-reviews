@@ -1,6 +1,6 @@
 # Property Search: the Missing Half of MVP Loop 1
 
-Status: Active
+Status: Complete
 Owner: Claude
 Related issue: none
 Last updated: 2026-07-30
@@ -15,9 +15,10 @@ step that cannot happen.
 
 - [x] Searching by name fragment, alias, address fragment or proximity returns ranked matches from
       the active catalogue, with typo tolerance and without a language-specific configuration.
-- [x] Draft, withdrawn and merged properties are never findable.
-- [ ] The search is reachable over HTTP without an account (`P-011`), with bounded limit and radius.
-- [ ] Loop 1's feature file covers name, alias, address, proximity and the three exclusions.
+- [x] Withdrawn and merged properties are never findable; user-contributed drafts are (corrected
+      in chunk 2 — see below).
+- [x] The search is reachable over HTTP without an account (`P-011`), with bounded limit and radius.
+- [x] Loop 1's feature file covers name, alias, address, proximity and the exclusions.
 
 ## Non-goals
 
@@ -34,7 +35,7 @@ step that cannot happen.
 | Matching | `word_similarity` (`<%`), not `similarity` (`%`) | Measured: `similarity('orbi','Orbi Sea Towers Residence')` = 0.19, below the 0.3 threshold, so the building would not come back at all. Word similarity scores the same pair 1.0 | — |
 | Operand order | Query on the left of `<%` | Verified with EXPLAIN: the reverse order plans a sequential scan even with the GIN index present | — |
 | Index type | Trigram GIN, not `tsvector` | PostgreSQL ships no Georgian full-text configuration, and the launch market is Georgian/Russian/English (`P-002`). Trigram is language-agnostic and tolerates the typos people make | A Georgian dictionary exists and quality demands stemming |
-| Visibility | `ACTIVE` only | DRAFT is awaiting an administrator, HIDDEN was withdrawn, MERGED points elsewhere — surfacing any leaks a queue or leads to a dead record | — |
+| Visibility | Everything except `HIDDEN` and `MERGED` | `PropertyCatalogService.visibilityOf` already rules that a user-contributed DRAFT is publicly readable; only an administrator hiding one withholds it. Chunk 1 filtered to `ACTIVE` and was wrong — see the chunk-2 log | — |
 
 ## Implementation chunks
 
@@ -81,6 +82,38 @@ Migrations are append-only; a forward fix adds indexes rather than editing `V3.4
   and that the index can serve the predicate. Mutation: properties 76% (threshold 75).
   `./scripts/check.sh` passes. Ready for independent review.
 
+- 2026-07-30: Chunk 1 fast-forward merged to `main` at `776a700`.
+- 2026-07-30: Chunk 2 implemented on `feat/011-property-search-chunk2-endpoint`, scenarios first —
+  and the first thing they exposed was a bug shipped in chunk 1.
+
+  **Chunk 1 filtered search to `ACTIVE` properties.** That contradicts this module's own documented
+  rule: `PropertyCatalogService.visibilityOf` states that DRAFT properties are user-contributed and
+  already publicly readable, and only an administrator hiding one withholds it. Properties are
+  *created* DRAFT and stay that way until an administrator activates them, so the shipped behaviour
+  meant a resident could create a property, review it, and then never find it again — including
+  their own. Chunk 1's integration test asserted that broken behaviour with a comment claiming DRAFT
+  "is awaiting an administrator", which was simply wrong about this module.
+
+  Fixed forward: `V3.5` drops the `ACTIVE`-only partial index and adds one over everything not
+  `HIDDEN` or `MERGED`; the query filter matches; the test now asserts a user-contributed property
+  *is* findable, and that withdrawn and superseded ones are not.
+
+  `PropertySearchQuery` refuses a search with neither text nor point — an empty search is a table
+  scan any caller could trigger — and clamps the limit and radius. `GET /api/properties/search` is
+  anonymous per `P-011`. The stale `PropertyQueryService` javadoc ("richer listing/filtering is the
+  search module's job") now points at `PropertySearchService`.
+
+  6 loop 1 scenarios (42 total), 8 query-object tests, 13 integration tests. Mutation: properties
+  77% (threshold 75). `./scripts/check.sh` passes.
+
 ## Final outcome
 
-Not yet complete.
+Complete at 2 chunks, pending independent review of chunk 2.
+
+MVP loop 1 works: a resident can find a building by a fragment of its name, a misspelling, its
+Georgian name, or its street — or by standing near it — and reach its reviews. That was the last
+Must-have blocking the loop.
+
+Deliberately not built: a `search` module or projection, cross-entity search, autocomplete,
+faceting, paging beyond a bounded limit, and geocoding free text into coordinates. The remaining MVP
+Must-have gaps are the admin interface, right of reply, and basic analytics.

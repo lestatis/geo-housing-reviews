@@ -54,6 +54,7 @@ class PropertySearchIntegrationTest {
     property("Alliance Palace", "ACTIVE", rustaveli, 41.6500, 41.6400);
     property("Orbi Draft Tower", "DRAFT", null, null, null);
     property("Orbi Withdrawn Tower", "HIDDEN", null, null, null);
+    property("Orbi Merged Tower", "MERGED", null, null, null);
   }
 
   @Test
@@ -61,19 +62,19 @@ class PropertySearchIntegrationTest {
     // The reason this uses word_similarity: plain similarity scores "orbi" against
     // "Orbi Sea Towers Residence" at 0.19, below the 0.3 threshold, and the building a resident is
     // looking for would simply not come back.
-    assertThat(names(search("orbi"))).containsExactly("Orbi Sea Towers Residence");
+    assertThat(names(search("orbi"))).contains("Orbi Sea Towers Residence");
   }
 
   @Test
   void aTypoStillFindsTheBuilding() {
-    assertThat(names(search("orbe"))).containsExactly("Orbi Sea Towers Residence");
+    assertThat(names(search("orbe"))).contains("Orbi Sea Towers Residence");
   }
 
   @Test
   void aGeorgianAliasFindsTheBuildingNamedInEnglish() {
     // Trigram is language-agnostic, which is why it was chosen over tsvector: PostgreSQL ships no
     // Georgian full-text configuration (P-002 keeps the Georgian data model ready).
-    assertThat(names(search("ორბი"))).containsExactly("Orbi Sea Towers Residence");
+    assertThat(names(search("ორბი"))).contains("Orbi Sea Towers Residence");
   }
 
   @Test
@@ -89,10 +90,17 @@ class PropertySearchIntegrationTest {
   }
 
   @Test
-  void contentNotInTheCatalogueIsNotFindable() {
-    // A draft is awaiting an administrator and a withdrawn one was taken out deliberately; both
-    // match "orbi" on name alone, so their absence is the status filter working.
-    assertThat(names(search("orbi"))).doesNotContain("Orbi Draft Tower", "Orbi Withdrawn Tower");
+  void aUserContributedPropertyIsFindableStraightAway() {
+    // DRAFT is not a moderation queue: this module treats a user-contributed property as publicly
+    // readable (PropertyCatalogService.visibilityOf). Excluding drafts would let a resident create
+    // a property, review it, and never find it again — including their own.
+    assertThat(names(search("orbi"))).contains("Orbi Draft Tower");
+  }
+
+  @Test
+  void withdrawnAndSupersededPropertiesAreNotFindable() {
+    // HIDDEN was taken out by an administrator; MERGED points at the record that survived.
+    assertThat(names(search("orbi"))).doesNotContain("Orbi Withdrawn Tower", "Orbi Merged Tower");
   }
 
   @Test
