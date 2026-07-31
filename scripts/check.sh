@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# A non-interactive shell does not read ~/.bashrc, so an nvm-managed Node is invisible here even
+# though it works in a terminal. Load it if it exists, rather than failing with "corepack is
+# unavailable" on a machine where Node is plainly installed. A system-wide Node is used as-is.
+if ! command -v corepack >/dev/null 2>&1 && [[ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]]; then
+  # shellcheck disable=SC1091
+  . "${NVM_DIR:-$HOME/.nvm}/nvm.sh" >/dev/null 2>&1 || true
+fi
+
 python3 scripts/validate_repo_governance.py
 
 if [[ -d apps/api && -x apps/api/gradlew ]]; then

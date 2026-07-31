@@ -25,9 +25,17 @@ No microservices in MVP.
 ### Clients
 
 - React Native + Expo for iOS/Android;
-- Next.js for the admin web app;
+- Next.js for the admin web app (`apps/web`, App Router — see its README);
 - generated API client from OpenAPI;
 - shared design tokens, not shared UI components across incompatible platforms unless value is proven.
+
+The OpenAPI document is exported to `docs/api/openapi.json` and pinned by
+`OpenApiContractIntegrationTest`, so a contract change fails the backend build unless the file is
+regenerated in the same commit. Clients generate from that file; no client hand-writes a request or
+response type (AGENTS.md §3.7).
+
+The admin app calls the API from the server and keeps the access token in an httpOnly cookie, so no
+token reaches browser JavaScript and the API opens no CORS surface for the admin origin.
 
 ### Infrastructure
 

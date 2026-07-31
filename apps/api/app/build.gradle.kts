@@ -53,4 +53,8 @@ tasks.withType<Test> {
     // design). This is a test value only, never a production secret — production injects the real
     // pepper via the IDENTITY_AUTH_SUBJECT_PEPPER environment variable.
     environment("IDENTITY_AUTH_SUBJECT_PEPPER", "test-only-auth-subject-pepper-not-for-production")
+
+    // Tests fork a JVM, so -DupdateOpenApiSpec on the Gradle command line does not reach
+    // OpenApiContractIntegrationTest unless it is forwarded explicitly.
+    systemProperty("updateOpenApiSpec", providers.systemProperty("updateOpenApiSpec").getOrElse(""))
 }

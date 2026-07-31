@@ -2,17 +2,17 @@
 
 ## Objective
 
-Implement plan 011, chunk 2: the search service and endpoint, loop 1 scenarios — and a fix-forward
-on a visibility bug shipped in chunk 1.
+Implement plan 012, chunk 1: the admin web app's toolchain plus one real screen — a signed-in
+moderator looking at the real moderation queue.
 
 ## Active branch
 
-`feat/011-property-search-chunk2-endpoint`, branched from clean `main` at `776a700`. Local only; not
+`feat/012-admin-web-chunk1-toolchain`, branched from clean `main` at `e35242c`. Local only; not
 pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/011-property-search.md`, chunk 2 of 2 — the plan is now **Complete**.
+No issue. `docs/plans/012-admin-web-app.md`, chunk 1 of 3.
 
 ## Current status
 
@@ -20,97 +20,94 @@ completed, awaiting independent review
 
 ## Completed work
 
-- **Fix**: search no longer filters to `ACTIVE`. `V3.5` replaces the partial index; the query now
-  excludes only `HIDDEN` and `MERGED`.
-- `PropertySearchQuery` (validation and clamping), `PropertySearchService`, bean wiring.
-- `GET /api/properties/search`, `PropertySearchHitResponse`, `PropertySearchResponse`.
-- 6 loop 1 scenarios and their steps; `ScenarioState` remembers the last created property.
-- `PropertyQueryService` javadoc corrected.
-- `PropertySearchQueryTest` (8 tests); the chunk-1 integration test corrected and extended.
+- **Node toolchain reaches the gate.** `scripts/check.sh` sources an nvm-managed Node when one
+  exists; a non-interactive shell does not read `~/.bashrc`, so the frontend branch would otherwise
+  fail with "corepack is unavailable" on a machine where Node plainly works.
+- **pnpm workspace.** Root `package.json` (`pnpm@11.18.0`), `pnpm-workspace.yaml`. Dependency build
+  scripts are allowlisted explicitly (`allowBuilds`: esbuild and unrs-resolver yes, sharp no), so a
+  new native postinstall is a reviewable change.
+- **`apps/web`**: Next.js 15 / React 19 / TypeScript, ESLint flat config via the `FlatCompat`
+  bridge (`eslint-config-next` 15.5 is still eslintrc-only), Vitest, Playwright.
+- **The contract is pinned.** `OpenApiContractIntegrationTest` canonicalises `/v3/api-docs` and
+  byte-compares it to `docs/api/openapi.json` (40 paths, 45 schemas). `-DupdateOpenApiSpec=true`
+  regenerates. `apps/web` generates `src/api/generated/schema.d.ts` from that file on every
+  `dev`/`build`/`test`/`typecheck`; the generated file is gitignored.
+- **Local OIDC provider** (`ghcr.io/navikt/mock-oauth2-server:5.0.2`) in compose, loopback-bound.
+- **Sign-in**: authorization-code flow with PKCE via `openid-client`; access token in an httpOnly
+  cookie, read only on the server; `/api/auth/{signin,callback,signout}`.
+- **Moderation queue** at `/moderation`, a Server Component calling the API server-side.
+- **Tests**: 6 Vitest cases over the queue view model; 5 Playwright journeys against the real
+  stack. The tampered-session journey found a real defect — a rejected token bounced between `/`
+  and `/moderation` forever, fixed with the `/api/auth/expired` route handler.
+- Docs: plan 012, `apps/web/README.md`, ARCHITECTURE §Clients, CONTRIBUTING §Required checks,
+  DECISION_LOG `P-015`.
+- `scripts/validate_repo_governance.py` no longer walks `node_modules` (it was reporting 75
+  findings from dependency files).
 
 ## Remaining work
 
-None for plan 011. Remaining MVP Must-have gaps: admin interface, right of reply, basic analytics.
+Plan 012 chunks 2 (case detail, decide, appeals) and 3 (verification, property, account queues).
 
 ## Decisions made
 
-- **A user-contributed DRAFT property is findable.** This is the fix. `PropertyCatalogService`
-  already rules that DRAFT is publicly readable and only an administrator hiding one withholds it.
-  Properties are created DRAFT and stay so until activated, so filtering search to ACTIVE meant a
-  resident could create a property, review it, and never find it again — including their own.
-- **`V3.5` rather than editing `V3.4`.** Migrations are append-only once merged, so the corrective
-  index drops the old one and adds the right one.
-- **A search with neither text nor point is refused.** An empty search returns the catalogue ordered
-  by nothing in particular — the listing endpoint\'s job — and at scale it is a table scan any caller
-  could trigger at will.
-- **Half a point is no point.** A latitude without a longitude is discarded rather than treated as a
-  location, which would search from the equator and quietly return nothing.
-- **The service is deliberately thin.** Ranking belongs to the database; duplicating any of it in
-  Java would create a second place for relevance to disagree with itself.
+- **The local OIDC provider is not the P-008 vendor choice** (`P-015`). The app speaks only standard
+  discovery and authorization-code-with-PKCE, so a vendor is an environment-variable change. Real
+  signature validation stays exercised; roles still come from our account table, so a provider that
+  mints arbitrary claims cannot mint an administrator.
+- **The token never reaches the browser.** Pages call the API from the server. No CORS surface is
+  opened for the admin origin, and there is nothing for a cross-site script to steal.
+- **`src/moderation/queue.ts` is the allowlist** of what the queue may display. The page renders
+  only `QueueRow` fields, so the privacy rule is one testable list rather than scattered JSX.
+- **`pnpm e2e` is not in `./scripts/check.sh`.** It needs a running stack; a gate that silently
+  skipped would be worse than one that never claimed to cover it.
+- **A dead session is cleared, not just redirected past.** `/api/auth/expired` exists because a
+  Server Component cannot clear a cookie, and leaving it set is what created the redirect loop.
 
-## Assumptions
+## Changed files
 
-- Default radius 2 km, max 50 km; default limit 20, max 50. Chosen for a city-scale launch (`P-001`,
-  Batumi only) rather than measured.
+New: `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `docs/api/openapi.json`,
+`docs/plans/012-admin-web-app.md`, all of `apps/web/`, and
+`apps/api/app/src/test/java/com/example/geohousing/app/OpenApiContractIntegrationTest.java`.
 
-## Files changed
+Modified: `.gitignore`, `scripts/check.sh`, `scripts/validate_repo_governance.py`,
+`infra/docker/docker-compose.yml`, `apps/api/app/build.gradle.kts`, `CONTRIBUTING.md`,
+`docs/ARCHITECTURE.md`, `docs/DECISION_LOG.md`.
 
-- new `modules/properties/src/main/resources/db/migration/properties/V3.5__index_searchable_properties.sql`
-- `SpringDataPropertyRepository` (visibility filter + javadoc)
-- new `modules/properties/.../application/PropertySearchQuery.java`, `PropertySearchService.java`;
-  `PropertyQueryService` javadoc; `PropertiesBeanConfiguration`
-- new `modules/properties/.../infrastructure/web/PropertySearchHitResponse.java`,
-  `PropertySearchResponse.java`; `PropertyController`
-- `app/src/test/resources/features/find-property.feature` (4 -> 10 scenarios);
-  `CatalogueSteps`, `ScenarioState`
-- new `modules/properties/src/test/.../application/PropertySearchQueryTest.java`;
-  `PropertySearchIntegrationTest` corrected
-- `docs/plans/011-property-search.md` (closed), `docs/handoffs/current-task.md`
+## Commands and tests
 
-## Commands run
+```bash
+./scripts/check.sh                                    # full gate
 
-- `cd apps/api && ./gradlew :app:test --tests \'*AcceptanceTest\'` (red first, then green)
-- `cd apps/api && ./gradlew :app:test --tests \'*PropertySearchIntegrationTest\'`
-- `cd apps/api && ./gradlew :modules:properties:mutationTest --rerun-tasks`
-- `./scripts/check.sh` -> `EXIT=0`, 4m 48s
+docker compose -f infra/docker/docker-compose.yml up -d postgres oidc
+cd apps/api && OIDC_JWK_SET_URI=http://localhost:8081/default/jwks \
+  IDENTITY_AUTH_SUBJECT_PEPPER=local-dev-only-pepper ./gradlew :app:bootRun
+cd apps/web && pnpm e2e                               # 5 passed
+```
 
-## Tests and verification
+Both privacy assertions were proven non-vacuous: adding a reporter field to `QueueRow` fails exactly
+the Vitest leak test; rendering a reporter name on the page fails exactly the Playwright one. The
+contract pin was proven in both directions — passes on a fresh spec, fails on a one-word edit.
 
-All passed on 2026-07-30. Acceptance suite: **42 scenarios**, 0 failures. Mutation: properties 77%
-(threshold 75).
+## Failures and blockers
 
-MVP loop 1 now works end to end: a resident finds a building by a name fragment, a misspelling, its
-Georgian name or its street — or by proximity — and reaches its reviews.
+None outstanding. Encountered and resolved: pnpm 11 renamed `onlyBuiltDependencies` to `allowBuilds`
+and the old key was silently inert; `ghcr.io/navikt/mock-oauth2-server` has no 2.x tag; Playwright
+transpiles to CJS so the seed could not use `import.meta`; `-D` properties do not reach the forked
+test JVM without explicit forwarding.
 
-**The scenarios caught the chunk-1 visibility bug**, which is the second time this session that
-writing them first has found something the unit tests agreed with. The chunk-1 integration test had
-encoded the wrong rule *and explained it in a comment*, so it would never have failed on its own.
+## Unresolved risks
 
-## Known failures
+- **No way to bootstrap the first administrator.** Both the acceptance suite and the e2e seed write
+  the role with SQL. Fine locally; it needs an answer before a production environment exists.
+- **The OpenAPI document declares only success responses**, so the generated client types `error` as
+  `never` and destructuring a response narrows `response` away (worked around in
+  `app/moderation/page.tsx`). Documenting RFC 7807 bodies would fix both.
+- **Collision-suffixed `operationId`s** (`queue_1`, `decide_1`, `get_7`) — harmless for a path-based
+  client, poor for a reader or a method-per-operation generator.
+- The OIDC provider is one more container in an environment that leaks them when a run is killed;
+  the `CONTRIBUTING.md` recovery applies.
 
-None observed.
+## Next action
 
-## Risks and unresolved questions
-
-- `V3.4`\'s `property_active_idx` existed only briefly and is dropped by `V3.5`. Anyone who deployed
-  between the two gets the drop cleanly; nothing depended on it.
-- Search has no paging — a bounded limit only. Fine for a single-city launch, first thing to revisit
-  when the catalogue grows.
-- Ranking is trigram score then distance. No signal for review count, verification or recency yet;
-  that is a ranking decision, not a search one, and belongs with the ranking work `P-012` started.
-- `ST_Distance` is computed per candidate row when a point is given. `ST_DWithin` bounds the
-  candidates first, so this is a watch item rather than a problem.
-
-## Human actions required
-
-None.
-
-## Recommended next action
-
-Independent review of this branch in a fresh session, then merge — plan 011 then closes. The next
-task is a new plan; the open MVP Must-haves are the admin interface (where Playwright would finally
-earn its place), right of reply, and basic analytics.
-
-## Last updated
-
-2026-07-30
+Independent review of this branch by a fresh session that did not implement it, then merge. After
+that, plan 012 chunk 2: case detail, decide with reason code, and the appeals queue.

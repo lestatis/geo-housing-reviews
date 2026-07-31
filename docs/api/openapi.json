@@ -1,0 +1,2388 @@
+{
+  "components" : {
+    "schemas" : {
+      "AccountExport" : {
+        "properties" : {
+          "account" : {
+            "$ref" : "#/components/schemas/ExportedAccount"
+          },
+          "profile" : {
+            "$ref" : "#/components/schemas/ExportedProfile"
+          }
+        },
+        "type" : "object"
+      },
+      "AddressPayload" : {
+        "properties" : {
+          "building" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "country" : {
+            "type" : "string"
+          },
+          "district" : {
+            "type" : "string"
+          },
+          "originalText" : {
+            "type" : "string"
+          },
+          "street" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AddressView" : {
+        "properties" : {
+          "building" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "country" : {
+            "type" : "string"
+          },
+          "district" : {
+            "type" : "string"
+          },
+          "originalText" : {
+            "type" : "string"
+          },
+          "street" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminAccountView" : {
+        "properties" : {
+          "accountId" : {
+            "type" : "string"
+          },
+          "closedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminAppealQueueResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AdminAppealResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminAppealResponse" : {
+        "properties" : {
+          "appealId" : {
+            "type" : "string"
+          },
+          "appealText" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decidedBy" : {
+            "type" : "string"
+          },
+          "originalDecider" : {
+            "type" : "string"
+          },
+          "outcomeExplanation" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminLifecycleRequest" : {
+        "properties" : {
+          "targetPropertyId" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "AliasView" : {
+        "properties" : {
+          "confidence" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AppealResponse" : {
+        "properties" : {
+          "appealId" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "outcomeExplanation" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "BadgeView" : {
+        "properties" : {
+          "explanationKey" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "validThrough" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "verifiedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CategoryRatingRequest" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "notApplicable" : {
+            "type" : "boolean"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "value" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ConcernResponse" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "raisedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ContentView" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "cons" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "pros" : {
+            "type" : "string"
+          },
+          "ratings" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RatingView"
+            },
+            "type" : "array"
+          },
+          "recommendation" : {
+            "type" : "string"
+          },
+          "versionNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "CreatePropertyRequest" : {
+        "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/AddressPayload"
+          },
+          "allowDuplicate" : {
+            "type" : "boolean"
+          },
+          "canonicalName" : {
+            "type" : "string"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DecideAppealRequest" : {
+        "properties" : {
+          "explanation" : {
+            "type" : "string"
+          },
+          "outcome" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DecideCaseRequest" : {
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "internalNote" : {
+            "type" : "string"
+          },
+          "publicExplanation" : {
+            "type" : "string"
+          },
+          "reasonCode" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DeletionResponse" : {
+        "properties" : {
+          "accountId" : {
+            "type" : "string"
+          },
+          "closedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "EditReviewRequest" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "cons" : {
+            "type" : "string"
+          },
+          "editReason" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "pros" : {
+            "type" : "string"
+          },
+          "ratings" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryRatingRequest"
+            },
+            "type" : "array"
+          },
+          "recommendation" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExportedAccount" : {
+        "properties" : {
+          "accountId" : {
+            "type" : "string"
+          },
+          "closedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExportedProfile" : {
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "pseudonym" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "HelpfulSignalResponse" : {
+        "properties" : {
+          "helpfulCount" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reviewId" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MeResponse" : {
+        "properties" : {
+          "accountId" : {
+            "type" : "string"
+          },
+          "avatarUrl" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "pseudonym" : {
+            "type" : "string"
+          },
+          "role" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ModerationCaseDetailResponse" : {
+        "properties" : {
+          "concerns" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ConcernResponse"
+            },
+            "type" : "array"
+          },
+          "decisions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ModerationDecisionResponse"
+            },
+            "type" : "array"
+          },
+          "summary" : {
+            "$ref" : "#/components/schemas/ModerationCaseResponse"
+          }
+        },
+        "type" : "object"
+      },
+      "ModerationCaseResponse" : {
+        "properties" : {
+          "assignedModerator" : {
+            "type" : "string"
+          },
+          "caseId" : {
+            "type" : "string"
+          },
+          "concernCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "firstResponseAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "openedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "riskLevel" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "targetId" : {
+            "type" : "string"
+          },
+          "targetType" : {
+            "type" : "string"
+          },
+          "trigger" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ModerationDecisionRequest" : {
+        "properties" : {
+          "reasonCode" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ModerationDecisionResponse" : {
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "affectedTargetVersion" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decidedBy" : {
+            "type" : "string"
+          },
+          "internalNote" : {
+            "type" : "string"
+          },
+          "policyVersion" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "publicExplanation" : {
+            "type" : "string"
+          },
+          "reasonCode" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ModerationQueueResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ModerationCaseResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "OpenVerificationRequest" : {
+        "properties" : {
+          "method" : {
+            "type" : "string"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "relationshipClaim" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PropertyListResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PropertyResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "PropertyResponse" : {
+        "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/AddressView"
+          },
+          "aliases" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AliasView"
+            },
+            "type" : "array"
+          },
+          "canonicalName" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "mergedIntoPropertyId" : {
+            "type" : "string"
+          },
+          "parentPropertyId" : {
+            "type" : "string"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PropertySearchHitResponse" : {
+        "properties" : {
+          "canonicalName" : {
+            "type" : "string"
+          },
+          "distanceMeters" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "score" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "PropertySearchResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PropertySearchHitResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "RatingView" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "categorySetVersion" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "notApplicable" : {
+            "type" : "boolean"
+          },
+          "note" : {
+            "type" : "string"
+          },
+          "value" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ReportResponse" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reportId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "AWAITING_MODERATION", "RESOLVED", "DISMISSED" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ReviewListResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReviewResponse"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ReviewResponse" : {
+        "properties" : {
+          "authorAccountId" : {
+            "type" : "string"
+          },
+          "content" : {
+            "$ref" : "#/components/schemas/ContentView"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "helpfulCount" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "publishedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "relationshipType" : {
+            "type" : "string"
+          },
+          "residenceFrom" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "residenceTo" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reviewId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "verificationTier" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "SubmitAppealRequest" : {
+        "properties" : {
+          "appealText" : {
+            "type" : "string"
+          },
+          "targetId" : {
+            "type" : "string"
+          },
+          "targetType" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SubmitReportRequest" : {
+        "properties" : {
+          "category" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "targetId" : {
+            "type" : "string"
+          },
+          "targetType" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SubmitReviewRequest" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "cons" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "pros" : {
+            "type" : "string"
+          },
+          "ratings" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CategoryRatingRequest"
+            },
+            "type" : "array"
+          },
+          "recommendation" : {
+            "type" : "string"
+          },
+          "relationshipType" : {
+            "type" : "string"
+          },
+          "residenceFrom" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "residenceTo" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateProfileRequest" : {
+        "properties" : {
+          "avatarUrl" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "pseudonym" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "VerificationCaseListResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/VerificationCaseResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "VerificationCaseResponse" : {
+        "properties" : {
+          "accountId" : {
+            "type" : "string"
+          },
+          "badge" : {
+            "$ref" : "#/components/schemas/BadgeView"
+          },
+          "caseId" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decisionReasonCode" : {
+            "type" : "string"
+          },
+          "method" : {
+            "type" : "string"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "relationshipClaim" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "tier" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "validThrough" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "verifiedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "VerificationDecisionRequest" : {
+        "properties" : {
+          "reasonCode" : {
+            "type" : "string"
+          },
+          "validThrough" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "VerificationEvidenceListResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/VerificationEvidenceResponse"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "VerificationEvidenceResponse" : {
+        "properties" : {
+          "contentType" : {
+            "type" : "string"
+          },
+          "deletedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "evidenceId" : {
+            "type" : "string"
+          },
+          "sizeBytes" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "uploadedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "description" : "API for the Georgian housing-review platform.",
+    "title" : "Geo Housing Reviews API",
+    "version" : "v1"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/admin/accounts/{accountId}" : {
+      "get" : {
+        "operationId" : "getAccount",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "accountId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-account-controller" ]
+      }
+    },
+    "/api/admin/moderation/appeals" : {
+      "get" : {
+        "operationId" : "pending",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminAppealQueueResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-appeal-controller" ]
+      }
+    },
+    "/api/admin/moderation/appeals/{appealId}/decide" : {
+      "post" : {
+        "operationId" : "decide_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "appealId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DecideAppealRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminAppealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-appeal-controller" ]
+      }
+    },
+    "/api/admin/moderation/cases" : {
+      "get" : {
+        "operationId" : "queue_1",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationQueueResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-moderation-controller" ]
+      }
+    },
+    "/api/admin/moderation/cases/{caseId}" : {
+      "get" : {
+        "operationId" : "get_7",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationCaseDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-moderation-controller" ]
+      }
+    },
+    "/api/admin/moderation/cases/{caseId}/assign" : {
+      "post" : {
+        "operationId" : "assign",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationCaseDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-moderation-controller" ]
+      }
+    },
+    "/api/admin/moderation/cases/{caseId}/decide" : {
+      "post" : {
+        "operationId" : "decide",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DecideCaseRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModerationCaseDetailResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-moderation-controller" ]
+      }
+    },
+    "/api/admin/properties/{propertyId}/activate" : {
+      "post" : {
+        "operationId" : "activate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminLifecycleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropertyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-property-controller" ]
+      }
+    },
+    "/api/admin/properties/{propertyId}/hide" : {
+      "post" : {
+        "operationId" : "hide_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminLifecycleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropertyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-property-controller" ]
+      }
+    },
+    "/api/admin/properties/{propertyId}/merge" : {
+      "post" : {
+        "operationId" : "merge",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminLifecycleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropertyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-property-controller" ]
+      }
+    },
+    "/api/admin/reviews/{reviewId}" : {
+      "get" : {
+        "operationId" : "get_6",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-review-controller" ]
+      }
+    },
+    "/api/admin/reviews/{reviewId}/hide" : {
+      "post" : {
+        "operationId" : "hide",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-review-controller" ]
+      }
+    },
+    "/api/admin/reviews/{reviewId}/publish" : {
+      "post" : {
+        "operationId" : "publish",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-review-controller" ]
+      }
+    },
+    "/api/admin/reviews/{reviewId}/reject" : {
+      "post" : {
+        "operationId" : "reject_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-review-controller" ]
+      }
+    },
+    "/api/admin/reviews/{reviewId}/remove" : {
+      "post" : {
+        "operationId" : "remove",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-review-controller" ]
+      }
+    },
+    "/api/admin/reviews/{reviewId}/restore" : {
+      "post" : {
+        "operationId" : "restore",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ModerationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-review-controller" ]
+      }
+    },
+    "/api/admin/verifications" : {
+      "get" : {
+        "operationId" : "queue",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/admin/verifications/{caseId}" : {
+      "get" : {
+        "operationId" : "get_5",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/admin/verifications/{caseId}/approve" : {
+      "post" : {
+        "operationId" : "approve",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VerificationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/admin/verifications/{caseId}/evidence" : {
+      "get" : {
+        "operationId" : "evidence",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationEvidenceListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/admin/verifications/{caseId}/evidence/{evidenceId}" : {
+      "get" : {
+        "operationId" : "readEvidence",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "evidenceId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "format" : "binary",
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/admin/verifications/{caseId}/reject" : {
+      "post" : {
+        "operationId" : "reject",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VerificationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/admin/verifications/{caseId}/revoke" : {
+      "post" : {
+        "operationId" : "revoke",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VerificationDecisionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-verification-controller" ]
+      }
+    },
+    "/api/appeals" : {
+      "post" : {
+        "operationId" : "submit_2",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitAppealRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "appeal-controller" ]
+      }
+    },
+    "/api/appeals/{appealId}" : {
+      "get" : {
+        "operationId" : "get_4",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "appealId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppealResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "appeal-controller" ]
+      }
+    },
+    "/api/me" : {
+      "delete" : {
+        "operationId" : "delete",
+        "parameters" : [ {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeletionResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      },
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      }
+    },
+    "/api/me/export" : {
+      "post" : {
+        "operationId" : "export",
+        "parameters" : [ {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AccountExport"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      }
+    },
+    "/api/me/profile" : {
+      "patch" : {
+        "operationId" : "updateProfile",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "me-controller" ]
+      }
+    },
+    "/api/properties" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropertyListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "property-controller" ]
+      },
+      "post" : {
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreatePropertyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "property-controller" ]
+      }
+    },
+    "/api/properties/search" : {
+      "get" : {
+        "operationId" : "search",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "q",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lat",
+          "required" : false,
+          "schema" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "lng",
+          "required" : false,
+          "schema" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "radiusMeters",
+          "required" : false,
+          "schema" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropertySearchResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "property-controller" ]
+      }
+    },
+    "/api/properties/{propertyId}" : {
+      "get" : {
+        "operationId" : "get_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PropertyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "property-controller" ]
+      }
+    },
+    "/api/properties/{propertyId}/reviews" : {
+      "get" : {
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      },
+      "post" : {
+        "operationId" : "submit_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitReviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/reports" : {
+      "post" : {
+        "operationId" : "submit",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReportResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "report-controller" ]
+      }
+    },
+    "/api/reports/{reportId}" : {
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reportId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReportResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "report-controller" ]
+      }
+    },
+    "/api/reviews/{reviewId}" : {
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      },
+      "put" : {
+        "operationId" : "edit",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EditReviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/reviews/{reviewId}/helpful" : {
+      "delete" : {
+        "operationId" : "withdrawHelpfulSignal",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HelpfulSignalResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      },
+      "post" : {
+        "operationId" : "addHelpfulSignal",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HelpfulSignalResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/verifications" : {
+      "get" : {
+        "operationId" : "myCaseForProperty",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "verification-controller" ]
+      },
+      "post" : {
+        "operationId" : "open",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenVerificationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "verification-controller" ]
+      }
+    },
+    "/api/verifications/{caseId}" : {
+      "get" : {
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "verification-controller" ]
+      }
+    },
+    "/api/verifications/{caseId}/cancel" : {
+      "post" : {
+        "operationId" : "cancel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationCaseResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "verification-controller" ]
+      }
+    },
+    "/api/verifications/{caseId}/evidence" : {
+      "post" : {
+        "operationId" : "attachEvidence",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "caseId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "document" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "document" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationEvidenceResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "verification-controller" ]
+      }
+    }
+  },
+  "security" : [ {
+    "bearerAuth" : [ ]
+  } ],
+  "servers" : [ {
+    "description" : "Generated server url",
+    "url" : "http://localhost"
+  } ]
+}

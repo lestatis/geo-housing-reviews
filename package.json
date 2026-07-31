@@ -1,0 +1,10 @@
+{
+  "name": "geo-housing-reviews",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

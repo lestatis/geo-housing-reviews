@@ -66,7 +66,24 @@ It runs three phases and stops at the first failure:
 2. `apps/api/gradlew check` — per module: `checkstyle`, `spotlessCheck`, `test`, and `mutationTest`
    (ADR-0009). For `:app` this includes the Testcontainers integration suites, the Cucumber
    acceptance scenarios and the ArchUnit boundary rules. This is nearly all of the wall time.
-3. `pnpm lint/test/typecheck` — skipped while there is no `package.json`.
+3. `pnpm lint/test/typecheck` — ESLint, Vitest and `tsc` across the workspace. `typecheck` and
+   `test` regenerate `apps/web`'s API client from `docs/api/openapi.json` first, so they cannot pass
+   against a stale one. If Node is installed through nvm, the script sources it: a non-interactive
+   shell does not read `~/.bashrc`, and the gate should not fail on a machine where Node plainly
+   works.
+
+It does **not** run `pnpm e2e`. Playwright needs Postgres, the local OIDC provider and the API
+running (`apps/web/README.md`); a gate that silently skipped them would be worse than one that never
+claimed to cover them. Run it yourself before requesting review on a change to `apps/web`.
+
+Changing an API endpoint fails phase 2, not phase 3: `OpenApiContractIntegrationTest` compares the
+published document to `docs/api/openapi.json`. Regenerate with
+
+```bash
+cd apps/api && ./gradlew :app:test --tests '*OpenApiContractIntegrationTest' -DupdateOpenApiSpec=true
+```
+
+and commit the diff alongside the change that caused it.
 
 ### The fast loop
 

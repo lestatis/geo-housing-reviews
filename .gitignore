@@ -38,3 +38,16 @@ hs_err_pid*
 *.sqlite
 uploads/
 local-data/
+
+# Node / frontend
+node_modules/
+.next/
+apps/web/.next/
+playwright-report/
+test-results/
+
+# Generated from docs/api/openapi.json by `pnpm generate:api`; regenerated on every build, so
+# committing it would only create a second source of truth that can disagree with the first.
+apps/web/src/api/generated/
+
+*.tsbuildinfo

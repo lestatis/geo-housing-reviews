@@ -40,6 +40,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # Local OIDC provider for development and end-to-end tests. It is NOT a vendor decision — P-008
+  # reserves that for an ADR. It exists so the API validates real signatures against a real JWKS and
+  # the admin app runs a real authorization-code flow, instead of a bypass that would hide the whole
+  # integration until the day a vendor is picked.
+  #
+  # It signs anything asked of it, so it must never be reachable from a deployed environment: the
+  # port binds to loopback only, and OIDC_JWK_SET_URI stays at its issuer.invalid default unless a
+  # developer sets it. Roles come from our own account table (ADR-0005), never from the token, so a
+  # provider that mints arbitrary claims still cannot mint an administrator.
+  oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:5.0.2
+    environment:
+      # Serve the issuer under the same host:port the browser uses, so the discovery document the
+      # API reads and the URLs the browser is redirected to agree.
+      SERVER_PORT: 8081
+      JSON_CONFIG: >-
+        {"interactiveLogin":true,
+         "httpServer":"NettyWrapper",
+         "tokenCallbacks":[]}
+    ports:
+      - "127.0.0.1:8081:8081"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://localhost:8081/default/.well-known/openid-configuration",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   geo_housing_postgres_data:
   geo_housing_evidence_data:

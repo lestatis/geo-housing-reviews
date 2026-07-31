@@ -1,0 +1,11 @@
+packages:
+  - "apps/web"
+  - "packages/*"
+
+# pnpm refuses to run a dependency's install scripts unless it is named here. Keeping the list
+# explicit means a new native postinstall is a reviewable change rather than something that runs
+# because a transitive dependency asked nicely.
+allowBuilds:
+  esbuild: true # vitest bundles tests with it; without its binary nothing runs
+  unrs-resolver: true # eslint module resolution
+  sharp: false # Next's optional image optimiser; the admin app serves no user images

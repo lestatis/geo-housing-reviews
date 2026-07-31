@@ -9,6 +9,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Directories this repository does not author. Scanning them says nothing about our governance: a
+# dependency's tsconfig.json legitimately contains comments (so it is not JSON), and a JOSE library
+# legitimately contains the words "BEGIN PRIVATE KEY". Reporting either as a finding would train the
+# reader to ignore this script's output, which is the only thing it has.
+IGNORED_DIRECTORIES = {".git", "node_modules", ".next", "build", ".gradle", ".venv", "dist"}
+
+
+def is_ours(path: Path) -> bool:
+    return not IGNORED_DIRECTORIES.intersection(path.relative_to(ROOT).parts)
+
+
 REQUIRED = [
     "README.md",
     "AGENTS.md",
@@ -43,6 +54,8 @@ for relative in REQUIRED:
         errors.append(f"missing required file: {relative}")
 
 for path in ROOT.rglob("*.json"):
+    if not is_ours(path):
+        continue
     try:
         json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -90,7 +103,7 @@ secret_patterns = [
     re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 ]
 for path in ROOT.rglob("*"):
-    if not path.is_file() or ".git" in path.parts:
+    if not path.is_file() or not is_ours(path):
         continue
     if path.stat().st_size > 2_000_000:
         continue
