@@ -16,7 +16,7 @@ No issue. `docs/plans/012-admin-web-app.md`, chunk 3 of 3.
 
 ## Current status
 
-**completed with one blocked verification step** — see Failures and blockers.
+completed, awaiting independent review. All 16 Playwright journeys pass.
 
 ## Completed work
 
@@ -34,7 +34,11 @@ No issue. `docs/plans/012-admin-web-app.md`, chunk 3 of 3.
 - **All four server actions bound rather than wrapped** (`action.bind(null, id)`), including the two
   from chunk 2. A closure around a server action cannot be submitted before hydration, and an early
   click was being swallowed silently.
-- 46 Vitest cases; 13 of 16 Playwright journeys passing.
+- **Badge expiry fixed.** `validThrough` is an `Instant`, not a date, so every approval carrying an
+  expiry was rejected with a 400. And because the server lapses a badge once `validThrough` is past,
+  the chosen date has to become the instant that day *ends* — otherwise a badge expires on the
+  morning of the date it was said to be good through. `expiryInstantFor` covers both.
+- 49 Vitest cases; all 16 Playwright journeys passing.
 
 ## Remaining work
 
@@ -81,12 +85,16 @@ cd apps/web && pnpm e2e
 
 ## Failures and blockers
 
-**Three verification journeys are unverified.** They need evidence uploaded to MinIO, and the
-compose MinIO cannot be recreated to pick up `MINIO_KMS_SECRET_KEY` because Docker is in the wedged
-state `CONTRIBUTING.md` describes — `docker compose up -d --force-recreate minio` fails with
-`cannot stop container: permission denied`. 78 orphaned Testcontainers from this session's gate runs
-are stuck the same way. The compose value is copied from `EvidenceEndpointIntegrationTest`, which
-passes in the backend suite, but **it has not been run end to end**.
+**The KMS fix is verified, but not through the compose file itself.** Docker is still in the wedged
+state `CONTRIBUTING.md` describes, so `docker compose up -d --force-recreate minio` fails with
+`cannot stop container: permission denied` and the compose MinIO still runs without the key. The fix
+was verified against a fresh MinIO started on port 9100 with exactly the same image and the same
+`MINIO_KMS_SECRET_KEY`, with the API pointed at it through its documented `EVIDENCE_S3_ENDPOINT`
+variable — evidence upload then worked and all 16 journeys passed. The committed compose line is
+therefore the same value, proven on the same image, but the compose service itself has not been
+restarted with it. 78 orphaned Testcontainers remain stuck the same way.
+
+Clean up the probe container after the restart: `docker rm -f geo-minio-kms-probe`.
 
 ```text
 HUMAN_ACTION_REQUIRED
@@ -98,7 +106,7 @@ Verification command: docker ps -q --filter label=org.testcontainers=true | wc -
 ```
 
 After the restart, re-run `docker compose ... up -d minio`, recreate the bucket, and
-`cd apps/web && pnpm e2e` — all 16 journeys should pass.
+`cd apps/web && pnpm e2e` to confirm the compose service behaves as the probe did.
 
 ## Unresolved risks
 
@@ -111,5 +119,6 @@ After the restart, re-run `docker compose ... up -d minio`, recreate the bucket,
 
 ## Next action
 
-The human action above, then re-run `pnpm e2e` to confirm the three evidence journeys. Then
-independent review of this branch by a fresh session that did not implement it.
+Independent review by a fresh session that did not implement this. The human action above is
+housekeeping — it removes the orphaned containers and lets the compose MinIO carry the key it is
+already configured with.

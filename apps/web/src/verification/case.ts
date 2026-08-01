@@ -93,3 +93,22 @@ function formatSize(bytes: number | undefined): string {
 function shorten(id: string | undefined): string {
   return id ? id.slice(0, 8) : "—";
 }
+
+/**
+ * The instant a badge chosen as "valid through {date}" should stop being valid.
+ *
+ * <p>The server lapses an approved case once `validThrough` is in the past, so the value has to be
+ * the *end* of the chosen day — midnight opening the next one. Sending the start of the day would
+ * expire the badge on the morning of the date the moderator just said it was good through.
+ */
+export function expiryInstantFor(date: string | undefined): string | undefined {
+  if (!date) {
+    return undefined;
+  }
+  const chosen = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(chosen.getTime())) {
+    return undefined;
+  }
+  chosen.setUTCDate(chosen.getUTCDate() + 1);
+  return chosen.toISOString();
+}

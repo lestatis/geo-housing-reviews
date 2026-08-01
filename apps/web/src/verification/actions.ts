@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { serverApi } from "@/src/api/client";
+import { expiryInstantFor } from "./case";
 
 /**
  * Verification decisions, taken on the server like every other write in this app.
@@ -51,8 +52,9 @@ export async function decideVerification(
     body: {
       reasonCode,
       version,
-      // Only an approval grants a badge, and only a badge has a lifetime.
-      validThrough: outcome === "approve" && validThrough ? validThrough : undefined,
+      // Only an approval grants a badge, and only a badge has a lifetime. The date the moderator
+      // picked becomes the instant that day ends — see expiryInstantFor.
+      validThrough: outcome === "approve" ? expiryInstantFor(validThrough) : undefined,
     },
   });
 

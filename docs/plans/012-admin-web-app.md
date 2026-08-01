@@ -147,6 +147,13 @@ every upload with a 501 — "Server side encryption specified but KMS is not con
 integration tests set the key on their own container, which is why the suite never noticed. Compose
 now sets the same throwaway localhost key.
 
+**Two bugs the evidence journeys found once they could run.** `VerificationDecisionRequest.validThrough`
+is an `Instant`, not a date, so the date input's `2027-07-30` was rejected outright with a 400 — every
+approval carrying an expiry failed. And the server lapses a badge once `validThrough` is in the past,
+so the chosen date has to become the instant that day *ends*: sending the start of the day would have
+expired the badge on the morning of the date a moderator just said it was good through. Both are
+covered by `expiryInstantFor` and its tests.
+
 **Server actions are bound, not wrapped.** All four forms previously passed a client-side closure to
 `useActionState`. React can only submit a form before hydration when the form's action *is* a server
 action, so a wrapped one silently swallows a click that lands early — which Playwright reproduces

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type EvidenceItem,
   type VerificationCase,
+  expiryInstantFor,
   needsEvidence,
   toEvidenceRow,
   toVerificationRow,
@@ -105,5 +106,26 @@ describe("a piece of evidence", () => {
     expect(toEvidenceRow({ ...EVIDENCE, sizeBytes: 512 }).size).toBe("512 B");
     expect(toEvidenceRow({ ...EVIDENCE, sizeBytes: 2048 }).size).toBe("2.0 KB");
     expect(toEvidenceRow({ ...EVIDENCE, sizeBytes: undefined }).size).toBe("—");
+  });
+});
+
+describe("turning a chosen date into a badge expiry", () => {
+  it("keeps the badge valid for the whole of the day the moderator picked", () => {
+    // The API takes an instant and lapses a badge once `validThrough` is in the past. Sending the
+    // start of the chosen day would expire it a day early — on the morning of the date a moderator
+    // just said it was good through.
+    expect(expiryInstantFor("2027-07-30")).toBe("2027-07-31T00:00:00.000Z");
+    expect(expiryInstantFor("2027-12-31")).toBe("2028-01-01T00:00:00.000Z");
+  });
+
+  it("treats no date as a badge that does not expire", () => {
+    // A null validThrough means "never expires" on the server; an approval without a date is a
+    // deliberate choice, not a missing field to invent a value for.
+    expect(expiryInstantFor("")).toBeUndefined();
+    expect(expiryInstantFor(undefined)).toBeUndefined();
+  });
+
+  it("refuses something that is not a date rather than sending a guess", () => {
+    expect(expiryInstantFor("not a date")).toBeUndefined();
   });
 });
