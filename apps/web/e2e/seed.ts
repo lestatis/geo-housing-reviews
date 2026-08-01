@@ -16,6 +16,7 @@ const API = process.env.API_BASE_URL ?? "http://localhost:8080";
 const COMPOSE = path.resolve(__dirname, "../../../infra/docker/docker-compose.yml");
 
 export const MODERATOR = "nino-moderator";
+export const SECOND_MODERATOR = "tekla-moderator";
 const RESIDENT = "tamar-resident";
 const REPORTER = "giorgi-neighbour";
 
@@ -73,11 +74,21 @@ function grantAdmin(accountId: string): void {
   );
 }
 
-export async function seed(): Promise<{ propertyId: string; reviewId: string }> {
-  // The moderator signs in once over HTTP so identity provisions the account, then is promoted.
+export type SeededCase = {
+  propertyId: string;
+  reviewId: string;
+  caseId: string;
+};
+
+export async function seed(): Promise<SeededCase> {
+  // Both moderators sign in once over HTTP so identity provisions the accounts, then are promoted.
+  // Two of them, because an appeal must be heard by someone other than the original decider.
   const moderatorToken = await tokenFor(MODERATOR);
   const moderator = await call<{ accountId: string }>(moderatorToken, "GET", "/api/me");
   grantAdmin(moderator.accountId);
+
+  const secondToken = await tokenFor(SECOND_MODERATOR);
+  grantAdmin((await call<{ accountId: string }>(secondToken, "GET", "/api/me")).accountId);
 
   const residentToken = await tokenFor(RESIDENT);
   const property = await call<{ propertyId: string }>(residentToken, "POST", "/api/properties", {
@@ -108,12 +119,50 @@ export async function seed(): Promise<{ propertyId: string; reviewId: string }> 
   });
 
   const reporterToken = await tokenFor(REPORTER);
-  await call(reporterToken, "POST", "/api/reports", {
+  const report = await call<{ caseId: string }>(reporterToken, "POST", "/api/reports", {
     targetType: "REVIEW",
     targetId: review.reviewId,
     category: "PERSONAL_DATA",
     description: "Mentions a neighbour by flat number.",
   });
 
-  return { propertyId: property.propertyId, reviewId: review.reviewId };
+  // A reporter is never told the case id — that is the point of ReportResponse. The seed asks as a
+  // moderator, which is who legitimately knows the mapping.
+  const queue = await call<{ items: { caseId: string; targetId: string }[] }>(
+    moderatorToken,
+    "GET",
+    "/api/admin/moderation/cases",
+  );
+  const opened = queue.items.find((entry) => entry.targetId === review.reviewId);
+  if (!opened) {
+    throw new Error(`reporting ${review.reviewId} opened no case (report ${JSON.stringify(report)})`);
+  }
+
+  return { propertyId: property.propertyId, reviewId: review.reviewId, caseId: opened.caseId };
+}
+
+/**
+ * A case already decided against the author, and appealed — the state the appeals queue works from.
+ *
+ * <p>MODERATOR takes the content down, so MODERATOR is the one who may not hear the appeal.
+ */
+export async function seedAppeal(): Promise<SeededCase> {
+  const seeded = await seed();
+  const moderatorToken = await tokenFor(MODERATOR);
+
+  await call(moderatorToken, "POST", `/api/admin/moderation/cases/${seeded.caseId}/decide`, {
+    action: "REMOVE",
+    reasonCode: "DOXXING",
+    publicExplanation: "Your review named a neighbour.",
+    internalNote: "Third from this account.",
+  });
+
+  const residentToken = await tokenFor(RESIDENT);
+  await call(residentToken, "POST", "/api/appeals", {
+    targetType: "REVIEW",
+    targetId: seeded.reviewId,
+    appealText: "I never named anyone. The flat number was my own.",
+  });
+
+  return seeded;
 }

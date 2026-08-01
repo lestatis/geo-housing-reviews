@@ -1,3 +1,4 @@
+import { formatInstant, humanise } from "@/src/format";
 import type { components } from "@/src/api/generated/schema";
 
 export type ModerationCase = components["schemas"]["ModerationCaseResponse"];
@@ -30,7 +31,7 @@ export function toQueueRow(moderationCase: ModerationCase): QueueRow {
     risk: humanise(moderationCase.riskLevel),
     status: humanise(moderationCase.status),
     concerns: concernSummary(moderationCase.concernCount),
-    opened: formatOpenedAt(moderationCase.openedAt),
+    opened: formatInstant(moderationCase.openedAt),
     assignment: moderationCase.assignedModerator ? "Assigned" : "Unassigned",
   };
 }
@@ -44,32 +45,6 @@ function concernSummary(count: number | undefined): string {
   return concerns === 1 ? "1 concern" : `${concerns} concerns`;
 }
 
-/**
- * Always UTC, always labelled. The page is rendered on the server, so a browser-local format would
- * disagree with the server's own clock — and a moderation queue is read against SLA times, where
- * "which timezone was that?" is not a question anyone should have to ask.
- */
-function formatOpenedAt(timestamp: string | undefined): string {
-  if (!timestamp) {
-    return "—";
-  }
-  const opened = new Date(timestamp);
-  if (Number.isNaN(opened.getTime())) {
-    return "—";
-  }
-  return `${new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(opened)} UTC`;
-}
-
-function humanise(value: string | undefined): string {
-  if (!value) {
-    return "—";
-  }
-  return value.charAt(0) + value.slice(1).toLowerCase().replaceAll("_", " ");
-}
 
 /** Ids are shown truncated: enough to tell two rows apart, short enough to read. */
 function shorten(id: string | undefined): string {

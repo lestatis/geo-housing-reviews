@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { serverApi } from "@/src/api/client";
 import { accessToken } from "@/src/auth/session";
@@ -40,6 +41,9 @@ export default async function ModerationQueue() {
   return (
     <main>
       <h1>Moderation queue</h1>
+      <p>
+        <Link href="/moderation/appeals">Appeals</Link>
+      </p>
       <form action="/api/auth/signout" method="post">
         <button type="submit">Sign out</button>
       </form>
@@ -63,7 +67,9 @@ export default async function ModerationQueue() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.caseId} data-testid="case-row">
-                <td>{row.target}</td>
+                <td>
+                  <Link href={`/moderation/${row.caseId}`}>{row.target}</Link>
+                </td>
                 <td>{row.trigger}</td>
                 <td>{row.risk}</td>
                 <td>{row.status}</td>

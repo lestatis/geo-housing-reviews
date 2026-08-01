@@ -45,6 +45,7 @@ class AppealServiceTest {
   private UUID author;
   private ModerationTargetRef target;
   private ModeratorId original;
+  private ModerationCaseId decidedCaseId;
 
   @Test
   void anAuthorCanAppealADecisionThatTookTheirContentDown() {
@@ -176,10 +177,38 @@ class AppealServiceTest {
     assertThat(appealService.pending()).isEmpty();
   }
 
+  @Test
+  void aPendingAppealCarriesTheDecisionItContests() {
+    // A moderator cannot hear an appeal against a decision they cannot see. The appellant's text
+    // says why they disagree; without what was decided, and on which case, that is one half of an
+    // argument and the queue is a request to guess.
+    removedReview();
+    appealService.file(appellant(), target, "I never named anyone.");
+
+    PendingAppeal pending = appealService.pending().getFirst();
+
+    assertThat(pending.appeal().appealText()).isEqualTo("I never named anyone.");
+    assertThat(pending.contestedDecision().action()).isEqualTo(DecisionAction.REMOVE);
+    assertThat(pending.contestedDecision().reasonCode()).isEqualTo(ReasonCode.of("DOXXING"));
+    assertThat(pending.contestedDecision().publicExplanation()).contains("Named a neighbour.");
+    assertThat(pending.contestedDecision().caseId()).isEqualTo(decidedCaseId);
+  }
+
+  @Test
+  void aPendingAppealNamesTheContentUnderDispute() {
+    // The case id alone would make a moderator open a second screen to learn whether this is even
+    // about a review; the target is what the appeal is ultimately about.
+    removedReview();
+    appealService.file(appellant(), target, "I never named anyone.");
+
+    assertThat(appealService.pending().getFirst().target()).isEqualTo(target);
+  }
+
   private void removedReview() {
     target = targets.givenReviewBy(UUID.randomUUID(), 1L);
     author = targets.find(target).orElseThrow().authorAccountId();
-    ModerationCaseId caseId = reportedCase();
+    decidedCaseId = reportedCase();
+    ModerationCaseId caseId = decidedCaseId;
     original = ModeratorId.of(UUID.randomUUID());
     caseService.assign(caseId, original);
     caseService.decide(

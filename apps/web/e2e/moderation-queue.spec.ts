@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { MODERATOR, seed } from "./seed";
+import { signIn } from "./sign-in";
 
 /**
  * The whole of loop 5's first step, done the way a moderator would: sign in at the identity
@@ -16,12 +17,6 @@ test.beforeAll(async () => {
   seeded = await seed();
 });
 
-async function signIn(page: import("@playwright/test").Page, username: string) {
-  await page.goto("/");
-  await page.getByRole("link", { name: "Sign in" }).click();
-  await page.locator('input[name="username"]').fill(username);
-  await page.locator('input[type="submit"]').click();
-}
 
 test("a moderator signs in and finds the reported review waiting", async ({ page }) => {
   await signIn(page, MODERATOR);

@@ -80,11 +80,35 @@
         },
         "type" : "object"
       },
+      "AdminAppealQueueEntryResponse" : {
+        "properties" : {
+          "appealId" : {
+            "type" : "string"
+          },
+          "appealText" : {
+            "type" : "string"
+          },
+          "contestedDecision" : {
+            "$ref" : "#/components/schemas/ContestedDecision"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "originalDecider" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AdminAppealQueueResponse" : {
         "properties" : {
           "items" : {
             "items" : {
-              "$ref" : "#/components/schemas/AdminAppealResponse"
+              "$ref" : "#/components/schemas/AdminAppealQueueEntryResponse"
             },
             "type" : "array"
           }
@@ -256,6 +280,36 @@
           "versionNumber" : {
             "format" : "int32",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ContestedDecision" : {
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "caseId" : {
+            "type" : "string"
+          },
+          "decidedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "internalNote" : {
+            "type" : "string"
+          },
+          "publicExplanation" : {
+            "type" : "string"
+          },
+          "reasonCode" : {
+            "type" : "string"
+          },
+          "targetId" : {
+            "type" : "string"
+          },
+          "targetType" : {
+            "type" : "string"
           }
         },
         "type" : "object"

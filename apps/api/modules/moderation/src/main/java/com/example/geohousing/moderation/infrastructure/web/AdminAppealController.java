@@ -35,7 +35,7 @@ class AdminAppealController {
   @GetMapping
   AdminAppealQueueResponse pending() {
     return new AdminAppealQueueResponse(
-        appeals.pending().stream().map(AdminAppealResponse::from).toList());
+        appeals.pending().stream().map(AdminAppealQueueEntryResponse::from).toList());
   }
 
   @PostMapping("/{appealId}/decide")

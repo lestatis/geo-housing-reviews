@@ -78,10 +78,45 @@ cookie straight back. A Server Component cannot clear a cookie, so the fix is a 
 (`/api/auth/expired`) that drops the dead session and explains itself. This only surfaced because
 the suite tests a *tampered* session, not just a missing role.
 
-### 2. Working a case — outstanding
+### 2. Working a case — **complete**
 
 Case detail, decide with reason code and explanation, appeals queue and appeal decision. This is the
 screen that makes loop 5 real.
+
+**An API gap found before writing any UI.** `AdminAppealResponse` carried the appellant's text, the
+status and the original decider — but nothing about *what* was being appealed. Since an appeal is by
+rule heard by someone other than the original decider, that moderator arrives with no memory of the
+case, and a queue showing only one side is a request to guess. `AppealService.pending()` now returns
+`PendingAppeal` (appeal + contested decision + target) and the queue exposes it as
+`AdminAppealQueueEntryResponse.contestedDecision`. Unit test first (it failed to compile), then the
+implementation, then a Gherkin scenario — proven non-vacuous by changing the expected action and
+watching exactly that scenario fail.
+
+**Decisions are Server Actions.** Nothing in this app fetches the API from the browser; the session
+cookie stays where it is. The decision form is a client component only so a rejected submission
+keeps what was typed.
+
+**Two due-process rules are mirrored, not owned, by the UI.** A takedown must tell the author why,
+and an appeal outcome must be explained. Both are invariants on the server
+(`ModerationDecision.requireExplanationWhenAdverse`, `Appeal.checkInvariants`); the form checks them
+so a moderator learns before submitting rather than after. Both were proven load-bearing by removing
+them and watching exactly the two journeys fail.
+
+**`publicExplanation` and `internalNote` are never concatenated.** They are separate fields on
+`DecisionRow` and separate elements on the page. Merging them is how a moderators-only note would one
+day follow the author-facing explanation out of the building — proven caught at both the Vitest and
+Playwright levels.
+
+**Moderation's mutation threshold rose 85 → 86.** The chunk left the score at 86% (195/228), so the
+ratchet moves, per `.claude/rules/testing.md`. One mutant this chunk added is uncovered — the
+`orElseThrow` for a case that has gone missing under a pending appeal, which foreign keys make
+unreachable. Contriving a repository into that state would test the test double, not the rule, so it
+is left uncovered on purpose rather than papered over.
+
+**The internal note is deliberately absent from the appeals queue.** It reaches the app, but a note
+like "third from this account" is one moderator's characterisation of the author, and leading a
+fresh hearing with it is how an appeal becomes a rubber stamp on the decision it is meant to test.
+It stays one click away on the case, read as history rather than as the case for the prosecution.
 
 ### 3. The other queues — outstanding
 
@@ -115,6 +150,14 @@ a gate that silently skips when it is absent is worse than one that never claime
 - **Collision-suffixed `operationId`s.** `queue_1`, `decide_1`, `get_7` — springdoc's fallback when
   controller methods share a name. Harmless for a path-based client, poor for anyone reading the
   spec or generating a method-per-operation SDK.
+- **The moderation enums are undocumented in OpenAPI.** `action`, `outcome`, `category`,
+  `targetType` and the rest are typed as bare `string`, so generation produces nothing to pick from
+  and `apps/web/src/moderation/decision.ts` restates `DecisionAction` — the one place in the client
+  that duplicates something the API knows (AGENTS.md §3.7). Fixing it needs a backend decision, not
+  a frontend one: either springdoc annotations in a module that has no springdoc dependency, or
+  enum-typed request fields, which would change how an unrecognised value is reported (the
+  controllers currently parse leniently and return a specific message). Deliberately left for its
+  own chunk.
 - **No way to bootstrap the first administrator.** Identity exposes no endpoint, so both the backend
   acceptance suite and `apps/web/e2e/seed.ts` write the role with SQL. Fine for local development;
   it will need an answer before there is a production environment.

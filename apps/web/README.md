@@ -58,4 +58,11 @@ app.
 
 `pnpm e2e` seeds its own data through the real API (`e2e/seed.ts`). The one thing it cannot do over
 HTTP is grant the first administrator — identity has no bootstrap endpoint — so it writes that role
-directly, exactly as the backend acceptance suite does.
+directly, exactly as the backend acceptance suite does. It grants two: an appeal must be heard by
+someone other than the moderator who decided.
+
+## How this app writes
+
+Every mutation is a Server Action (`src/moderation/actions.ts`). Nothing here calls the API from the
+browser, so the session cookie never has to leave the server. Forms are client components only where
+a rejected submission should keep what was typed.

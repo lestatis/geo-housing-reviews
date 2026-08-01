@@ -140,6 +140,20 @@ Feature: Report content and have the concern resolved safely
     When an anonymous visitor asks for the reviews of "Saburtalo Rise"
     Then the listing contains 0 reviews
 
+  Scenario: the moderator who hears an appeal can read the decision it challenges
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And an administrator "Tekla"
+    And Nino created the property "Didube Gardens"
+    And Nino published a review of "Didube Gardens" saying "ლიფტი მუდმივად გაფუჭებულია"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Named a neighbour."
+    And Nino appealed saying "I never named anyone."
+    When Tekla asks for the appeals queue
+    Then the queue shows the appeal against a "REMOVE" for "DOXXING" explaining "Named a neighbour."
+    And the queue names the review the appeal is about
+
   Scenario: the moderator being appealed against cannot hear the appeal
     Given a resident "Nino"
     And a resident "Dato"

@@ -93,8 +93,25 @@ public final class AppealService {
         .orElseThrow(() -> new AppealNotFoundException(appealId));
   }
 
-  public List<Appeal> pending() {
-    return appealRepository.findPending();
+  public List<PendingAppeal> pending() {
+    return appealRepository.findPending().stream().map(this::withWhatIsBeingContested).toList();
+  }
+
+  /**
+   * Joins an appeal to the decision it challenges and the content both concern.
+   *
+   * <p>An appeal whose decision or case has gone missing is a broken record, not a decidable
+   * appeal; failing loudly beats handing a moderator a row with blanks where the reason for the
+   * takedown should be. {@link #decisionOf} already answers the missing-decision half, and it
+   * answers it the same way here as it does for {@link #overturn} — one condition, one story.
+   */
+  private PendingAppeal withWhatIsBeingContested(Appeal appeal) {
+    ModerationDecision decision = decisionOf(appeal);
+    ModerationCase moderationCase =
+        caseRepository
+            .findById(decision.caseId())
+            .orElseThrow(() -> new ModerationCaseNotFoundException(decision.caseId()));
+    return new PendingAppeal(appeal, decision, moderationCase.target());
   }
 
   /** Confirms the original decision. The content stays as it is. */

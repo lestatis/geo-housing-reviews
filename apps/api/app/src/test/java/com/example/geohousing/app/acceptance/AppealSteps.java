@@ -49,6 +49,32 @@ public class AppealSteps {
     api.perform(api.authorized(get("/api/appeals/" + state.currentAppealId()), actor));
   }
 
+  @When("{word} asks for the appeals queue")
+  public void asksForTheAppealsQueue(String moderator) throws Exception {
+    api.perform(api.authorized(get("/api/admin/moderation/appeals"), moderator));
+  }
+
+  @Then("the queue shows the appeal against a {string} for {string} explaining {string}")
+  public void theQueueShowsTheContestedDecision(
+      String action, String reasonCode, String explanation) {
+    String entry = "$.items[?(@.appealId=='" + state.currentAppealId() + "')]";
+    assertThat(api.<java.util.List<String>>readLast(entry + ".contestedDecision.action"))
+        .containsExactly(action);
+    assertThat(api.<java.util.List<String>>readLast(entry + ".contestedDecision.reasonCode"))
+        .containsExactly(reasonCode);
+    assertThat(api.<java.util.List<String>>readLast(entry + ".contestedDecision.publicExplanation"))
+        .containsExactly(explanation);
+  }
+
+  @Then("the queue names the review the appeal is about")
+  public void theQueueNamesTheReviewTheAppealIsAbout() {
+    String entry = "$.items[?(@.appealId=='" + state.currentAppealId() + "')]";
+    assertThat(api.<java.util.List<String>>readLast(entry + ".contestedDecision.targetType"))
+        .containsExactly("REVIEW");
+    assertThat(api.<java.util.List<String>>readLast(entry + ".contestedDecision.targetId"))
+        .containsExactly(state.currentReviewId());
+  }
+
   @Then("the appeal is awaiting a decision")
   public void theAppealIsAwaitingADecision() {
     assertThat(api.<String>readLast("$.status")).isEqualTo("PENDING");
