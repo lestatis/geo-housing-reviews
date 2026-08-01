@@ -8,6 +8,7 @@ import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountRole;
 import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
+import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
 import java.time.Instant;
@@ -234,6 +235,11 @@ class AccountProvisioningServiceTest {
     @Override
     public PublicProfile save(PublicProfile profile, long expectedVersion) {
       return profile;
+    }
+
+    @Override
+    public java.util.Optional<PublicProfile> findByPseudonym(Pseudonym pseudonym) {
+      throw new UnsupportedOperationException("this double is not used for pseudonym lookup");
     }
   }
 

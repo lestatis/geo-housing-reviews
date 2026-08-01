@@ -154,6 +154,18 @@ public class TestApi {
         accountId);
   }
 
+  /** The public pseudonym an actor is known by. */
+  public String pseudonymOf(String actorName) throws Exception {
+    MvcResult result =
+        mockMvc
+            .perform(get("/api/me").header("Authorization", state.tokenFor(actorName)))
+            .andReturn();
+    assertThat(result.getResponse().getStatus())
+        .as("reading %s's profile", actorName)
+        .isEqualTo(200);
+    return JsonPath.read(result.getResponse().getContentAsString(), "$.pseudonym");
+  }
+
   /** The account version an administrator would see before acting on it. */
   public long accountVersionOf(String actorName) throws Exception {
     return accountVersion(state.accountIdFor(actorName));

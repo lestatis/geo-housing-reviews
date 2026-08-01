@@ -9,5 +9,9 @@ public enum AdminAuditAction {
    */
   GRANT_ADMIN,
   /** Administrative access removed. */
-  REVOKE_ADMIN
+  REVOKE_ADMIN,
+  /** A restriction placed on an account. */
+  RESTRICT_ACCOUNT,
+  /** A restriction ended before its own end date. */
+  LIFT_RESTRICTION
 }

@@ -72,6 +72,23 @@ public final class AdminAuditEvent {
         occurredAt);
   }
 
+  /** Records that an admin placed, or tried to place or lift, a restriction on an account. */
+  public static AdminAuditEvent restriction(
+      UUID id,
+      AccountId adminAccountId,
+      AccountId targetAccountId,
+      AdminAuditAction action,
+      AdminAuditOutcome outcome,
+      Instant occurredAt) {
+    return new AdminAuditEvent(
+        id,
+        adminAccountId,
+        Objects.requireNonNull(action, "action"),
+        Objects.requireNonNull(targetAccountId, "targetAccountId"),
+        outcome,
+        occurredAt);
+  }
+
   /** Rebuilds an event from persisted state. Intended for persistence adapters only. */
   public static AdminAuditEvent reconstitute(
       UUID id,

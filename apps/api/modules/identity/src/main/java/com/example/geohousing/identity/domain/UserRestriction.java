@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.domain;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,8 +11,9 @@ import java.util.UUID;
  * computed on demand via {@link #isActiveAt(Instant)} rather than denormalized onto the account, so
  * it can never go stale when the window ends.
  *
- * <p>Placing a restriction is a moderation concern (a future module); this type only models the
- * fact and its active-window check.
+ * <p>A restriction is always attributed and always explained: the row names the moderator who
+ * placed it and the reason the affected account can be told, because a restriction nobody can be
+ * asked about and nobody can correct is not something this platform should be able to create.
  */
 public final class UserRestriction {
 
@@ -47,6 +49,48 @@ public final class UserRestriction {
     if (endAt != null && endAt.isBefore(startAt)) {
       throw new IllegalArgumentException("restriction endAt must not be before startAt");
     }
+  }
+
+  /**
+   * Places a restriction on an account, starting now.
+   *
+   * <p>{@code endAt} may be null, meaning indefinite. Nothing has been appealed at this point, so
+   * the appeal status starts at {@link AppealStatus#NONE} rather than being a caller's choice.
+   */
+  public static UserRestriction place(
+      UUID id,
+      AccountId accountId,
+      RestrictionScope scope,
+      String reason,
+      Instant endAt,
+      AccountId moderatorAccountId,
+      Clock clock) {
+    Objects.requireNonNull(clock, "clock");
+    Objects.requireNonNull(moderatorAccountId, "moderatorAccountId");
+    Instant now = clock.instant();
+    return new UserRestriction(
+        id, accountId, scope, reason, now, endAt, moderatorAccountId, AppealStatus.NONE, now);
+  }
+
+  /**
+   * The same restriction, ended at {@code liftedAt}.
+   *
+   * <p>Lifting closes the window rather than removing the row. A lifted restriction is history — an
+   * appeal, or a later moderator looking at a pattern, needs to see that it happened and when it
+   * stopped.
+   */
+  public UserRestriction liftedAt(Instant liftedAt) {
+    Objects.requireNonNull(liftedAt, "liftedAt");
+    return new UserRestriction(
+        id,
+        accountId,
+        scope,
+        reason,
+        startAt,
+        liftedAt,
+        moderatorAccountId,
+        appealStatus,
+        createdAt);
   }
 
   /** Rebuilds a restriction from persisted (or test-seeded) state. */
@@ -112,10 +156,15 @@ public final class UserRestriction {
     return createdAt;
   }
 
+  /**
+   * Trimmed as well as required. The schema's CHECK is {@code length(trim(reason)) > 0}, so the
+   * database already treats surrounding space as absent; storing it anyway would only mean the
+   * reason shown to an affected account has whitespace nobody typed on purpose.
+   */
   private static String requireText(String value, String field) {
     if (value == null || value.isBlank()) {
       throw new IllegalArgumentException(field + " must not be blank");
     }
-    return value;
+    return value.trim();
   }
 }

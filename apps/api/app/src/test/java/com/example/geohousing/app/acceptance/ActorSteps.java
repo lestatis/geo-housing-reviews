@@ -27,5 +27,6 @@ public class ActorSteps {
     state.rememberActor(name, api.signIn(name));
     state.rememberAccountId(name, api.accountIdOf(name));
     api.grantAdministrator(name);
+    state.rememberAdministrator(name);
   }
 }

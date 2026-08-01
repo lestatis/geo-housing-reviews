@@ -140,3 +140,45 @@ Feature: Moderate and administer without touching the database
     And a resident "Dato"
     When Nino makes Dato an administrator
     Then the request is rejected as forbidden
+
+  Scenario: a moderator finds the account behind a pseudonym
+    Given an administrator "Mari"
+    And a resident "Nino"
+    When Mari looks up the account behind Nino's pseudonym
+    Then the request succeeds
+    And the account found is Nino's
+
+  Scenario: looking up a pseudonym nobody uses finds nothing
+    Given an administrator "Mari"
+    When Mari looks up the account behind the pseudonym "Nobody-At-All"
+    Then the content is reported as not found
+
+  Scenario: a moderator restricts an account and lifts the restriction
+    Given an administrator "Mari"
+    And a resident "Nino"
+    When Mari restricts Nino saying "posted a neighbour's flat number"
+    Then the request succeeds
+    And Nino is restricted
+    When Mari lifts that restriction
+    Then the request succeeds
+    And Nino is not restricted
+
+  Scenario: an account is not restricted twice over
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And Mari restricted Nino saying "first"
+    When Mari restricts Nino saying "second"
+    Then the request is refused as a conflict
+    And the response explains the problem with code "ALREADY_RESTRICTED"
+
+  Scenario: a restriction must say why
+    Given an administrator "Mari"
+    And a resident "Nino"
+    When Mari restricts Nino saying ""
+    Then the request is refused as invalid
+
+  Scenario: an ordinary account cannot restrict anyone
+    Given a resident "Nino"
+    And a resident "Dato"
+    When Nino restricts Dato saying "I disagree with them"
+    Then the request is rejected as forbidden

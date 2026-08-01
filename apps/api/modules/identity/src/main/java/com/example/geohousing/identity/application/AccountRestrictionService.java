@@ -1,0 +1,156 @@
+package com.example.geohousing.identity.application;
+
+import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AccountNotFoundException;
+import com.example.geohousing.identity.domain.AdminAuditAction;
+import com.example.geohousing.identity.domain.AdminAuditEvent;
+import com.example.geohousing.identity.domain.AdminAuditOutcome;
+import com.example.geohousing.identity.domain.RestrictionScope;
+import com.example.geohousing.identity.domain.UserRestriction;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Placing and lifting the restrictions that stop an account contributing.
+ *
+ * <p>MODERATION.md lists "restrict account" among the actions a moderator may take, and until now
+ * nothing could take it. Role enforcement is the security layer's job; this service assumes an
+ * authenticated administrator and decides whether the restriction is coherent.
+ *
+ * <p>Every outcome is recorded, refusals included, and a lift is recorded as its own action rather
+ * than as a variant of placing one — ending somebody else's restriction early is a distinct
+ * decision, and a log that conflated them could not answer "who let this account back in?".
+ */
+public final class AccountRestrictionService {
+
+  private final UserRestrictionRepository restrictions;
+  private final AccountRepository accounts;
+  private final AdminAuditEventRepository audit;
+  private final Clock clock;
+
+  public AccountRestrictionService(
+      UserRestrictionRepository restrictions,
+      AccountRepository accounts,
+      AdminAuditEventRepository audit,
+      Clock clock) {
+    this.restrictions = Objects.requireNonNull(restrictions, "restrictions");
+    this.accounts = Objects.requireNonNull(accounts, "accounts");
+    this.audit = Objects.requireNonNull(audit, "audit");
+    this.clock = Objects.requireNonNull(clock, "clock");
+  }
+
+  /**
+   * Restricts an account from now until {@code endAt}, or indefinitely when that is null.
+   *
+   * @throws AccountNotFoundException if no such account exists
+   * @throws AlreadyRestrictedException if an active restriction already covers this scope
+   */
+  public UserRestriction restrict(
+      AccountId moderatorId,
+      AccountId targetId,
+      RestrictionScope scope,
+      String reason,
+      Instant endAt) {
+    Objects.requireNonNull(moderatorId, "moderatorId");
+    Objects.requireNonNull(targetId, "targetId");
+    Objects.requireNonNull(scope, "scope");
+
+    if (accounts.findById(targetId).isEmpty()) {
+      record(moderatorId, targetId, AdminAuditAction.RESTRICT_ACCOUNT, AdminAuditOutcome.NOT_FOUND);
+      throw new AccountNotFoundException(targetId);
+    }
+
+    Instant now = clock.instant();
+    if (hasActiveRestrictionInScope(targetId, scope, now)) {
+      record(moderatorId, targetId, AdminAuditAction.RESTRICT_ACCOUNT, AdminAuditOutcome.REFUSED);
+      throw new AlreadyRestrictedException(
+          "an active restriction already covers this account in scope " + scope);
+    }
+
+    UserRestriction placed;
+    try {
+      placed =
+          UserRestriction.place(
+              UUID.randomUUID(), targetId, scope, reason, endAt, moderatorId, clock);
+    } catch (RuntimeException refused) {
+      // A blank reason, or an end before the start. Recorded like every other refusal.
+      record(moderatorId, targetId, AdminAuditAction.RESTRICT_ACCOUNT, AdminAuditOutcome.REFUSED);
+      throw refused;
+    }
+
+    restrictions.create(placed);
+    record(moderatorId, targetId, AdminAuditAction.RESTRICT_ACCOUNT, AdminAuditOutcome.APPLIED);
+    return placed;
+  }
+
+  /**
+   * Ends a restriction now, keeping the record of it.
+   *
+   * @throws RestrictionNotFoundException if no such restriction exists
+   * @throws RestrictionNotActiveException if it has already ended
+   */
+  public UserRestriction lift(AccountId moderatorId, UUID restrictionId) {
+    Objects.requireNonNull(moderatorId, "moderatorId");
+    Objects.requireNonNull(restrictionId, "restrictionId");
+
+    Optional<UserRestriction> found = restrictions.findById(restrictionId);
+    if (found.isEmpty()) {
+      // No target account to name, so the audit row records the attempt against nothing rather than
+      // guessing at whose restriction it might have been.
+      audit.record(
+          AdminAuditEvent.restriction(
+              UUID.randomUUID(),
+              moderatorId,
+              moderatorId,
+              AdminAuditAction.LIFT_RESTRICTION,
+              AdminAuditOutcome.NOT_FOUND,
+              clock.instant()));
+      throw new RestrictionNotFoundException("no restriction for identifier " + restrictionId);
+    }
+
+    UserRestriction restriction = found.get();
+    Instant now = clock.instant();
+    if (!restriction.isActiveAt(now)) {
+      record(
+          moderatorId,
+          restriction.accountId(),
+          AdminAuditAction.LIFT_RESTRICTION,
+          AdminAuditOutcome.REFUSED);
+      throw new RestrictionNotActiveException("this restriction has already ended");
+    }
+
+    UserRestriction lifted = restriction.liftedAt(now);
+    restrictions.save(lifted);
+    record(
+        moderatorId,
+        restriction.accountId(),
+        AdminAuditAction.LIFT_RESTRICTION,
+        AdminAuditOutcome.APPLIED);
+    return lifted;
+  }
+
+  /** Everything ever placed on this account, for a moderator judging a pattern. */
+  public List<UserRestriction> history(AccountId accountId) {
+    return restrictions.findAllFor(Objects.requireNonNull(accountId, "accountId"));
+  }
+
+  private boolean hasActiveRestrictionInScope(
+      AccountId accountId, RestrictionScope scope, Instant now) {
+    return restrictions.findActiveRestrictions(accountId, now).stream()
+        .anyMatch(restriction -> restriction.scope() == scope && restriction.isActiveAt(now));
+  }
+
+  private void record(
+      AccountId moderatorId,
+      AccountId targetId,
+      AdminAuditAction action,
+      AdminAuditOutcome outcome) {
+    audit.record(
+        AdminAuditEvent.restriction(
+            UUID.randomUUID(), moderatorId, targetId, action, outcome, clock.instant()));
+  }
+}

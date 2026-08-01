@@ -4,6 +4,8 @@ import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AdminAuditEvent;
 import com.example.geohousing.identity.domain.AdminAuditOutcome;
+import com.example.geohousing.identity.domain.Pseudonym;
+import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
 import java.util.Objects;
 import java.util.Optional;
@@ -17,17 +19,50 @@ import java.util.UUID;
 public final class AdminAccountService {
 
   private final AccountRepository accountRepository;
+  private final PublicProfileRepository publicProfileRepository;
   private final AdminAuditEventRepository adminAuditEventRepository;
   private final Clock clock;
 
   public AdminAccountService(
       AccountRepository accountRepository,
+      PublicProfileRepository publicProfileRepository,
       AdminAuditEventRepository adminAuditEventRepository,
       Clock clock) {
     this.accountRepository = Objects.requireNonNull(accountRepository, "accountRepository");
+    this.publicProfileRepository =
+        Objects.requireNonNull(publicProfileRepository, "publicProfileRepository");
     this.adminAuditEventRepository =
         Objects.requireNonNull(adminAuditEventRepository, "adminAuditEventRepository");
     this.clock = Objects.requireNonNull(clock, "clock");
+  }
+
+  /**
+   * Finds the account behind a public pseudonym, and records the access.
+   *
+   * <p>An administrator looking at a reported review knows the pseudonym and nothing else. Audited
+   * exactly like a lookup by id, and for the same reason — this is the step that turns a public
+   * name into a private account, and it is the one worth being able to review afterwards.
+   */
+  public Optional<Account> viewAccountByPseudonym(AccountId adminAccountId, Pseudonym pseudonym) {
+    Objects.requireNonNull(adminAccountId, "adminAccountId");
+    Objects.requireNonNull(pseudonym, "pseudonym");
+
+    Optional<Account> target =
+        publicProfileRepository
+            .findByPseudonym(pseudonym)
+            .map(PublicProfile::accountId)
+            .flatMap(accountRepository::findById);
+    // Records the account actually reached, or the caller themselves when nothing matched: the log
+    // must not carry an id that was never looked up, and there is no target id to carry when the
+    // pseudonym belongs to nobody.
+    adminAuditEventRepository.record(
+        AdminAuditEvent.accountView(
+            UUID.randomUUID(),
+            adminAccountId,
+            target.map(Account::id).orElse(adminAccountId),
+            target.isPresent() ? AdminAuditOutcome.FOUND : AdminAuditOutcome.NOT_FOUND,
+            clock.instant()));
+    return target;
   }
 
   /**

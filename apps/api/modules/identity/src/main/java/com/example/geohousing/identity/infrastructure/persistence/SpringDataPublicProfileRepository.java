@@ -7,4 +7,6 @@ public interface SpringDataPublicProfileRepository
     extends JpaRepository<PublicProfileJpaEntity, UUID> {
 
   boolean existsByPseudonym(String pseudonym);
+
+  java.util.Optional<PublicProfileJpaEntity> findByPseudonym(String pseudonym);
 }

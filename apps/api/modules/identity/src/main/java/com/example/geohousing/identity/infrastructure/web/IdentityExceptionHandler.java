@@ -1,7 +1,10 @@
 package com.example.geohousing.identity.infrastructure.web;
 
+import com.example.geohousing.identity.application.AlreadyRestrictedException;
 import com.example.geohousing.identity.application.IdempotencyKeyConflictException;
 import com.example.geohousing.identity.application.LastAdministratorException;
+import com.example.geohousing.identity.application.RestrictionNotActiveException;
+import com.example.geohousing.identity.application.RestrictionNotFoundException;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
 import com.example.geohousing.identity.domain.AccountRestrictedException;
@@ -42,6 +45,33 @@ class IdentityExceptionHandler {
         "Last administrator",
         "LAST_ADMINISTRATOR",
         "This is the only administrator. Grant the role to someone else first.");
+  }
+
+  @ExceptionHandler(AlreadyRestrictedException.class)
+  ProblemDetail handleAlreadyRestricted(AlreadyRestrictedException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Already restricted",
+        "ALREADY_RESTRICTED",
+        "This account already has a restriction in force. Lift it before placing another.");
+  }
+
+  @ExceptionHandler(RestrictionNotActiveException.class)
+  ProblemDetail handleRestrictionNotActive(RestrictionNotActiveException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Restriction already ended",
+        "RESTRICTION_NOT_ACTIVE",
+        "This restriction has already ended.");
+  }
+
+  @ExceptionHandler(RestrictionNotFoundException.class)
+  ProblemDetail handleRestrictionNotFound(RestrictionNotFoundException exception) {
+    return problem(
+        HttpStatus.NOT_FOUND,
+        "Restriction not found",
+        "RESTRICTION_NOT_FOUND",
+        "No such restriction.");
   }
 
   @ExceptionHandler(AccountClosedException.class)

@@ -2,23 +2,39 @@
 
 ## Objective
 
-Implement plan 013, chunk 1: grant and remove administrative access through the API, audited, so
-the platform can be operated without editing its database.
+Implement plan 013, chunk 2: find the account behind a pseudonym, and place and lift the
+restrictions MODERATION.md says a moderator may impose.
 
 ## Active branch
 
-`feat/013-account-roles-chunk1`, branched from clean `main` at `3403e56`. Local only; not pushed.
+`feat/013-account-restrictions-chunk2`, branched from clean `main` at `4b69fe6`. Local only; not
+pushed.
 Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/013-account-roles-and-restrictions.md`, chunk 1 of 4.
+No issue. `docs/plans/013-account-roles-and-restrictions.md`, chunk 2 of 4.
 
 ## Current status
 
 completed, awaiting independent review
 
 ## Completed work
+
+- `UserRestriction.place(...)` and `liftedAt(...)` — test-first. A restriction is always attributed
+  and always explained; lifting closes the window rather than removing the row.
+- `UserRestrictionRepository` gained `create`, `findById`, `findAllFor`, `save`; JPA adapter
+  implements all four.
+- `AccountRestrictionService.restrict/lift/history`, auditing every outcome including refusals.
+  Refuses a second active restriction in the same scope, and refuses lifting one that has ended.
+- `V2.8__audit_account_restrictions.sql` adds `RESTRICT_ACCOUNT` and `LIFT_RESTRICTION`.
+- `GET /api/admin/accounts?pseudonym=`, audited as `VIEW_ACCOUNT`;
+  `POST /api/admin/accounts/{id}/restrictions`, `.../restrictions/{id}/lift`, and
+  `GET .../restrictions`.
+- `requireText` now trims — the schema's CHECK already ignored surrounding space.
+- Six Gherkin scenarios; `RestrictionSteps`. Identity's mutation threshold ratcheted 85 → 90.
+
+### From chunk 1 (unchanged, already merged)
 
 - `Account.changeRole(AccountRole, Clock)` — refuses a closed account, and refuses a change to the
   role already held (a no-op that still wrote an audit row would put a grant in the log that
@@ -39,9 +55,8 @@ completed, awaiting independent review
 
 ## Remaining work
 
-Plan 013 chunks 2–4: account lookup by pseudonym and restrictions placed/lifted; restriction
-enforcement across reviews and moderation (including making `RESTRICT_ACCOUNT` actually apply); the
-admin account screen.
+Plan 013 chunk 3 — restriction enforcement across reviews and moderation, including making
+`RESTRICT_ACCOUNT` actually apply — and chunk 4, the admin account screen.
 
 ## Decisions made
 
@@ -84,8 +99,9 @@ cd apps/api && ./gradlew :modules:identity:check -PskipMutation
 ./scripts/check.sh          # read the EXIT= marker, not a wrapper's status
 ```
 
-The last-administrator guard was proven load-bearing: replacing its condition with `false` fails
-exactly the scenario that asserts it, and nothing else.
+Two guards were proven load-bearing by replacing each condition with `false` and watching exactly
+the scenario that asserts it fail: the last-administrator rule (chunk 1) and the
+already-restricted rule (this chunk).
 
 ## Failures and blockers
 
@@ -102,9 +118,12 @@ the container half of this, and now documents both.
   That is the single-tier model of `P-013` working as designed, and the audit log is the only
   record of how someone became privileged — so the audit write is on the normal path and a failure
   to record fails the request.
-- **`RESTRICT_ACCOUNT` still applies no effect**, and restrictions still only block a pseudonym
-  change. Both are chunk 3.
-- Identity's mutation threshold was ratcheted 80 → 85, the score this chunk leaves (122/144).
+- **`RESTRICT_ACCOUNT` still applies no effect**, and a restriction still only blocks a pseudonym
+  change. A moderator can now place one and it stops almost nothing — chunk 3 is what makes it mean
+  something, and until then the endpoint promises more than it delivers.
+- **No appeal path for a restriction.** `user_restriction.appeal_status` exists and stays `NONE`;
+  the moderation appeal channel is keyed to a `ModerationDecision`. Named as a non-goal in the plan.
+- Identity's mutation threshold was ratcheted 80 → 85 in chunk 1 and 85 → 90 here (154/172).
 
 ## Next action
 

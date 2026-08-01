@@ -10,6 +10,12 @@ public interface PublicProfileRepository {
 
   Optional<PublicProfile> findByAccountId(AccountId accountId);
 
+  /**
+   * The profile behind a pseudonym. An administrator looking at a reported review knows the
+   * pseudonym and nothing else — this is what turns that into an account they can act on.
+   */
+  Optional<PublicProfile> findByPseudonym(Pseudonym pseudonym);
+
   boolean isPseudonymInUse(Pseudonym pseudonym);
 
   /** Persists an edit only when the stored profile still has {@code expectedVersion}. */

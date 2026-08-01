@@ -59,5 +59,10 @@ class PseudonymAllocatorTest {
     public PublicProfile save(PublicProfile profile, long expectedVersion) {
       return profile;
     }
+
+    @Override
+    public java.util.Optional<PublicProfile> findByPseudonym(Pseudonym pseudonym) {
+      throw new UnsupportedOperationException("this double is not used for pseudonym lookup");
+    }
   }
 }

@@ -1,6 +1,6 @@
 # Plan 013 — account roles and restrictions
 
-Status: **chunk 1 complete**; chunks 2–4 outstanding
+Status: **chunks 1–2 complete**; chunks 3–4 outstanding
 
 ## Context
 
@@ -76,13 +76,22 @@ Each is a branch from `main`, self-checked with `./scripts/check.sh`, independen
   statement about the whole population that no endpoint expresses — without it the
   last-administrator rule can never become true in an acceptance test.
 
-### 2. Finding an account, and restricting it
+### 2. Finding an account, and restricting it — **complete**
 
 - `GET /api/admin/accounts?pseudonym=` — an admin looking at a reported review knows the pseudonym
   and nothing else. Audited as `VIEW_ACCOUNT`, same as the by-id lookup.
 - `UserRestriction.place(...)` factory with the invariants the schema already asserts.
-- `UserRestrictionRepository` gains `create`, `findById`, and `endNow(id, Instant)` — lifting sets
-  `end_at`, keeping the record, because a lifted restriction is history rather than a mistake.
+- `UserRestrictionRepository` gained `create`, `findById`, `findAllFor` and `save`. Lifting rewrites
+  the row with a closed window rather than deleting it, because a lifted restriction is history: an
+  appeal, or a later moderator judging a pattern, needs to see that it happened and when it stopped.
+  The history endpoint therefore returns lifted restrictions too, each marked `active: false`.
+- `V2.8__audit_account_restrictions.sql` adds `RESTRICT_ACCOUNT` and `LIFT_RESTRICTION`. A lift is
+  its own action rather than a restrict with a different outcome — ending somebody else's
+  restriction early is a distinct decision, and a log that conflated them could not answer "who let
+  this account back in?".
+- `requireText` now trims. The schema's CHECK is `length(trim(reason)) > 0`, so the database already
+  treated surrounding space as absent; storing it anyway only meant the reason shown to a restricted
+  account carried whitespace nobody typed.
 - `AccountRestrictionService.restrict(...)` / `.lift(...)`, audited, refusing a restriction on an
   account that already has an active one of the same scope.
 - `POST /api/admin/accounts/{accountId}/restrictions`, `POST .../restrictions/{id}/lift`,

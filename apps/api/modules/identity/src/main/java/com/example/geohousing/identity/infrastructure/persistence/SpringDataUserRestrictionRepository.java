@@ -22,4 +22,7 @@ public interface SpringDataUserRestrictionRepository
           + " and (r.endAt is null or r.endAt > :asOf)")
   List<UserRestrictionJpaEntity> findActive(
       @Param("accountId") UUID accountId, @Param("asOf") Instant asOf);
+
+  /** Every restriction ever placed on an account, newest first. */
+  List<UserRestrictionJpaEntity> findByAccountIdOrderByStartAtDesc(UUID accountId);
 }

@@ -93,6 +93,14 @@ public class JpaIdentityPersistenceAdapter
 
   @Override
   @Transactional(readOnly = true)
+  public Optional<PublicProfile> findByPseudonym(Pseudonym pseudonym) {
+    return publicProfileRepository
+        .findByPseudonym(pseudonym.value())
+        .map(PublicProfileJpaMapper::toDomain);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public long countByRole(AccountRole role) {
     return accountRepository.countByRoleAndStatus(role, AccountStatus.ACTIVE);
   }

@@ -22,6 +22,9 @@ public class ScenarioState {
   private final Set<String> helpfulVoters = new LinkedHashSet<>();
 
   private String currentReviewId;
+  private String currentRestrictionId;
+  private String restrictedAccountId;
+  private String anyAdministrator;
   private String currentVerificationCaseId;
   private String currentReportId;
   private String currentAppealId;
@@ -39,6 +42,39 @@ public class ScenarioState {
           "no actor named '" + actorName + "' in this scenario; introduce them in a Given step");
     }
     return token;
+  }
+
+  public void rememberRestriction(String restrictionId, String restrictedAccountId) {
+    this.currentRestrictionId = restrictionId;
+    this.restrictedAccountId = restrictedAccountId;
+  }
+
+  /** The account the current restriction was placed on. */
+  public String restrictedAccountId() {
+    if (restrictedAccountId == null) {
+      throw new IllegalStateException("this scenario has not placed a restriction yet");
+    }
+    return restrictedAccountId;
+  }
+
+  /** The restriction the scenario is talking about — "that restriction" in the feature files. */
+  public String currentRestrictionId() {
+    if (currentRestrictionId == null) {
+      throw new IllegalStateException("this scenario has not placed a restriction yet");
+    }
+    return currentRestrictionId;
+  }
+
+  /** Records an actor who holds the administrator role, for steps that need any administrator. */
+  public void rememberAdministrator(String actorName) {
+    this.anyAdministrator = actorName;
+  }
+
+  public String anyAdministrator() {
+    if (anyAdministrator == null) {
+      throw new IllegalStateException("this scenario has no administrator");
+    }
+    return anyAdministrator;
   }
 
   public void rememberAccountId(String actorName, String accountId) {

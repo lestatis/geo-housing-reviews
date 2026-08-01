@@ -771,6 +771,66 @@
         },
         "type" : "object"
       },
+      "RestrictAccountRequest" : {
+        "properties" : {
+          "endAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "scope" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RestrictionListResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RestrictionView"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "RestrictionView" : {
+        "properties" : {
+          "accountId" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          },
+          "appealStatus" : {
+            "type" : "string"
+          },
+          "endAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "moderatorAccountId" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "restrictionId" : {
+            "type" : "string"
+          },
+          "scope" : {
+            "type" : "string"
+          },
+          "startAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ReviewListResponse" : {
         "properties" : {
           "items" : {
@@ -1054,6 +1114,32 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/admin/accounts" : {
+      "get" : {
+        "operationId" : "findByPseudonym",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "pseudonym",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-account-controller" ]
+      }
+    },
     "/api/admin/accounts/{accountId}" : {
       "get" : {
         "operationId" : "getAccount",
@@ -1071,6 +1157,99 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-account-controller" ]
+      }
+    },
+    "/api/admin/accounts/{accountId}/restrictions" : {
+      "get" : {
+        "operationId" : "restrictions",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "accountId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RestrictionListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-account-controller" ]
+      },
+      "post" : {
+        "operationId" : "restrict",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "accountId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RestrictAccountRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RestrictionView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-account-controller" ]
+      }
+    },
+    "/api/admin/accounts/{accountId}/restrictions/{restrictionId}/lift" : {
+      "post" : {
+        "operationId" : "lift",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "accountId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "restrictionId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RestrictionView"
                 }
               }
             },

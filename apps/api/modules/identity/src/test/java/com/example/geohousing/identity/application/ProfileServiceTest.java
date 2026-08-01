@@ -34,7 +34,7 @@ class ProfileServiceTest {
   private static final AccountId ACCOUNT_ID = AccountId.of(UUID.randomUUID());
 
   // Returns nothing, so an unrestricted account is never blocked.
-  private static final UserRestrictionRepository NO_RESTRICTIONS = (accountId, asOf) -> List.of();
+  private static final UserRestrictionRepository NO_RESTRICTIONS = new ActiveOnly(List.of());
 
   @Test
   void updatesProfileWhenAccountIsActivePseudonymIsFreeAndVersionMatches() {
@@ -102,7 +102,7 @@ class ProfileServiceTest {
   void rejectsProfileUpdateWhileAnActiveRestrictionIsInForce() {
     InMemoryProfileRepository profiles = new InMemoryProfileRepository(profile(3L), Set.of());
     UserRestrictionRepository restrictions =
-        (accountId, asOf) -> List.of(restriction(Instant.parse("2026-07-01T00:00:00Z"), null));
+        new ActiveOnly(List.of(restriction(Instant.parse("2026-07-01T00:00:00Z"), null)));
     ProfileService service =
         new ProfileService(
             new InMemoryAccountRepository(activeAccount()), profiles, restrictions, CLOCK);
@@ -120,10 +120,10 @@ class ProfileServiceTest {
     // The repository returns the restriction unfiltered; ProfileService must apply isActiveAt and
     // see that it ended before the clock, so the update proceeds.
     UserRestrictionRepository restrictions =
-        (accountId, asOf) ->
+        new ActiveOnly(
             List.of(
                 restriction(
-                    Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-07-01T00:00:00Z")));
+                    Instant.parse("2026-06-01T00:00:00Z"), Instant.parse("2026-07-01T00:00:00Z"))));
     ProfileService service =
         new ProfileService(
             new InMemoryAccountRepository(activeAccount()), profiles, restrictions, CLOCK);
@@ -242,6 +242,44 @@ class ProfileServiceTest {
       this.profile = profile;
       savedExpectedVersion = expectedVersion;
       return profile;
+    }
+
+    @Override
+    public java.util.Optional<PublicProfile> findByPseudonym(Pseudonym pseudonym) {
+      throw new UnsupportedOperationException("this double is not used for pseudonym lookup");
+    }
+  }
+
+  /**
+   * A restriction store that answers only the active-window question. The port grew write methods
+   * for placing and lifting; this test is about what an active restriction stops, so the rest
+   * throws rather than pretending to work.
+   */
+  private record ActiveOnly(List<UserRestriction> active) implements UserRestrictionRepository {
+
+    @Override
+    public List<UserRestriction> findActiveRestrictions(AccountId accountId, Instant asOf) {
+      return active;
+    }
+
+    @Override
+    public List<UserRestriction> findAllFor(AccountId accountId) {
+      throw new UnsupportedOperationException("this double is not used for restriction history");
+    }
+
+    @Override
+    public java.util.Optional<UserRestriction> findById(java.util.UUID restrictionId) {
+      throw new UnsupportedOperationException("this double is not used for restriction lookup");
+    }
+
+    @Override
+    public void create(UserRestriction restriction) {
+      throw new UnsupportedOperationException("this double is not used for placing restrictions");
+    }
+
+    @Override
+    public void save(UserRestriction restriction) {
+      throw new UnsupportedOperationException("this double is not used for lifting restrictions");
     }
   }
 }

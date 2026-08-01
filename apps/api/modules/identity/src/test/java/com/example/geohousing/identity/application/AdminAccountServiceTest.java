@@ -9,6 +9,8 @@ import com.example.geohousing.identity.domain.AccountRole;
 import com.example.geohousing.identity.domain.AdminAuditAction;
 import com.example.geohousing.identity.domain.AdminAuditEvent;
 import com.example.geohousing.identity.domain.AdminAuditOutcome;
+import com.example.geohousing.identity.domain.Pseudonym;
+import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -23,6 +25,7 @@ class AdminAccountServiceTest {
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-07-15T10:00:00Z"), ZoneOffset.UTC);
   private static final AccountId ADMIN_ID = AccountId.of(UUID.randomUUID());
+  private static final PublicProfileRepository NO_PROFILES = new NoProfiles();
 
   @Test
   void returnsAccountAndRecordsAFoundAuditEvent() {
@@ -31,7 +34,7 @@ class AdminAccountServiceTest {
             AccountId.of(UUID.randomUUID()), "hashed-subject", "person@example.com", CLOCK);
     RecordingAuditRepository audit = new RecordingAuditRepository();
     AdminAccountService service =
-        new AdminAccountService(new SingleAccountRepository(target), audit, CLOCK);
+        new AdminAccountService(new SingleAccountRepository(target), NO_PROFILES, audit, CLOCK);
 
     Optional<Account> result = service.viewAccount(ADMIN_ID, target.id());
 
@@ -49,7 +52,7 @@ class AdminAccountServiceTest {
   void returnsEmptyAndRecordsANotFoundAuditEventForAnUnknownAccount() {
     RecordingAuditRepository audit = new RecordingAuditRepository();
     AdminAccountService service =
-        new AdminAccountService(new SingleAccountRepository(null), audit, CLOCK);
+        new AdminAccountService(new SingleAccountRepository(null), NO_PROFILES, audit, CLOCK);
     AccountId missing = AccountId.of(UUID.randomUUID());
 
     Optional<Account> result = service.viewAccount(ADMIN_ID, missing);
@@ -70,7 +73,7 @@ class AdminAccountServiceTest {
           throw new IllegalStateException("audit store unavailable");
         };
     AdminAccountService service =
-        new AdminAccountService(new SingleAccountRepository(target), failing, CLOCK);
+        new AdminAccountService(new SingleAccountRepository(target), NO_PROFILES, failing, CLOCK);
 
     assertThatThrownBy(() -> service.viewAccount(ADMIN_ID, target.id()))
         .isInstanceOf(IllegalStateException.class);
@@ -116,6 +119,30 @@ class AdminAccountServiceTest {
     @Override
     public long countByRole(AccountRole role) {
       throw new UnsupportedOperationException("this double is not used for role counting");
+    }
+  }
+
+  /** These tests look accounts up by id; the pseudonym path has its own coverage. */
+  private static final class NoProfiles implements PublicProfileRepository {
+
+    @Override
+    public Optional<PublicProfile> findByAccountId(AccountId accountId) {
+      throw new UnsupportedOperationException("this double is not used for profile lookup");
+    }
+
+    @Override
+    public Optional<PublicProfile> findByPseudonym(Pseudonym pseudonym) {
+      return Optional.empty();
+    }
+
+    @Override
+    public boolean isPseudonymInUse(Pseudonym pseudonym) {
+      throw new UnsupportedOperationException("this double is not used for uniqueness checks");
+    }
+
+    @Override
+    public PublicProfile save(PublicProfile profile, long expectedVersion) {
+      throw new UnsupportedOperationException("this double is not used for profile writes");
     }
   }
 }

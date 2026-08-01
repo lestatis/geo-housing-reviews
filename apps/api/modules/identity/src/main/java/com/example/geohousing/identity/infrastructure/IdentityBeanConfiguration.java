@@ -5,6 +5,7 @@ import com.example.geohousing.identity.application.AccountDeletionRepository;
 import com.example.geohousing.identity.application.AccountDeletionService;
 import com.example.geohousing.identity.application.AccountProvisioningService;
 import com.example.geohousing.identity.application.AccountRepository;
+import com.example.geohousing.identity.application.AccountRestrictionService;
 import com.example.geohousing.identity.application.AccountRoleService;
 import com.example.geohousing.identity.application.AdminAccountService;
 import com.example.geohousing.identity.application.AdminAuditEventRepository;
@@ -80,6 +81,16 @@ public class IdentityBeanConfiguration {
   }
 
   @Bean
+  AccountRestrictionService accountRestrictionService(
+      UserRestrictionRepository userRestrictionRepository,
+      AccountRepository accountRepository,
+      AdminAuditEventRepository adminAuditEventRepository,
+      Clock identityClock) {
+    return new AccountRestrictionService(
+        userRestrictionRepository, accountRepository, adminAuditEventRepository, identityClock);
+  }
+
+  @Bean
   AccountRoleService accountRoleService(
       AccountRepository accountRepository,
       AdminAuditEventRepository adminAuditEventRepository,
@@ -90,9 +101,11 @@ public class IdentityBeanConfiguration {
   @Bean
   AdminAccountService adminAccountService(
       AccountRepository accountRepository,
+      PublicProfileRepository publicProfileRepository,
       AdminAuditEventRepository adminAuditEventRepository,
       Clock identityClock) {
-    return new AdminAccountService(accountRepository, adminAuditEventRepository, identityClock);
+    return new AdminAccountService(
+        accountRepository, publicProfileRepository, adminAuditEventRepository, identityClock);
   }
 
   @Bean
