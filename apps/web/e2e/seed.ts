@@ -166,3 +166,66 @@ export async function seedAppeal(): Promise<SeededCase> {
 
   return seeded;
 }
+
+/**
+ * A Tier 2 verification case with a document attached, waiting for a moderator.
+ *
+ * <p>The evidence is a synthetic 1×1 PNG. It must never be anything resembling a real lease or
+ * identity document — `.claude/rules/security.md` forbids fixtures that could be mistaken for one,
+ * and a test that needs a realistic document is a test that should not exist.
+ */
+export async function seedVerification(): Promise<{ caseId: string; propertyId: string }> {
+  const moderatorToken = await tokenFor(MODERATOR);
+  grantAdmin((await call<{ accountId: string }>(moderatorToken, "GET", "/api/me")).accountId);
+
+  const residentToken = await tokenFor(RESIDENT);
+  const property = await call<{ propertyId: string }>(residentToken, "POST", "/api/properties", {
+    type: "BUILDING",
+    canonicalName: `Verification Court ${Date.now()}`,
+    address: { country: "GE", city: "Batumi", street: "Rustaveli Street" },
+    allowDuplicate: true,
+  });
+
+  const opened = await call<{ caseId: string }>(residentToken, "POST", "/api/verifications", {
+    propertyId: property.propertyId,
+    method: "DOCUMENT",
+    relationshipClaim: "CURRENT_RESIDENT",
+  });
+
+  const form = new FormData();
+  form.set("document", new Blob([SYNTHETIC_PNG], { type: "image/png" }), "synthetic.png");
+  const uploaded = await fetch(
+    `${API}/api/verifications/${opened.caseId}/evidence`,
+    { method: "POST", headers: { authorization: `Bearer ${residentToken}` }, body: form },
+  );
+  if (!uploaded.ok) {
+    throw new Error(`attaching evidence → ${uploaded.status} ${await uploaded.text()}`);
+  }
+
+  return { caseId: opened.caseId, propertyId: property.propertyId };
+}
+
+/** A 1×1 transparent PNG. Synthetic by construction — it is not a document of any kind. */
+const SYNTHETIC_PNG = Uint8Array.from(
+  atob(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk" +
+      "YPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  ),
+  (c) => c.charCodeAt(0),
+);
+
+/** A property an administrator can act on. Created DRAFT, like every user-contributed record. */
+export async function seedProperty(): Promise<{ propertyId: string; name: string }> {
+  const moderatorToken = await tokenFor(MODERATOR);
+  grantAdmin((await call<{ accountId: string }>(moderatorToken, "GET", "/api/me")).accountId);
+
+  const name = `Lifecycle Terraces ${Date.now()}`;
+  const residentToken = await tokenFor(RESIDENT);
+  const property = await call<{ propertyId: string }>(residentToken, "POST", "/api/properties", {
+    type: "BUILDING",
+    canonicalName: name,
+    address: { country: "GE", city: "Batumi", street: "Parnavaz Mepe Street" },
+    allowDuplicate: true,
+  });
+  return { propertyId: property.propertyId, name };
+}

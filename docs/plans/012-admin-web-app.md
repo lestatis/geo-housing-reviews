@@ -1,6 +1,7 @@
 # Plan 012 — the admin web app, and something to sign in with
 
-Status: **chunk 1 complete, chunks 2–3 outstanding**
+Status: **complete for what the API supports** — chunks 1–3 delivered; account-role management
+and an admin property listing remain as backend work (see findings)
 
 ## Context
 
@@ -43,6 +44,10 @@ vendor exists.
 | User restrictions | none | out — no endpoint exists |
 | Audit log | written everywhere, readable nowhere | out — no read endpoint |
 | Basic metrics | none | out — that is the analytics gap |
+
+Role-based access moved from "chunk 1" to "chunk 1 for enforcement, never for management": the
+`ADMIN` gate is enforced server-side and the app respects it, but nothing in the product can grant
+or remove a role. See the findings below.
 
 ## Chunks
 
@@ -118,9 +123,36 @@ like "third from this account" is one moderator's characterisation of the author
 fresh hearing with it is how an appeal becomes a rubber stamp on the decision it is meant to test.
 It stays one click away on the case, read as history rather than as the case for the prosecution.
 
-### 3. The other queues — outstanding
+### 3. The other queues — **complete for what the API supports**
 
-Verification decisions, property activate/hide/merge, account role management.
+Verification decisions and property activate/hide/merge. **Account role management is not built**:
+identity exposes only `GET /api/admin/accounts/{accountId}`, which needs an id you already have, and
+there is no endpoint that changes a role. That is the same gap both test suites work around with
+SQL. Founder decision (2026-08-01): ship what is reachable, and leave the account-role API and an
+admin property listing as backend work with their own decisions.
+
+**Evidence is proxied, not linked — and the plan was wrong to say otherwise.** This document
+previously required that the admin app "links to it, never proxies or caches it". Checking the API
+showed no such link exists: `readEvidence` streams the bytes with `no-store`, and its own comment
+says it is *"deliberately a proxied response, rather than a reusable storage URL"*. With the access
+token httpOnly on the Next origin, a browser link to the API cannot authenticate at all. So
+`/api/evidence/[caseId]/[evidenceId]` adds the bearer server-side and streams straight through:
+nothing is stored, `no-store` and `nosniff` and `attachment` are asserted rather than merely
+forwarded, and every view still lands in the API's access audit — which is the property that
+actually matters. Founder decision (2026-08-01).
+
+**Local evidence upload had never worked.** MinIO in `infra/docker/docker-compose.yml` had no
+`MINIO_KMS_SECRET_KEY`, and `S3EvidenceStore` writes with server-side encryption, so MinIO answered
+every upload with a 501 — "Server side encryption specified but KMS is not configured". The backend
+integration tests set the key on their own container, which is why the suite never noticed. Compose
+now sets the same throwaway localhost key.
+
+**Server actions are bound, not wrapped.** All four forms previously passed a client-side closure to
+`useActionState`. React can only submit a form before hydration when the form's action *is* a server
+action, so a wrapped one silently swallows a click that lands early — which Playwright reproduces
+reliably on a route reached by client navigation. Every form now uses `action.bind(null, id)`. This
+narrows the window rather than closing it in a dev build; the property journey still waits for the
+route to settle, and says so.
 
 ## What the UI must not do
 
@@ -158,9 +190,13 @@ a gate that silently skips when it is absent is worse than one that never claime
   enum-typed request fields, which would change how an unrecognised value is reported (the
   controllers currently parse leniently and return a specific message). Deliberately left for its
   own chunk.
-- **No way to bootstrap the first administrator.** Identity exposes no endpoint, so both the backend
-  acceptance suite and `apps/web/e2e/seed.ts` write the role with SQL. Fine for local development;
-  it will need an answer before there is a production environment.
+- **No way to bootstrap or change an administrator.** Identity exposes no role endpoint, so both the
+  backend acceptance suite and `apps/web/e2e/seed.ts` write the role with SQL. This is why PRD §5.8's
+  "role-based access" is enforced but unmanageable, and it needs an answer before there is a
+  production environment. An audited `PATCH /api/admin/accounts/{id}/role` is the obvious shape.
+- **No admin property listing.** Lifecycle actions are reachable only by id, so the admin app finds
+  properties through the public search. Drafts awaiting activation and merge candidates are
+  therefore not enumerable — a status-filtered admin listing would close it.
 - **`scripts/validate_repo_governance.py` walked `node_modules`** and reported 75 "findings" from
   dependency files. Now scoped to directories this repository authors.
 

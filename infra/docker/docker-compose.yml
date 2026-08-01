@@ -29,6 +29,12 @@ services:
     environment:
       MINIO_ROOT_USER: geo_housing_evidence
       MINIO_ROOT_PASSWORD: geo_housing_evidence
+      # Evidence is written with server-side encryption (S3EvidenceStore, ADR-0008), and MinIO
+      # refuses an encrypted PUT outright unless it has a key — "Server side encryption specified
+      # but KMS is not configured", a 501. Without this line an upload has never worked locally.
+      # A throwaway localhost key, the same one the backend integration tests use; production uses
+      # a real KMS.
+      MINIO_KMS_SECRET_KEY: "key1:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     ports:
       - "9000:9000"
       - "9001:9001"

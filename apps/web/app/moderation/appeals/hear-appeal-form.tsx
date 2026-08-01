@@ -11,11 +11,8 @@ import { decideAppeal } from "@/src/moderation/actions";
  * the author an account of why the first decision was wrong.
  */
 export function HearAppealForm({ appealId }: { appealId: string }) {
-  const [state, submit, pending] = useActionState(
-    async (_previous: { error: string } | undefined, form: FormData) =>
-      decideAppeal(appealId, form),
-    undefined,
-  );
+  // Bound, not wrapped: only a server action can be submitted before the page hydrates.
+  const [state, submit, pending] = useActionState(decideAppeal.bind(null, appealId), undefined);
 
   return (
     <form action={submit}>

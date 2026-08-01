@@ -15,7 +15,16 @@ import { requiresPublicExplanation } from "./decision";
 
 export type ActionResult = { error: string } | undefined;
 
-export async function decideCase(caseId: string, form: FormData): Promise<ActionResult> {
+/**
+ * Bound to its case id by the caller, so the form's action is a server action rather than a
+ * client-side closure around one — a form wrapped in a closure cannot be submitted until the page
+ * has hydrated, and a click that lands first is swallowed without a word.
+ */
+export async function decideCase(
+  caseId: string,
+  _previous: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
   const action = String(form.get("action") ?? "");
   const reasonCode = String(form.get("reasonCode") ?? "").trim();
   const publicExplanation = String(form.get("publicExplanation") ?? "").trim();
@@ -53,7 +62,12 @@ export async function decideCase(caseId: string, form: FormData): Promise<Action
   redirect("/moderation");
 }
 
-export async function decideAppeal(appealId: string, form: FormData): Promise<ActionResult> {
+/** Bound to its appeal id by the caller, for the same reason as {@link decideCase}. */
+export async function decideAppeal(
+  appealId: string,
+  _previous: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
   const outcome = String(form.get("outcome") ?? "");
   const explanation = String(form.get("explanation") ?? "").trim();
 

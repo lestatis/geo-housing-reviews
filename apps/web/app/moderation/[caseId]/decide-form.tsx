@@ -12,11 +12,8 @@ import { DECISION_ACTIONS, describeAction } from "@/src/moderation/decision";
  * here holds a token or talks to the API.
  */
 export function DecideForm({ caseId }: { caseId: string }) {
-  const [state, submit, pending] = useActionState(
-    async (_previous: { error: string } | undefined, form: FormData) =>
-      decideCase(caseId, form),
-    undefined,
-  );
+  // Bound, not wrapped: only a server action can be submitted before the page hydrates.
+  const [state, submit, pending] = useActionState(decideCase.bind(null, caseId), undefined);
 
   return (
     <form action={submit}>

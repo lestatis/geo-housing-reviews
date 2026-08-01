@@ -41,9 +41,10 @@ export default async function ModerationQueue() {
   return (
     <main>
       <h1>Moderation queue</h1>
-      <p>
-        <Link href="/moderation/appeals">Appeals</Link>
-      </p>
+      <nav>
+        <Link href="/moderation/appeals">Appeals</Link> ·{" "}
+        <Link href="/verification">Verification</Link> · <Link href="/properties">Properties</Link>
+      </nav>
       <form action="/api/auth/signout" method="post">
         <button type="submit">Sign out</button>
       </form>
