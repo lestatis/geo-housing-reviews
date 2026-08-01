@@ -1,6 +1,7 @@
 package com.example.geohousing.identity.infrastructure.web;
 
 import com.example.geohousing.identity.application.IdempotencyKeyConflictException;
+import com.example.geohousing.identity.application.LastAdministratorException;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
 import com.example.geohousing.identity.domain.AccountRestrictedException;
@@ -32,6 +33,15 @@ class IdentityExceptionHandler {
         "Account restricted",
         "ACCOUNT_RESTRICTED",
         "Your account is currently restricted from editing its profile.");
+  }
+
+  @ExceptionHandler(LastAdministratorException.class)
+  ProblemDetail handleLastAdministrator(LastAdministratorException exception) {
+    return problem(
+        HttpStatus.CONFLICT,
+        "Last administrator",
+        "LAST_ADMINISTRATOR",
+        "This is the only administrator. Grant the role to someone else first.");
   }
 
   @ExceptionHandler(AccountClosedException.class)

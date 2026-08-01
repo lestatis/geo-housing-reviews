@@ -98,3 +98,45 @@ Feature: Moderate and administer without touching the database
     Given a resident "Levan"
     When Levan asks for the moderation queue
     Then the request is rejected as forbidden
+
+  Scenario: an administrator grants administrative access to a resident
+    Given an administrator "Mari"
+    And a resident "Nino"
+    When Mari makes Nino an administrator
+    Then the request succeeds
+    And Nino can reach the moderation queue
+
+  Scenario: an administrator removes another administrator's access
+    Given an administrator "Mari"
+    And an administrator "Tekla"
+    When Mari removes Tekla's administrative access
+    Then the request succeeds
+    And Tekla can no longer reach the moderation queue
+
+  Scenario: an administrator steps down while another remains
+    Given an administrator "Mari"
+    And an administrator "Tekla"
+    When Tekla removes their own administrative access
+    Then the request succeeds
+    And Tekla can no longer reach the moderation queue
+    And Mari can reach the moderation queue
+
+  Scenario: the last administrator cannot step down
+    Given an administrator "Mari"
+    And Mari is the only administrator
+    When Mari removes their own administrative access
+    Then the request is refused as a conflict
+    And the response explains the problem with code "LAST_ADMINISTRATOR"
+    And Mari can reach the moderation queue
+
+  Scenario: a role change carrying a stale version is refused
+    Given an administrator "Mari"
+    And a resident "Nino"
+    When Mari makes Nino an administrator using version 7
+    Then the request is refused as a conflict
+
+  Scenario: an ordinary account cannot change anyone's role
+    Given a resident "Nino"
+    And a resident "Dato"
+    When Nino makes Dato an administrator
+    Then the request is rejected as forbidden

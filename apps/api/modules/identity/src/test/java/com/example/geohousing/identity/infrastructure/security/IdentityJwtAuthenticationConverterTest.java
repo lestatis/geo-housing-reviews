@@ -166,6 +166,16 @@ class IdentityJwtAuthenticationConverterTest {
     public Optional<Account> findByAuthSubjectHash(String authSubjectHash) {
       return Optional.ofNullable(seeded);
     }
+
+    @Override
+    public Account save(Account account, long expectedVersion) {
+      throw new UnsupportedOperationException("this double is not used for account writes");
+    }
+
+    @Override
+    public long countByRole(AccountRole role) {
+      throw new UnsupportedOperationException("this double is not used for role counting");
+    }
   }
 
   private static final class EmptyProfileRepository implements PublicProfileRepository {

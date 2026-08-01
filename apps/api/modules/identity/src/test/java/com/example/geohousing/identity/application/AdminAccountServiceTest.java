@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AccountRole;
 import com.example.geohousing.identity.domain.AdminAuditAction;
 import com.example.geohousing.identity.domain.AdminAuditEvent;
 import com.example.geohousing.identity.domain.AdminAuditOutcome;
@@ -105,6 +106,16 @@ class AdminAccountServiceTest {
       return account != null && account.authSubjectHash().equals(authSubjectHash)
           ? Optional.of(account)
           : Optional.empty();
+    }
+
+    @Override
+    public Account save(Account account, long expectedVersion) {
+      throw new UnsupportedOperationException("this double is not used for account writes");
+    }
+
+    @Override
+    public long countByRole(AccountRole role) {
+      throw new UnsupportedOperationException("this double is not used for role counting");
     }
   }
 }

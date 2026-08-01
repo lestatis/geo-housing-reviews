@@ -2,6 +2,7 @@ package com.example.geohousing.app.acceptance;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
@@ -28,6 +29,7 @@ public class TestApi {
   private final MockMvc mockMvc;
   private final JdbcTemplate jdbcTemplate;
   private final ScenarioState state;
+  private String firstAdministrator;
 
   public TestApi(MockMvc mockMvc, JdbcTemplate jdbcTemplate, ScenarioState state) {
     this.mockMvc = mockMvc;
@@ -96,13 +98,35 @@ public class TestApi {
   /**
    * Grants the moderator role, then proves it is in force through an admin-only endpoint — without
    * that check a scenario would still pass if the grant silently updated nothing.
+   *
+   * <p>The <em>first</em> administrator in a scenario is written directly, because nothing can
+   * grant a role until somebody already holds one and this is where that chicken-and-egg is broken.
+   * Every one after that goes through {@code PATCH /api/admin/accounts/{id}/role} like a real
+   * operator — so the endpoint is exercised by every scenario that needs two administrators, not
+   * only by the ones written to test it.
    */
   public void grantAdministrator(String actorName) throws Exception {
     String accountId = accountIdOf(actorName);
-    int updated =
-        jdbcTemplate.update(
-            "update identity.account set role = 'ADMIN' where id = ?::uuid", accountId);
-    assertThat(updated).as("granting %s the moderator role", actorName).isEqualTo(1);
+    if (firstAdministrator == null) {
+      int updated =
+          jdbcTemplate.update(
+              "update identity.account set role = 'ADMIN' where id = ?::uuid", accountId);
+      assertThat(updated).as("bootstrapping %s as the first administrator", actorName).isEqualTo(1);
+      firstAdministrator = actorName;
+    } else {
+      MvcResult granted =
+          mockMvc
+              .perform(
+                  patch("/api/admin/accounts/" + accountId + "/role")
+                      .header("Authorization", state.tokenFor(firstAdministrator))
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .content(
+                          "{\"role\":\"ADMIN\",\"version\":" + accountVersion(accountId) + "}"))
+              .andReturn();
+      assertThat(granted.getResponse().getStatus())
+          .as("granting %s the moderator role", actorName)
+          .isEqualTo(200);
+    }
 
     assertThat(
             mockMvc
@@ -114,6 +138,32 @@ public class TestApi {
                 .getStatus())
         .as("%s's moderator role is in force", actorName)
         .isEqualTo(200);
+  }
+
+  /**
+   * Makes this account the platform's only administrator.
+   *
+   * <p>Written directly, like the bootstrap above, because it is a statement about the whole
+   * population rather than about one account — no endpoint expresses "and nobody else". Scenarios
+   * share a database and each leaves its administrators behind, so without this the
+   * last-administrator rule has no way to become true.
+   */
+  public void leaveOnlyAdministrator(String accountId) {
+    jdbcTemplate.update(
+        "update identity.account set role = 'USER' where role = 'ADMIN' and id <> ?::uuid",
+        accountId);
+  }
+
+  /** The account version an administrator would see before acting on it. */
+  public long accountVersionOf(String actorName) throws Exception {
+    return accountVersion(state.accountIdFor(actorName));
+  }
+
+  private long accountVersion(String accountId) {
+    Long version =
+        jdbcTemplate.queryForObject(
+            "select version from identity.account where id = ?::uuid", Long.class, accountId);
+    return version == null ? 0L : version;
   }
 
   public String createProperty(String actorName, String canonicalName) throws Exception {

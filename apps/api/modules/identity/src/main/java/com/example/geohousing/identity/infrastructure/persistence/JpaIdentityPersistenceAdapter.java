@@ -7,6 +7,8 @@ import com.example.geohousing.identity.application.PublicProfileRepository;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
+import com.example.geohousing.identity.domain.AccountRole;
+import com.example.geohousing.identity.domain.AccountStatus;
 import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
 import com.example.geohousing.identity.domain.OptimisticLockConflictException;
 import com.example.geohousing.identity.domain.Pseudonym;
@@ -68,6 +70,31 @@ public class JpaIdentityPersistenceAdapter
     } catch (DataIntegrityViolationException exception) {
       throw translateUniqueViolation(exception, profile.pseudonym());
     }
+  }
+
+  @Override
+  @Transactional
+  public Account save(Account account, long expectedVersion) {
+    AccountJpaEntity entity =
+        accountRepository
+            .findById(account.id().value())
+            .orElseThrow(() -> new AccountNotFoundException(account.id()));
+    if (entity.version() != expectedVersion) {
+      throw new OptimisticLockConflictException("account version does not match");
+    }
+
+    entity.applyRole(account.role());
+    try {
+      return AccountJpaMapper.toDomain(accountRepository.saveAndFlush(entity));
+    } catch (ObjectOptimisticLockingFailureException exception) {
+      throw new OptimisticLockConflictException("account version does not match");
+    }
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public long countByRole(AccountRole role) {
+    return accountRepository.countByRoleAndStatus(role, AccountStatus.ACTIVE);
   }
 
   @Override

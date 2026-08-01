@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AccountRole;
 import com.example.geohousing.identity.domain.Pseudonym;
 import com.example.geohousing.identity.domain.PublicProfile;
 import com.example.geohousing.identity.domain.SelfServiceRequest;
@@ -109,6 +110,16 @@ class AccountDeletionServiceTest {
     @Override
     public Optional<Account> findByAuthSubjectHash(String authSubjectHash) {
       return Optional.empty();
+    }
+
+    @Override
+    public Account save(Account account, long expectedVersion) {
+      throw new UnsupportedOperationException("this double is not used for account writes");
+    }
+
+    @Override
+    public long countByRole(AccountRole role) {
+      throw new UnsupportedOperationException("this double is not used for role counting");
     }
   }
 

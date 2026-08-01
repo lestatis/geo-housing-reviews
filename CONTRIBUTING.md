@@ -128,6 +128,31 @@ PostgreSQL container. Two failure modes are worth recognising:
   `initializationError` on most `:app` test classes rather than as anything resembling a Docker
   problem.
 
+- **Orphaned volumes, which is the one that fills the disk.** Removing the containers reclaims
+  almost nothing: each leaked PostgreSQL leaves an *anonymous volume* behind, and those are what
+  accumulate. A long session can leave a four-figure count of them holding a hundred gigabytes or
+  more, at which point `initializationError` returns with `No space left on device` underneath.
+  `docker ps` looks merely untidy while this happens — check the disk instead:
+
+  ```bash
+  df -h /                 # the number that matters
+  docker system df        # look at RECLAIMABLE under Local Volumes
+  ```
+
+  Reclaim in this order, because a stopped container still holds a reference to its volume and
+  pruning volumes first silently skips those:
+
+  ```bash
+  docker container prune -f    # 1. remove stopped containers, releasing their volume references
+  docker volume prune -f       # 2. now the anonymous volumes are dangling and can go
+  ```
+
+  Neither needs `sudo`. `docker volume prune` without `--all` removes only *anonymous* volumes, so
+  the named ones in `infra/docker/docker-compose.yml` (`geo_housing_postgres_data`,
+  `geo_housing_evidence_data`) survive — confirm with
+  `docker volume ls -f dangling=true | grep -v '^[0-9a-f]\{64\}$'`, which should list nothing before
+  you prune.
+
   Observed on 2026-07-29 with Docker 29.6.1, cgroup v2 and the systemd cgroup driver: 113 orphaned
   containers left 264 orphaned proxies holding 269 ports. Prevention is cheaper than recovery — let
   the gate finish rather than killing it mid-run.

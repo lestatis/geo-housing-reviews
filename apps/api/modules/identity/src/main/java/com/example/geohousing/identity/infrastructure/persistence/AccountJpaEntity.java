@@ -104,6 +104,11 @@ class AccountJpaEntity {
    * the domain {@code Account.close}; the auth-subject hash is intentionally retained (no
    * resurrection).
    */
+  /** Applies a role change decided by the domain. The only mutable field is the role itself. */
+  void applyRole(AccountRole role) {
+    this.role = role;
+  }
+
   void applyClosure(Instant closedAt) {
     this.status = AccountStatus.CLOSED;
     this.closedAt = closedAt;

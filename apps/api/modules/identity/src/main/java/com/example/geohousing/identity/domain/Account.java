@@ -16,7 +16,7 @@ public final class Account {
   private final AccountId id;
   private final String authSubjectHash;
   private String email;
-  private final AccountRole role;
+  private AccountRole role;
   private AccountStatus status;
   private final Instant createdAt;
   private Instant closedAt;
@@ -83,6 +83,32 @@ public final class Account {
     this.status = AccountStatus.CLOSED;
     this.closedAt = clock.instant();
     this.email = null;
+  }
+
+  /**
+   * Grants or removes administrative access.
+   *
+   * <p>Refuses a closed account: closure is permanent and its subject can never authenticate again
+   * (no resurrection — ADR-0006), so a role on it would be privilege attached to nobody.
+   *
+   * <p>Refuses a change to the role already held. Every change is audited, and the audit log is the
+   * only record of how an account became privileged; a no-op that still wrote a row would put a
+   * grant in the log that granted nothing.
+   *
+   * <p>Who may call this — and the rules about the last administrator and about acting on oneself —
+   * belong to the application service, because they are about the caller and the population of
+   * accounts rather than about this one account.
+   */
+  public void changeRole(AccountRole newRole, Clock clock) {
+    Objects.requireNonNull(newRole, "newRole");
+    Objects.requireNonNull(clock, "clock");
+    if (status == AccountStatus.CLOSED) {
+      throw new AccountClosedException("a closed account cannot be given a role");
+    }
+    if (newRole == role) {
+      throw new IllegalArgumentException("this account already holds the role " + newRole);
+    }
+    this.role = newRole;
   }
 
   public boolean isClosed() {

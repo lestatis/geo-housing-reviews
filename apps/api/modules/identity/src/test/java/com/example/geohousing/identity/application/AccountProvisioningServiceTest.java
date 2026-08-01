@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountClosedException;
 import com.example.geohousing.identity.domain.AccountId;
+import com.example.geohousing.identity.domain.AccountRole;
 import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
 import com.example.geohousing.identity.domain.PublicProfile;
 import java.time.Clock;
@@ -199,6 +200,16 @@ class AccountProvisioningServiceTest {
     public Optional<Account> findByAuthSubjectHash(String authSubjectHash) {
       lastLookupHash = authSubjectHash;
       return Optional.ofNullable(byHash.get(authSubjectHash));
+    }
+
+    @Override
+    public Account save(Account account, long expectedVersion) {
+      throw new UnsupportedOperationException("this double is not used for account writes");
+    }
+
+    @Override
+    public long countByRole(AccountRole role) {
+      throw new UnsupportedOperationException("this double is not used for role counting");
     }
   }
 

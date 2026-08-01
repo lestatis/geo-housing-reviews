@@ -76,6 +76,10 @@
           },
           "status" : {
             "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -230,6 +234,18 @@
           },
           "value" : {
             "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ChangeRoleRequest" : {
+        "properties" : {
+          "role" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
             "type" : "integer"
           }
         },
@@ -1049,6 +1065,42 @@
             "type" : "string"
           }
         } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-account-controller" ]
+      }
+    },
+    "/api/admin/accounts/{accountId}/role" : {
+      "patch" : {
+        "operationId" : "changeRole",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "accountId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangeRoleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {

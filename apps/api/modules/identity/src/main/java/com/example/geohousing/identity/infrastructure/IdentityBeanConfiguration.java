@@ -5,6 +5,7 @@ import com.example.geohousing.identity.application.AccountDeletionRepository;
 import com.example.geohousing.identity.application.AccountDeletionService;
 import com.example.geohousing.identity.application.AccountProvisioningService;
 import com.example.geohousing.identity.application.AccountRepository;
+import com.example.geohousing.identity.application.AccountRoleService;
 import com.example.geohousing.identity.application.AdminAccountService;
 import com.example.geohousing.identity.application.AdminAuditEventRepository;
 import com.example.geohousing.identity.application.AuthSubjectHasher;
@@ -76,6 +77,14 @@ public class IdentityBeanConfiguration {
       Clock identityClock) {
     return new ProfileService(
         accountRepository, publicProfileRepository, userRestrictionRepository, identityClock);
+  }
+
+  @Bean
+  AccountRoleService accountRoleService(
+      AccountRepository accountRepository,
+      AdminAuditEventRepository adminAuditEventRepository,
+      Clock identityClock) {
+    return new AccountRoleService(accountRepository, adminAuditEventRepository, identityClock);
   }
 
   @Bean

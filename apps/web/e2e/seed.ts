@@ -52,6 +52,10 @@ async function call<T>(token: string, method: string, urlPath: string, body?: un
   return (await response.json()) as T;
 }
 
+/**
+ * Writes the role directly. Reserved for the *first* administrator, because nothing in the product
+ * can grant a role until somebody already holds one — every later grant goes through the API.
+ */
 function grantAdmin(accountId: string): void {
   execFileSync(
     "docker",
@@ -81,14 +85,28 @@ export type SeededCase = {
 };
 
 export async function seed(): Promise<SeededCase> {
-  // Both moderators sign in once over HTTP so identity provisions the accounts, then are promoted.
-  // Two of them, because an appeal must be heard by someone other than the original decider.
+  // Both moderators sign in once over HTTP so identity provisions the accounts. Two of them,
+  // because an appeal must be heard by someone other than the original decider.
+  //
+  // Only the first is written directly: nothing can grant a role until somebody holds one. The
+  // second goes through the API like a real operator would.
   const moderatorToken = await tokenFor(MODERATOR);
   const moderator = await call<{ accountId: string }>(moderatorToken, "GET", "/api/me");
   grantAdmin(moderator.accountId);
 
   const secondToken = await tokenFor(SECOND_MODERATOR);
-  grantAdmin((await call<{ accountId: string }>(secondToken, "GET", "/api/me")).accountId);
+  const second = await call<{ accountId: string }>(secondToken, "GET", "/api/me");
+  const seen = await call<{ version: number; role: string }>(
+    moderatorToken,
+    "GET",
+    `/api/admin/accounts/${second.accountId}`,
+  );
+  if (seen.role !== "ADMIN") {
+    await call(moderatorToken, "PATCH", `/api/admin/accounts/${second.accountId}/role`, {
+      role: "ADMIN",
+      version: seen.version,
+    });
+  }
 
   const residentToken = await tokenFor(RESIDENT);
   const property = await call<{ propertyId: string }>(residentToken, "POST", "/api/properties", {

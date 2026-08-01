@@ -50,6 +50,28 @@ public final class AdminAuditEvent {
         occurredAt);
   }
 
+  /**
+   * Records that an admin changed (or tried to change) another account's role.
+   *
+   * <p>The action names the direction rather than the resulting role, so the log reads as a history
+   * of grants and removals rather than a list of states to diff.
+   */
+  public static AdminAuditEvent roleChange(
+      UUID id,
+      AccountId adminAccountId,
+      AccountId targetAccountId,
+      AccountRole newRole,
+      AdminAuditOutcome outcome,
+      Instant occurredAt) {
+    return new AdminAuditEvent(
+        id,
+        adminAccountId,
+        newRole == AccountRole.ADMIN ? AdminAuditAction.GRANT_ADMIN : AdminAuditAction.REVOKE_ADMIN,
+        Objects.requireNonNull(targetAccountId, "targetAccountId"),
+        outcome,
+        occurredAt);
+  }
+
   /** Rebuilds an event from persisted state. Intended for persistence adapters only. */
   public static AdminAuditEvent reconstitute(
       UUID id,

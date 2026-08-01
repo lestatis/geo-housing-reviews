@@ -16,5 +16,5 @@ dependencies {
 }
 
 mutationTesting {
-    mutationThreshold.set(80)
+    mutationThreshold.set(85)
 }
