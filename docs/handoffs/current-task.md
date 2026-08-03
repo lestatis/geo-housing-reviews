@@ -2,23 +2,36 @@
 
 ## Objective
 
-Implement plan 013, chunk 3: make a restriction actually restrict, and make `RESTRICT_ACCOUNT` do
-something.
+Implement plan 013, chunk 4: the admin account screen — find an account, change its role, place
+and lift restrictions.
 
 ## Active branch
 
-`feat/013-restrictions-enforced-chunk3`, branched from clean `main` at `5f5360c`. Local only; not
+`feat/013-admin-account-screen-chunk4`, branched from clean `main` at `be59bb2`. Local only; not
 pushed. Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/013-account-roles-and-restrictions.md`, chunk 3 of 4.
+No issue. `docs/plans/013-account-roles-and-restrictions.md`, chunk 4 of 4 — the plan is now
+**complete**.
 
 ## Current status
 
 completed, awaiting independent review
 
 ## Completed work
+
+- `/accounts` finds an account by the pseudonym on a review; `/accounts/[accountId]` shows role,
+  status, standing and the full restriction history, and offers role change, restrict and lift.
+- `src/accounts/account.ts` is the allowlist of what the screen may show — `AdminAccountView`
+  withholds the email and auth-subject hash by construction, and this is what stops the screen
+  showing them if that ever changes.
+- Seven Playwright journeys (23 in total, all passing), including every refusal: no reason, last
+  administrator, and a second restriction while one is in force.
+- `src/auth/me.ts` asks the API who the caller is, so the screen can tell "step down" from "remove
+  administrative access". This app never decodes the token itself.
+
+### From chunk 3 (unchanged, already merged)
 
 - **`identity.api` is no longer empty.** Two published ports: `AccountStanding.isRestricted` (a yes
   or no, never the reason) and `AccountRestraint.restrict`. Plus `RestrictedAccountException`, so a
@@ -38,8 +51,7 @@ completed, awaiting independent review
 
 ## Remaining work
 
-Plan 013 chunk 4: the admin account screen in `apps/web` — look up by pseudonym, see role, status
-and restriction history, change role, place and lift a restriction.
+None in plan 013.
 
 ## Decisions made
 
@@ -85,7 +97,18 @@ Two things were proven rather than assumed, both by breaking them:
 
 ## Failures and blockers
 
-None outstanding.
+**A real problem surfaced, and is not fixed here.** Starting the API against a database that already
+had migrations through `6.1` failed with `Detected resolved migration not applied to database: 2.7`.
+The per-module version-prefix registry in `AGENTS.md` numbers every new identity migration below
+migrations the other modules have already applied, so Flyway refuses them as out-of-order. Every
+gate has passed because Testcontainers start an empty database. The first deployment that upgrades
+rather than creates will hit it. See the plan's "A problem this chunk uncovered" for the candidate
+fixes; it needs a decision rather than a workaround.
+
+Unblocked locally by dropping the module schemas and the Flyway history from the throwaway dev
+database, which makes Flyway replay from scratch. Docker is also wedged again for the postgres
+container specifically (`cannot stop container: permission denied`), which is why the volume could
+not simply be recreated.
 
 ## Unresolved risks
 

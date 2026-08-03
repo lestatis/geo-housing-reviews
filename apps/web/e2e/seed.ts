@@ -247,3 +247,48 @@ export async function seedProperty(): Promise<{ propertyId: string; name: string
   });
   return { propertyId: property.propertyId, name };
 }
+
+/**
+ * Two administrators and an ordinary resident with a pseudonym to look them up by.
+ *
+ * <p>Each run makes fresh accounts, so restricting or demoting one cannot disturb another test.
+ */
+export async function seedAccounts(): Promise<{
+  moderatorAccountId: string;
+  secondModeratorAccountId: string;
+  residentAccountId: string;
+  residentPseudonym: string;
+}> {
+  const moderatorToken = await tokenFor(MODERATOR);
+  const moderator = await call<{ accountId: string }>(moderatorToken, "GET", "/api/me");
+  grantAdmin(moderator.accountId);
+
+  const secondToken = await tokenFor(SECOND_MODERATOR);
+  const second = await call<{ accountId: string }>(secondToken, "GET", "/api/me");
+  const seen = await call<{ version: number; role: string }>(
+    moderatorToken,
+    "GET",
+    `/api/admin/accounts/${second.accountId}`,
+  );
+  if (seen.role !== "ADMIN") {
+    await call(moderatorToken, "PATCH", `/api/admin/accounts/${second.accountId}/role`, {
+      role: "ADMIN",
+      version: seen.version,
+    });
+  }
+
+  // A brand-new resident each run: the screen tests change this account's role and standing.
+  const residentToken = await tokenFor(`resident-${Date.now()}`);
+  const resident = await call<{ accountId: string; pseudonym: string }>(
+    residentToken,
+    "GET",
+    "/api/me",
+  );
+
+  return {
+    moderatorAccountId: moderator.accountId,
+    secondModeratorAccountId: second.accountId,
+    residentAccountId: resident.accountId,
+    residentPseudonym: resident.pseudonym,
+  };
+}

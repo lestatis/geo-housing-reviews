@@ -1,6 +1,6 @@
 # Plan 013 — account roles and restrictions
 
-Status: **chunks 1–3 complete**; chunk 4 outstanding
+Status: **complete**
 
 ## Context
 
@@ -125,11 +125,44 @@ Each is a branch from `main`, self-checked with `./scripts/check.sh`, independen
 - Thresholds ratcheted where this chunk left headroom: reviews 85 → 90, verification 85 → 88,
   properties 75 → 77. Identity (90) and moderation (86) are already at their scores.
 
-### 4. The account screen
+### 4. The account screen — **complete**
 
 `apps/web`: look up by pseudonym, see role, status and restriction history, change role, place and
 lift a restriction. Same shape as chunks 2–3 of plan 012 — server actions bound not wrapped, a
-view-model allowlist, Playwright journeys including each refusal.
+view-model allowlist, Playwright journeys including each refusal. Seven new journeys, 23 in total.
+
+There is deliberately **no account listing**. An account is reached by the pseudonym shown on a
+review, because browsing accounts is not something moderating content requires and a list is the
+kind of thing that gets used for what it makes easy.
+
+Two labels do the same thing and are not interchangeable: "step down" appears only on your own
+account, "remove administrative access" only on somebody else's. They hit the same endpoint, and
+mislabelling one as the other would misdescribe what an administrator is about to do.
+
+The restriction form offers no end date, matching what a moderation decision produces: a restriction
+lasts until an administrator lifts it. Offering a window would suggest the platform tracks and
+enforces one, when what actually happens is that it quietly expires.
+
+## A problem this chunk uncovered
+
+**New migrations for a low-numbered module cannot be applied to an existing database.** Starting the
+API against a database that already had migrations through `6.1` failed:
+
+```text
+Validate failed: Migrations have failed validation
+Detected resolved migration not applied to database: 2.7.
+```
+
+This is inherent to the per-module version-prefix registry in `AGENTS.md` (root=1, identity=2,
+properties=3, reviews=4, verification=5, moderation=6). Any new migration for identity is numbered
+below every migration the other modules have already applied, so Flyway — with its default
+`outOfOrder=false` — refuses it. The same is true of `V3.4`/`V3.5` added by plan 011.
+
+Every gate has passed because Testcontainers start an empty database, where ordering is trivially
+satisfied. **The first deployment that upgrades rather than creates will hit this.** It needs a
+decision, not a workaround: the candidates are a Flyway instance per module schema (each with its
+own history table, so identity's migrations are ordered only against identity's), a global
+monotonic version, or enabling `out-of-order` and accepting what that weakens.
 
 ## Critical files
 
