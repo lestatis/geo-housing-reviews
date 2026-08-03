@@ -3,6 +3,7 @@ package com.example.geohousing.moderation.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.identity.api.AccountStanding;
 import com.example.geohousing.moderation.domain.Appeal;
 import com.example.geohousing.moderation.domain.AppealDeciderConflictException;
 import com.example.geohousing.moderation.domain.AppealStatus;
@@ -23,6 +24,9 @@ import org.junit.jupiter.api.Test;
 
 class AppealServiceTest {
 
+  /** Nobody is restricted unless a test says so. */
+  private static final AccountStanding UNRESTRICTED = accountId -> false;
+
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-07-30T10:00:00Z"), ZoneOffset.UTC);
 
@@ -35,7 +39,7 @@ class AppealServiceTest {
   private final InMemoryAppealRepository appeals = new InMemoryAppealRepository();
 
   private final ReportIntakeService intake =
-      new ReportIntakeService(reports, cases, targets, CLOCK);
+      new ReportIntakeService(reports, cases, targets, UNRESTRICTED, CLOCK);
   private final ModerationCaseService caseService =
       new ModerationCaseService(
           cases, decisions, reports, targets, effects, PolicyVersion.of(1), CLOCK);

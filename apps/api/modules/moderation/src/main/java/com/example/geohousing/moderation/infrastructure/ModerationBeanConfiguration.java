@@ -1,5 +1,6 @@
 package com.example.geohousing.moderation.infrastructure;
 
+import com.example.geohousing.identity.api.AccountStanding;
 import com.example.geohousing.moderation.application.AppealRepository;
 import com.example.geohousing.moderation.application.AppealService;
 import com.example.geohousing.moderation.application.ModerationCaseRepository;
@@ -33,9 +34,10 @@ public class ModerationBeanConfiguration {
   ReportIntakeService reportIntakeService(
       ReportRepository reportRepository,
       ModerationCaseRepository caseRepository,
-      ModerationTargetLookup targetLookup) {
+      ModerationTargetLookup targetLookup,
+      AccountStanding accountStanding) {
     return new ReportIntakeService(
-        reportRepository, caseRepository, targetLookup, Clock.systemUTC());
+        reportRepository, caseRepository, targetLookup, accountStanding, Clock.systemUTC());
   }
 
   @Bean

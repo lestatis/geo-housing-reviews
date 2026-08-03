@@ -3,6 +3,7 @@ package com.example.geohousing.moderation.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.identity.api.AccountStanding;
 import com.example.geohousing.moderation.domain.DecisionAction;
 import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
@@ -21,6 +22,9 @@ import org.junit.jupiter.api.Test;
 
 class ModerationQueueServiceTest {
 
+  /** Nobody is restricted unless a test says so. */
+  private static final AccountStanding UNRESTRICTED = accountId -> false;
+
   private static final Instant T0 = Instant.parse("2026-07-29T10:00:00Z");
   private static final Clock CLOCK = Clock.fixed(T0, ZoneOffset.UTC);
 
@@ -32,7 +36,7 @@ class ModerationQueueServiceTest {
   private final InMemoryModerationEffectApplier effects = new InMemoryModerationEffectApplier();
 
   private final ReportIntakeService intake =
-      new ReportIntakeService(reports, cases, targets, CLOCK);
+      new ReportIntakeService(reports, cases, targets, UNRESTRICTED, CLOCK);
   private final ModerationCaseService caseService =
       new ModerationCaseService(
           cases, decisions, reports, targets, effects, PolicyVersion.of(1), CLOCK);
@@ -60,7 +64,7 @@ class ModerationQueueServiceTest {
     ModerationTargetRef older = targets.givenReviewBy(UUID.randomUUID(), 1L);
     ModerationTargetRef newer = targets.givenReviewBy(UUID.randomUUID(), 1L);
     intake.file(reporter(), older, ReportCategory.PERSONAL_DATA, null);
-    new ReportIntakeService(reports, cases, targets, at(3600))
+    new ReportIntakeService(reports, cases, targets, UNRESTRICTED, at(3600))
         .file(reporter(), newer, ReportCategory.PERSONAL_DATA, null);
 
     assertThat(queue.queue())

@@ -12,6 +12,11 @@ dependencies {
     // not form a cycle.
     implementation(project(":modules:reviews"))
 
+    // Moderation asks identity whether a reporter is restricted, and restricts an author when a
+    // decision says so. Only com.example.geohousing.identity.api may be reached. One-way: identity
+    // never learns that moderation exists.
+    implementation(project(":modules:identity"))
+
     implementation(platform("org.springframework.boot:spring-boot-dependencies:4.1.0"))
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")

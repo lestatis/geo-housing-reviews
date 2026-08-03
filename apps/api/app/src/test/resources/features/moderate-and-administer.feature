@@ -182,3 +182,54 @@ Feature: Moderate and administer without touching the database
     And a resident "Dato"
     When Nino restricts Dato saying "I disagree with them"
     Then the request is rejected as forbidden
+
+  Scenario: a restricted account cannot submit a review
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And Nino created the property "Digomi Court"
+    And Mari restricted Nino saying "posted a neighbour's flat number"
+    When Nino submits a review of "Digomi Court" saying "კიდევ ერთი"
+    Then the request is rejected as forbidden
+    And the response explains the problem with code "ACCOUNT_RESTRICTED"
+
+  Scenario: a restricted account cannot report anyone
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And a resident "Dato"
+    And Dato created the property "Nutsubidze Heights"
+    And Dato published a review of "Nutsubidze Heights" saying "ხმაურიანი"
+    And Mari restricted Nino saying "brigading the report queue"
+    When Nino reports that review for "PERSONAL_DATA" saying "I object."
+    Then the request is rejected as forbidden
+
+  Scenario: a restricted account can still appeal a decision against it
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And an administrator "Tekla"
+    And Nino created the property "Ortachala Rise"
+    And Nino published a review of "Ortachala Rise" saying "მეზობლის ნომერი"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Named a neighbour."
+    And Tekla restricted Nino saying "repeated personal data"
+    When Nino appeals saying "The flat number was my own."
+    Then the request succeeds
+
+  Scenario: lifting a restriction lets the account contribute again
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And Nino created the property "Vazisubani Court"
+    And Mari restricted Nino saying "spam"
+    And Mari lifts that restriction
+    When Nino submits a review of "Vazisubani Court" saying "კარგი ადგილი"
+    Then the request succeeds
+
+  Scenario: a moderator restricting an account through a decision actually restricts it
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And Nino created the property "Lisi Terraces"
+    And Nino published a review of "Lisi Terraces" saying "მეზობლის ტელეფონი"
+    And Dato reported that review for "HARASSMENT_OR_THREAT"
+    When Mari decided that case as "RESTRICT_ACCOUNT" for "HARASSMENT" explaining "Repeated abuse."
+    Then Nino is restricted

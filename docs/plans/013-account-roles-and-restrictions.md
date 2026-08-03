@@ -1,6 +1,6 @@
 # Plan 013 — account roles and restrictions
 
-Status: **chunks 1–2 complete**; chunks 3–4 outstanding
+Status: **chunks 1–3 complete**; chunk 4 outstanding
 
 ## Context
 
@@ -97,7 +97,7 @@ Each is a branch from `main`, self-checked with `./scripts/check.sh`, independen
 - `POST /api/admin/accounts/{accountId}/restrictions`, `POST .../restrictions/{id}/lift`,
   `GET .../restrictions`.
 
-### 3. A restriction that restricts
+### 3. A restriction that restricts — **complete**
 
 - New `identity.api` port (the package exists and is empty):
   `AccountStanding { boolean isRestricted(UUID accountId); }` plus a published
@@ -105,10 +105,25 @@ Each is a branch from `main`, self-checked with `./scripts/check.sh`, independen
 - `reviews` and `moderation` gain `implementation(project(":modules:identity"))`, reaching only
   `identity.api` — `ModuleBoundaryArchitectureTest` enforces that, and must be *shown* to fail if
   the rule is bypassed, as it was for moderation→reviews in plan 009.
-- Refuse from a restricted account: submitting or editing a review, filing a report, filing an
-  appeal. Reading stays open — a restriction is not an erasure.
-- **`RESTRICT_ACCOUNT` finally applies.** Moderation's effect applier routes account-scoped actions
-  to identity and content-scoped ones to reviews, replacing the no-op arm and its comment.
+- Refuse from a restricted account: submitting or editing a review, and filing a report. Reading
+  stays open — a restriction is not an erasure.
+
+  **Appeals were removed from that list during implementation.** An appeal is how somebody
+  challenges a decision made against them, and restricting an account is frequently part of the same
+  decision — refusing appeals from restricted accounts would let a takedown remove the route to
+  contest it, which is the remedy `P-014` exists to protect. A scenario proves a restricted account
+  can still appeal, and `AppealService.file` carries a comment at the exact point somebody would
+  otherwise add the check.
+- **`RESTRICT_ACCOUNT` finally applies**, through a second published port, `AccountRestraint`. Two
+  judgements went into it: the restriction is **indefinite**, because a moderation decision carries
+  no duration and inventing a window would be a policy nobody set that then quietly expires; and
+  restricting an already-restricted account is a **no-op rather than a failure**, because the
+  decision's intended outcome already holds and a moderator's second case about the same person
+  should not be refused for that. Restricting the author of content that has vanished *is* a
+  conflict — the decision said somebody should be stopped, and quietly stopping nobody would report
+  success for an outcome that did not happen.
+- Thresholds ratcheted where this chunk left headroom: reviews 85 → 90, verification 85 → 88,
+  properties 75 → 77. Identity (90) and moderation (86) are already at their scores.
 
 ### 4. The account screen
 

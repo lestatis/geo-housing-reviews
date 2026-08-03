@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.identity.api.AccountRestraint;
 import com.example.geohousing.moderation.application.ModeratableTarget;
 import com.example.geohousing.moderation.application.ModerationEffectConflictException;
 import com.example.geohousing.moderation.domain.DecisionAction;
@@ -23,10 +24,13 @@ import org.junit.jupiter.api.Test;
 
 class ReviewsModerationAdapterTest {
 
+  /** These tests are about content effects; restricting an author has its own coverage. */
+  private static final AccountRestraint NO_RESTRAINT = (accountId, moderatorId, reason) -> {};
+
   private final FakeReviewModerationGateway gateway = new FakeReviewModerationGateway();
   private final ReviewsModerationTargetLookup lookup = new ReviewsModerationTargetLookup(gateway);
   private final ReviewsModerationEffectApplier applier =
-      new ReviewsModerationEffectApplier(gateway);
+      new ReviewsModerationEffectApplier(gateway, NO_RESTRAINT);
 
   @Test
   void itTranslatesWhatReviewsKnowsIntoWhatModerationNeeds() {
@@ -85,9 +89,62 @@ class ReviewsModerationAdapterTest {
         List.of(
             DecisionAction.APPROVE_WITH_REDACTION,
             DecisionAction.REQUEST_CHANGES,
-            DecisionAction.RESTRICT_ACCOUNT,
             DecisionAction.ESCALATE)) {
       assertThat(applyAndCapture(action)).as("%s", action).isEmpty();
+    }
+  }
+
+  @Test
+  void restrictingAnAccountStopsTheAuthorRatherThanTheContent() {
+    // Until this existed, RESTRICT_ACCOUNT was a decision that recorded itself and did nothing: the
+    // author was told they had been restricted and carried on posting.
+    RecordingRestraint restraint = new RecordingRestraint();
+    ReviewsModerationEffectApplier applier = new ReviewsModerationEffectApplier(gateway, restraint);
+    UUID reviewId = UUID.randomUUID();
+    UUID author = UUID.randomUUID();
+    gateway.reviews.put(reviewId, new ModeratableReview(reviewId, author, 1L, true));
+    ModeratorId moderator = ModeratorId.of(UUID.randomUUID());
+
+    applier.apply(
+        ModerationTargetRef.review(reviewId),
+        DecisionAction.RESTRICT_ACCOUNT,
+        1L,
+        moderator,
+        ReasonCode.of("HARASSMENT"));
+
+    assertThat(restraint.restricted).containsExactly(author);
+    assertThat(restraint.reasons).containsExactly("HARASSMENT");
+    // The review itself is untouched — restricting the person is not withdrawing what they wrote.
+    assertThat(gateway.calls).isEmpty();
+  }
+
+  @Test
+  void restrictingTheAuthorOfContentThatIsGoneIsAConflict() {
+    // The decision said somebody should be stopped. Quietly restricting nobody would report success
+    // for an outcome that did not happen.
+    ReviewsModerationEffectApplier applier =
+        new ReviewsModerationEffectApplier(gateway, new RecordingRestraint());
+
+    assertThatThrownBy(
+            () ->
+                applier.apply(
+                    ModerationTargetRef.review(UUID.randomUUID()),
+                    DecisionAction.RESTRICT_ACCOUNT,
+                    1L,
+                    ModeratorId.of(UUID.randomUUID()),
+                    ReasonCode.of("HARASSMENT")))
+        .isInstanceOf(ModerationEffectConflictException.class);
+  }
+
+  private static final class RecordingRestraint implements AccountRestraint {
+
+    private final List<UUID> restricted = new java.util.ArrayList<>();
+    private final List<String> reasons = new java.util.ArrayList<>();
+
+    @Override
+    public void restrict(UUID accountId, UUID moderatorAccountId, String reason) {
+      restricted.add(accountId);
+      reasons.add(reason);
     }
   }
 

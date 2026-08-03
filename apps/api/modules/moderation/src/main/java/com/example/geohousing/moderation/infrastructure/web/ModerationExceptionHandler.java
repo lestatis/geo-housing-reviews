@@ -1,5 +1,6 @@
 package com.example.geohousing.moderation.infrastructure.web;
 
+import com.example.geohousing.identity.api.RestrictedAccountException;
 import com.example.geohousing.moderation.application.AppealAlreadyFiledException;
 import com.example.geohousing.moderation.application.AppealNotFoundException;
 import com.example.geohousing.moderation.application.DuplicateReportException;
@@ -30,6 +31,22 @@ class ModerationExceptionHandler {
    * Content the caller may not see is reported as missing. Anything else would turn the reporting
    * endpoint into a way to discover unpublished or removed reviews by probing identifiers.
    */
+  /**
+   * A restricted account tried to contribute.
+   *
+   * <p>Identity owns the restriction and the reason for it; this only reports that one is in force.
+   * The detail deliberately says nothing about why or until when — that belongs in one place, not
+   * repeated by every module that has to refuse.
+   */
+  @ExceptionHandler(RestrictedAccountException.class)
+  ProblemDetail handleRestrictedAccount(RestrictedAccountException exception) {
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "Account restricted",
+        "ACCOUNT_RESTRICTED",
+        "This account is currently restricted and cannot contribute.");
+  }
+
   @ExceptionHandler(ModerationTargetNotFoundException.class)
   ProblemDetail handleTargetNotFound(ModerationTargetNotFoundException exception) {
     return problem(

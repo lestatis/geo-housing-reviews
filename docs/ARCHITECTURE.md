@@ -72,6 +72,20 @@ shared-kernel   # tiny: identifiers, clock, domain event abstractions
 - `shared-kernel` must not become a dumping ground;
 - listings references `property_id` through a public contract, not internal property entities.
 
+The module dependencies that exist today, all one-way and acyclic, all reaching only the target's
+`api` package (enforced by `ModuleBoundaryArchitectureTest`):
+
+| From | To | Why |
+| --- | --- | --- |
+| reviews | properties | a review points at a property, and asks whether it takes reviews |
+| reviews | identity | a restricted author may not submit or edit |
+| moderation | reviews | a decision about a review has to reach the review |
+| moderation | identity | a restricted account may not report; `RESTRICT_ACCOUNT` restricts the author |
+| verification | reviews | an approved case projects a tier onto the author's reviews |
+
+`identity` depends on no module, which is what keeps this acyclic: everything that needs to know
+whether an account may act asks identity, and identity never learns who asked.
+
 ## 4. Suggested package layout
 
 ```text

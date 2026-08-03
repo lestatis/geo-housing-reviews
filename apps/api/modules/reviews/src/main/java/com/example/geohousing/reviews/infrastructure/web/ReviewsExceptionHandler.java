@@ -1,5 +1,6 @@
 package com.example.geohousing.reviews.infrastructure.web;
 
+import com.example.geohousing.identity.api.RestrictedAccountException;
 import com.example.geohousing.reviews.application.DuplicateReviewException;
 import com.example.geohousing.reviews.application.HelpfulSignalAlreadyActiveException;
 import com.example.geohousing.reviews.application.PropertyNotFoundForReviewException;
@@ -30,6 +31,22 @@ class ReviewsExceptionHandler {
    * promise hold at the wire: the application already refuses to distinguish the two cases, and
    * turning either into anything but a 404 here would give the distinction back.
    */
+  /**
+   * A restricted account tried to contribute.
+   *
+   * <p>Identity owns the restriction and the reason for it; this only reports that one is in force.
+   * The detail deliberately says nothing about why or until when — that belongs in one place, not
+   * repeated by every module that has to refuse.
+   */
+  @ExceptionHandler(RestrictedAccountException.class)
+  ProblemDetail handleRestrictedAccount(RestrictedAccountException exception) {
+    return problem(
+        HttpStatus.FORBIDDEN,
+        "Account restricted",
+        "ACCOUNT_RESTRICTED",
+        "This account is currently restricted and cannot contribute.");
+  }
+
   @ExceptionHandler(ReviewNotFoundException.class)
   ProblemDetail handleNotFound(ReviewNotFoundException exception) {
     return problem(

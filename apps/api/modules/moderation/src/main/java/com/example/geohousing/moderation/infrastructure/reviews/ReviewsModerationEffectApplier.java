@@ -1,5 +1,6 @@
 package com.example.geohousing.moderation.infrastructure.reviews;
 
+import com.example.geohousing.identity.api.AccountRestraint;
 import com.example.geohousing.moderation.application.ModerationEffectApplier;
 import com.example.geohousing.moderation.application.ModerationEffectConflictException;
 import com.example.geohousing.moderation.domain.DecisionAction;
@@ -22,14 +23,21 @@ import org.springframework.stereotype.Component;
  * whether an action even <em>has</em> a content effect is a property of the target's module, not of
  * moderation policy. A decision this module can record is not automatically a change reviews knows
  * how to make.
+ *
+ * <p>One decision reaches past the content to the person who wrote it: {@code RESTRICT_ACCOUNT}
+ * restricts the review's author through identity. It is applied here because it is still the effect
+ * of a decision about a review, and the author is only knowable by asking reviews who wrote it.
  */
 @Component
 public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
 
   private final ReviewModerationGateway gateway;
+  private final AccountRestraint accountRestraint;
 
-  public ReviewsModerationEffectApplier(ReviewModerationGateway gateway) {
+  public ReviewsModerationEffectApplier(
+      ReviewModerationGateway gateway, AccountRestraint accountRestraint) {
     this.gateway = Objects.requireNonNull(gateway, "gateway");
+    this.accountRestraint = Objects.requireNonNull(accountRestraint, "accountRestraint");
   }
 
   @Override
@@ -45,6 +53,11 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
     Objects.requireNonNull(reasonCode, "reasonCode");
     if (target.type() != ModerationTargetType.REVIEW) {
       throw new IllegalArgumentException("no effect is wired for target type " + target.type());
+    }
+
+    if (action == DecisionAction.RESTRICT_ACCOUNT) {
+      restrictAuthorOf(target, decidedBy, reasonCode);
+      return;
     }
 
     Optional<ReviewModerationEffect> effect = contentEffectOf(action, target);
@@ -123,10 +136,11 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
    * the review was never withdrawn, so there is nothing to restore. Mapping it to an unconditional
    * publish would throw on the more common of the two.
    *
-   * <p>The four with no effect are deliberate, not omissions. {@code APPROVE_WITH_REDACTION} and
-   * {@code REQUEST_CHANGES} need a content-editing path that does not exist yet; {@code
-   * RESTRICT_ACCOUNT} is identity's to apply, not reviews'; and {@code ESCALATE} is a handoff that
-   * has decided nothing. Each is still a recorded decision with its reason and explanation.
+   * <p>The three with no content effect are deliberate, not omissions. {@code
+   * APPROVE_WITH_REDACTION} and {@code REQUEST_CHANGES} need a content-editing path that does not
+   * exist yet, and {@code ESCALATE} is a handoff that has decided nothing. {@code RESTRICT_ACCOUNT}
+   * never reaches here — it is handled before this, because its effect is on the author rather than
+   * on the content.
    */
   private Optional<ReviewModerationEffect> contentEffectOf(
       DecisionAction action, ModerationTargetRef target) {
@@ -138,6 +152,28 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
       case REMOVE -> Optional.of(ReviewModerationEffect.REMOVE);
       case APPROVE_WITH_REDACTION, REQUEST_CHANGES, RESTRICT_ACCOUNT, ESCALATE -> Optional.empty();
     };
+  }
+
+  /**
+   * Restricts whoever wrote the content this case is about.
+   *
+   * <p>The author comes from reviews, which owns that fact; the restriction is placed by identity,
+   * which owns accounts. Moderation only decides. A review that has vanished leaves nobody to
+   * restrict, and that is a conflict rather than a silent no-op — the decision said somebody should
+   * be stopped.
+   */
+  private void restrictAuthorOf(
+      ModerationTargetRef target, ModeratorId decidedBy, ReasonCode reasonCode) {
+    accountRestraint.restrict(
+        gateway
+            .find(target.id())
+            .orElseThrow(
+                () ->
+                    new ModerationEffectConflictException(
+                        "the content this decision restricts the author of is no longer there"))
+            .authorAccountId(),
+        decidedBy.value(),
+        reasonCode.value());
   }
 
   private boolean alreadyVisible(ModerationTargetRef target) {

@@ -64,6 +64,11 @@ public final class AppealService {
     Objects.requireNonNull(appellantId, "appellantId");
     Objects.requireNonNull(target, "target");
 
+    // Deliberately no restriction check here, unlike reviews and reports. An appeal is how somebody
+    // challenges a decision made against them, and restricting an account is frequently part of
+    // that same decision — refusing appeals from restricted accounts would mean a takedown could
+    // remove the route to contest it, which is the remedy P-014 exists to protect.
+
     ModeratableTarget content =
         targetLookup.find(target).orElseThrow(() -> new ModerationTargetNotFoundException(target));
     if (!content.authorAccountId().equals(appellantId.value())) {

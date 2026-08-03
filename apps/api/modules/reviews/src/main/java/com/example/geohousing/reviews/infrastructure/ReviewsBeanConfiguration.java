@@ -1,5 +1,6 @@
 package com.example.geohousing.reviews.infrastructure;
 
+import com.example.geohousing.identity.api.AccountStanding;
 import com.example.geohousing.reviews.api.ReviewModerationGateway;
 import com.example.geohousing.reviews.api.ReviewVerificationUpdater;
 import com.example.geohousing.reviews.application.HelpfulSignalQueryService;
@@ -32,8 +33,11 @@ public class ReviewsBeanConfiguration {
 
   @Bean
   ReviewSubmissionService reviewSubmissionService(
-      ReviewRepository reviewRepository, PropertyLookup propertyLookup) {
-    return new ReviewSubmissionService(reviewRepository, propertyLookup, Clock.systemUTC());
+      ReviewRepository reviewRepository,
+      PropertyLookup propertyLookup,
+      AccountStanding accountStanding) {
+    return new ReviewSubmissionService(
+        reviewRepository, propertyLookup, accountStanding, Clock.systemUTC());
   }
 
   @Bean

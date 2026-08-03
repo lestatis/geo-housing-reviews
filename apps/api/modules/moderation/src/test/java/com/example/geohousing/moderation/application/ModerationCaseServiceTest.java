@@ -3,6 +3,7 @@ package com.example.geohousing.moderation.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.identity.api.AccountStanding;
 import com.example.geohousing.moderation.domain.DecisionAction;
 import com.example.geohousing.moderation.domain.IllegalModerationStateTransitionException;
 import com.example.geohousing.moderation.domain.ModerationCase;
@@ -25,6 +26,9 @@ import org.junit.jupiter.api.Test;
 
 class ModerationCaseServiceTest {
 
+  /** Nobody is restricted unless a test says so. */
+  private static final AccountStanding UNRESTRICTED = accountId -> false;
+
   private static final Instant NOW = Instant.parse("2026-07-28T10:00:00Z");
   private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
   private static final PolicyVersion POLICY = PolicyVersion.of(2);
@@ -37,7 +41,7 @@ class ModerationCaseServiceTest {
   private final InMemoryModerationEffectApplier effects = new InMemoryModerationEffectApplier();
 
   private final ReportIntakeService intake =
-      new ReportIntakeService(reports, cases, targets, CLOCK);
+      new ReportIntakeService(reports, cases, targets, UNRESTRICTED, CLOCK);
   private final ModerationCaseService service =
       new ModerationCaseService(cases, decisions, reports, targets, effects, POLICY, CLOCK);
 

@@ -1,5 +1,7 @@
 package com.example.geohousing.moderation.application;
 
+import com.example.geohousing.identity.api.AccountStanding;
+import com.example.geohousing.identity.api.RestrictedAccountException;
 import com.example.geohousing.moderation.domain.CaseTrigger;
 import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
@@ -27,16 +29,19 @@ public final class ReportIntakeService {
   private final ReportRepository reportRepository;
   private final ModerationCaseRepository caseRepository;
   private final ModerationTargetLookup targetLookup;
+  private final AccountStanding accountStanding;
   private final Clock clock;
 
   public ReportIntakeService(
       ReportRepository reportRepository,
       ModerationCaseRepository caseRepository,
       ModerationTargetLookup targetLookup,
+      AccountStanding accountStanding,
       Clock clock) {
     this.reportRepository = Objects.requireNonNull(reportRepository, "reportRepository");
     this.caseRepository = Objects.requireNonNull(caseRepository, "caseRepository");
     this.targetLookup = Objects.requireNonNull(targetLookup, "targetLookup");
+    this.accountStanding = Objects.requireNonNull(accountStanding, "accountStanding");
     this.clock = Objects.requireNonNull(clock, "clock");
   }
 
@@ -46,6 +51,7 @@ public final class ReportIntakeService {
    * @throws ModerationTargetNotFoundException if the content does not exist or is not moderatable
    * @throws SelfReportNotAllowedException if the reporter wrote the content
    * @throws DuplicateReportException if this account already has a live report about it
+   * @throws RestrictedAccountException if the reporter is currently restricted
    */
   public Report file(
       ReporterId reporterId,
@@ -54,6 +60,13 @@ public final class ReportIntakeService {
       String description) {
     Objects.requireNonNull(reporterId, "reporterId");
     Objects.requireNonNull(target, "target");
+
+    // A restriction is placed because an account was abusing the platform, and the report queue is
+    // one of the things it can be abused with — a stream of reports against one person is
+    // harassment routed through moderation. Appeals stay open: see AppealService.
+    if (accountStanding.isRestricted(reporterId.value())) {
+      throw new RestrictedAccountException("a restricted account cannot file reports");
+    }
 
     ModeratableTarget content =
         targetLookup.find(target).orElseThrow(() -> new ModerationTargetNotFoundException(target));

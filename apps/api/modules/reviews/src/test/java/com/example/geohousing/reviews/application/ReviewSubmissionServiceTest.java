@@ -3,6 +3,8 @@ package com.example.geohousing.reviews.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.identity.api.AccountStanding;
+import com.example.geohousing.identity.api.RestrictedAccountException;
 import com.example.geohousing.reviews.domain.AuthorId;
 import com.example.geohousing.reviews.domain.CategoryRating;
 import com.example.geohousing.reviews.domain.IllegalReviewStateTransitionException;
@@ -34,6 +36,9 @@ class ReviewSubmissionServiceTest {
 
   private final InMemoryReviewRepository repository = new InMemoryReviewRepository();
 
+  /** Nobody is restricted unless a test says so. */
+  private static final AccountStanding UNRESTRICTED = accountId -> false;
+
   private static ReviewContent content(String body) {
     return new ReviewContent(
         "ka",
@@ -54,7 +59,13 @@ class ReviewSubmissionServiceTest {
   }
 
   private ReviewSubmissionService serviceSeeing(PropertyLookup lookup) {
-    return new ReviewSubmissionService(repository, lookup, CLOCK);
+    return new ReviewSubmissionService(repository, lookup, UNRESTRICTED, CLOCK);
+  }
+
+  /** The same service, but with a particular view of who is restricted. */
+  private ReviewSubmissionService serviceSeenBy(AccountStanding standing) {
+    return new ReviewSubmissionService(
+        repository, ref -> Optional.of(new PropertyReviewability(ref, true)), standing, CLOCK);
   }
 
   private ReviewSubmissionService service() {
@@ -260,5 +271,39 @@ class ReviewSubmissionServiceTest {
             () ->
                 service.edit(new EditReviewCommand(review.id(), AUTHOR, content("back"), "retry")))
         .isInstanceOf(IllegalReviewStateTransitionException.class);
+  }
+
+  @Test
+  void aRestrictedAuthorCannotSubmitAReview() {
+    // A restriction that does not stop somebody contributing is a note in a database. This is the
+    // point where "restricted" starts to mean something.
+    ReviewSubmissionService service = serviceSeenBy(accountId -> accountId.equals(AUTHOR.value()));
+
+    assertThatThrownBy(() -> service.submit(submission()))
+        .isInstanceOf(RestrictedAccountException.class);
+
+    assertThat(repository.findLiveByAuthorAndProperty(AUTHOR, PROPERTY)).isEmpty();
+  }
+
+  @Test
+  void aRestrictedAuthorCannotEditAReviewTheyAlreadyHave() {
+    // Editing is contributing too — otherwise a restricted author rewrites a published review into
+    // whatever the restriction was placed to stop.
+    Review review = service().submit(submission());
+    ReviewSubmissionService closed = serviceSeenBy(accountId -> accountId.equals(AUTHOR.value()));
+
+    assertThatThrownBy(
+            () ->
+                closed.edit(
+                    new EditReviewCommand(review.id(), AUTHOR, content("მეორე"), "corrected")))
+        .isInstanceOf(RestrictedAccountException.class);
+  }
+
+  @Test
+  void anUnrestrictedAuthorIsUnaffected() {
+    ReviewSubmissionService service =
+        serviceSeenBy(accountId -> accountId.equals(STRANGER.value()));
+
+    assertThat(service.submit(submission())).isNotNull();
   }
 }

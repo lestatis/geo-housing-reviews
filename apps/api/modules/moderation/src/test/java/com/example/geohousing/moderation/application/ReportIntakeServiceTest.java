@@ -3,6 +3,7 @@ package com.example.geohousing.moderation.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.identity.api.AccountStanding;
 import com.example.geohousing.moderation.domain.CaseTrigger;
 import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseStatus;
@@ -20,6 +21,9 @@ import org.junit.jupiter.api.Test;
 
 class ReportIntakeServiceTest {
 
+  /** Nobody is restricted unless a test says so. */
+  private static final AccountStanding UNRESTRICTED = accountId -> false;
+
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-07-28T10:00:00Z"), ZoneOffset.UTC);
 
@@ -27,7 +31,7 @@ class ReportIntakeServiceTest {
   private final InMemoryModerationCaseRepository cases = new InMemoryModerationCaseRepository();
   private final InMemoryModerationTargetLookup targets = new InMemoryModerationTargetLookup();
   private final ReportIntakeService intake =
-      new ReportIntakeService(reports, cases, targets, CLOCK);
+      new ReportIntakeService(reports, cases, targets, UNRESTRICTED, CLOCK);
 
   @Test
   void aReportOpensACaseForContentNothingHasBeenRaisedAboutYet() {

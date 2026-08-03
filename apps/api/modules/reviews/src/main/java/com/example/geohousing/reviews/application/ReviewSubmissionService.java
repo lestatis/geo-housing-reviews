@@ -1,5 +1,8 @@
 package com.example.geohousing.reviews.application;
 
+import com.example.geohousing.identity.api.AccountStanding;
+import com.example.geohousing.identity.api.RestrictedAccountException;
+import com.example.geohousing.reviews.domain.AuthorId;
 import com.example.geohousing.reviews.domain.IllegalReviewStateTransitionException;
 import com.example.geohousing.reviews.domain.PropertyRef;
 import com.example.geohousing.reviews.domain.Review;
@@ -21,13 +24,31 @@ public final class ReviewSubmissionService {
 
   private final ReviewRepository reviewRepository;
   private final PropertyLookup propertyLookup;
+  private final AccountStanding accountStanding;
   private final Clock clock;
 
   public ReviewSubmissionService(
-      ReviewRepository reviewRepository, PropertyLookup propertyLookup, Clock clock) {
+      ReviewRepository reviewRepository,
+      PropertyLookup propertyLookup,
+      AccountStanding accountStanding,
+      Clock clock) {
     this.reviewRepository = Objects.requireNonNull(reviewRepository, "reviewRepository");
     this.propertyLookup = Objects.requireNonNull(propertyLookup, "propertyLookup");
+    this.accountStanding = Objects.requireNonNull(accountStanding, "accountStanding");
     this.clock = Objects.requireNonNull(clock, "clock");
+  }
+
+  /**
+   * Refuses a restricted author.
+   *
+   * <p>Reviews does not own restrictions and does not ask why one exists — identity answers yes or
+   * no, and what the affected person is told is identity's to say in one place. Reading stays open
+   * throughout: a restriction stops somebody contributing, it does not erase them.
+   */
+  private void requireUnrestricted(AuthorId authorId) {
+    if (accountStanding.isRestricted(authorId.value())) {
+      throw new RestrictedAccountException("a restricted account cannot contribute reviews");
+    }
   }
 
   /**
@@ -36,9 +57,11 @@ public final class ReviewSubmissionService {
    * @throws PropertyNotFoundForReviewException if the property does not exist
    * @throws PropertyNotReviewableException if the property takes no new reviews
    * @throws DuplicateReviewException if the author already has a live review of the property
+   * @throws RestrictedAccountException if the author is currently restricted
    */
   public Review submit(SubmitReviewCommand command) {
     Objects.requireNonNull(command, "command");
+    requireUnrestricted(command.authorId());
 
     PropertyReviewability reviewability =
         propertyLookup
@@ -84,6 +107,9 @@ public final class ReviewSubmissionService {
    */
   public Review edit(EditReviewCommand command) {
     Objects.requireNonNull(command, "command");
+    // Editing is contributing too: without this a restricted author rewrites a published review
+    // into whatever the restriction was placed to stop.
+    requireUnrestricted(command.editorId());
 
     Review review =
         ReviewVisibility.requireVisible(
