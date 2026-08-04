@@ -21,9 +21,9 @@ No issue. `docs/plans/016-basic-metrics.md`, both chunks implemented.
 
 ## Current status
 
-in_progress — both blocking findings from the independent review are fixed and covered by
-regressions. `./scripts/check.sh` reports `EXIT=0`, with all three touched modules re-running their
-tests and mutation tests. Awaiting a fresh review.
+ready_for_review — the fixes passed a fresh independent review with no blocking findings. The
+implementation's recorded full gate result remains `EXIT=0`; the reviewer also ran the focused
+backend metrics suite and relevant web checks successfully.
 
 ## Completed work
 
@@ -57,8 +57,9 @@ tests and mutation tests. Awaiting a fresh review.
 
 ## Remaining work
 
-A fresh independent review of the fixes. Then only right of reply remains of the MVP Must-haves, and
-it stays blocked on representative claims (`P-013`).
+No implementation work remains for this branch. It is ready for the human to decide whether to
+merge; agents must not merge automatically. Right of reply remains the only MVP Must-have and stays
+blocked on representative claims (`P-013`).
 
 ## Decisions made
 
@@ -143,6 +144,31 @@ missed is that it also converted a benign race into a user-visible failure. Both
 any internal fault reached an administrator as a complaint about their input, sending them to fix
 dates that were never wrong while the real fault went unreported.
 
+## Fresh independent review — no blocking findings
+
+The reviewer inspected commit `63a6f79` and the full branch diff against `main` after the fixes.
+
+- Review and verification throughput now require `outcome = APPLIED`; the integration test places
+  both applied and `NOT_FOUND` rows in the window and proves only real effects count.
+- Appeal outcome totals now come from one grouped query, so the count of overturned appeals is
+  structurally a subset of all heard appeals in a single statement snapshot.
+- The controller advice now handles only `InvalidMetricsWindowException`; unexpected internal
+  failures are no longer translated to a misleading invalid-window response.
+
+No new authorization, privacy, module-boundary, data-exposure, or concurrency issue was found.
+
+Fresh reviewer checks:
+
+```bash
+cd apps/api && ./gradlew :app:test --tests 'com.example.geohousing.app.metrics.*' -PskipMutation --no-daemon --max-workers=1 --console=plain
+# BUILD SUCCESSFUL (15s)
+
+cd apps/web && pnpm vitest run src/window.test.ts src/metrics/metrics.test.ts
+cd apps/web && pnpm typecheck
+cd apps/web && pnpm lint
+# 15 tests passed; typecheck and lint passed
+```
+
 ## Earlier findings, for the record
 
 ### P1 — outcome metrics count failed moderation and verification attempts
@@ -208,9 +234,8 @@ carrying forward:
 
 ## Next action
 
-Fix the two independent-review findings, run the relevant backend and web checks, and request a
-fresh independent review of this branch in a session that did not implement the fixes. 015's review
-is still outstanding and blocked on a human `codex update`.
+Human review and merge decision. Do not merge automatically. 015's review is still outstanding and
+blocked on a human `codex update`.
 
 ## Last updated
 
