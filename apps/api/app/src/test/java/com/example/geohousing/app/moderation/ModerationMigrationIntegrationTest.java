@@ -36,7 +36,7 @@ class ModerationMigrationIntegrationTest {
   void moderationMigrationApplied() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '6.1' and success = true",
+            "select count(*) from moderation.flyway_schema_history where version = '6.1' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
   }

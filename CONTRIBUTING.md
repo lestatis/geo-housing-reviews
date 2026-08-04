@@ -36,6 +36,36 @@ chore(ci): validate agent configuration
 
 Keep commits reviewable. Do not combine generated formatting, dependency upgrades, migrations, and feature behavior unless they are inseparable.
 
+## Migrations
+
+Each module owns a version range and its own Flyway history table, in its own schema:
+
+| Range | Module | Location |
+| --- | --- | --- |
+| `V1.x` | shared setup (extensions) | `app/src/main/resources/db/migration/root` |
+| `V2.x` | identity | `modules/identity/src/main/resources/db/migration/identity` |
+| `V3.x` | properties | likewise |
+| `V4.x` | reviews | |
+| `V5.x` | verification | |
+| `V6.x` | moderation | |
+
+**A module's migrations are ordered only against its own.** Take the next free number in your
+module's range; what the other modules have already applied does not matter. That is the whole point
+of the split — before it, every module shared one history in `public`, so a new `V2.7` sorted below
+the `V6.1` other modules had already applied and Flyway refused to start the application. It never
+showed up in tests, because a Testcontainers database is empty and any order is in order there.
+
+Two rules keep that working:
+
+- **Extensions belong in the root range, not a module.** A module migrates inside its own schema, so
+  `CREATE EXTENSION` there installs it where the runtime search path cannot see it — which is a
+  silent failure, not an error. `pg_trgm` reached `V3.4` before this was understood; it lives in
+  `V1.1` now.
+- **Root migrations stay idempotent.** They run against `public`, which every schema can see, and the
+  transition for an existing database may replay them.
+
+Migrations are append-only after merge; fix forward rather than editing an applied one.
+
 ## Pull requests
 
 A PR should usually be small enough to review in one focused session. It must include:

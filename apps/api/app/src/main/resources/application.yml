@@ -16,7 +16,11 @@ spring:
     hibernate:
       ddl-auto: validate
   flyway:
-    enabled: true
+    # Off on purpose: ModuleMigrationConfiguration defines one Flyway instance per module, each with
+    # its own history table, so a module's migrations are ordered only against its own. A single
+    # auto-configured instance orders them globally, which makes any new migration for a
+    # low-numbered module out of order on a database that already has the higher-numbered ones.
+    enabled: false
   security:
     oauth2:
       resourceserver:

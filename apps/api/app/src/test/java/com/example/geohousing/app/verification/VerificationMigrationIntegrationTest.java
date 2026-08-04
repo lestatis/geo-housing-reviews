@@ -31,7 +31,7 @@ class VerificationMigrationIntegrationTest {
   void verificationMigrationApplied() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '5.1' and success = true",
+            "select count(*) from verification.flyway_schema_history where version = '5.1' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
   }

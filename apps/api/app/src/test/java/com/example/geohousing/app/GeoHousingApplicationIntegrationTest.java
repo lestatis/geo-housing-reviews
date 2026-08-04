@@ -36,7 +36,7 @@ class GeoHousingApplicationIntegrationTest {
   void flywayMigrationAppliedAndPostgisExtensionEnabled() {
     Integer migrationCount =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where script = 'V1__init.sql' and success = true",
+            "select count(*) from flyway_schema_history_root where script = 'V1__init.sql' and success = true",
             Integer.class);
     assertThat(migrationCount).isEqualTo(1);
 

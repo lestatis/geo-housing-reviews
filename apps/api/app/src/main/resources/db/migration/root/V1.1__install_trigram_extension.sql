@@ -1,0 +1,14 @@
+-- pg_trgm belongs with postgis in the shared setup, not inside a module.
+--
+-- properties' V3.4 installs it too, and did so correctly while every migration ran with a public
+-- search_path. Now that each module migrates inside its own schema, that same statement would
+-- create the extension in `properties` — where the runtime search_path cannot see it, so `<%` and
+-- word_similarity vanish and catalogue search silently stops matching anything.
+--
+-- Installing it here first makes V3.4's IF NOT EXISTS a no-op rather than a relocation. An existing
+-- database already has it in public from the old shared-history run, and baselines past V3.4
+-- anyway; a fresh one gets it here. Both end with the extension where queries can reach it.
+--
+-- Extensions are shared infrastructure like postgis: a module owns its tables, not the catalogue of
+-- functions the database offers.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;

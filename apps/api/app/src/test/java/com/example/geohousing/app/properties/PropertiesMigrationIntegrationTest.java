@@ -30,7 +30,7 @@ class PropertiesMigrationIntegrationTest {
   void propertyCatalogueMigrationApplied() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '3.1' and success = true",
+            "select count(*) from properties.flyway_schema_history where version = '3.1' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
   }

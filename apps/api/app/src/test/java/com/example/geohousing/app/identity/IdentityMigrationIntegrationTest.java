@@ -32,25 +32,25 @@ class IdentityMigrationIntegrationTest {
   void identityMigrationsAppliedSuccessfully() {
     Integer accountMigration =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '2.1' and success = true",
+            "select count(*) from identity.flyway_schema_history where version = '2.1' and success = true",
             Integer.class);
     assertThat(accountMigration).isEqualTo(1);
 
     Integer profileMigration =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '2.2' and success = true",
+            "select count(*) from identity.flyway_schema_history where version = '2.2' and success = true",
             Integer.class);
     assertThat(profileMigration).isEqualTo(1);
 
     Integer restrictionMigration =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '2.3' and success = true",
+            "select count(*) from identity.flyway_schema_history where version = '2.3' and success = true",
             Integer.class);
     assertThat(restrictionMigration).isEqualTo(1);
 
     Integer subjectHashFormatMigration =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '2.4' and success = true",
+            "select count(*) from identity.flyway_schema_history where version = '2.4' and success = true",
             Integer.class);
     assertThat(subjectHashFormatMigration).isEqualTo(1);
   }

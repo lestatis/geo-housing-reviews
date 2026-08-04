@@ -31,7 +31,7 @@ class ReviewsMigrationIntegrationTest {
   void reviewMigrationApplied() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '4.1' and success = true",
+            "select count(*) from reviews.flyway_schema_history where version = '4.1' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
   }
@@ -40,7 +40,7 @@ class ReviewsMigrationIntegrationTest {
   void helpfulSignalMigrationAppliedAndPreservesOneActiveSignalPerVoter() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '4.4' and success = true",
+            "select count(*) from reviews.flyway_schema_history where version = '4.4' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
 
@@ -69,7 +69,7 @@ class ReviewsMigrationIntegrationTest {
   void theCurrentVersionForeignKeyIsDeferredButStillEnforced() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '4.2' and success = true",
+            "select count(*) from reviews.flyway_schema_history where version = '4.2' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
 
@@ -244,7 +244,7 @@ class ReviewsMigrationIntegrationTest {
   void theAuditTrailAcceptsAReinstatementButStillRefusesAnUnknownAction() {
     Integer applied =
         jdbcTemplate.queryForObject(
-            "select count(*) from flyway_schema_history where version = '4.5' and success = true",
+            "select count(*) from reviews.flyway_schema_history where version = '4.5' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
 

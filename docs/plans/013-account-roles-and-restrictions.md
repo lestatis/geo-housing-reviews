@@ -153,8 +153,9 @@ Validate failed: Migrations have failed validation
 Detected resolved migration not applied to database: 2.7.
 ```
 
-This is inherent to the per-module version-prefix registry in `AGENTS.md` (root=1, identity=2,
-properties=3, reviews=4, verification=5, moderation=6). Any new migration for identity is numbered
+This is inherent to the per-module version-prefix convention (root=1, identity=2, properties=3,
+reviews=4, verification=5, moderation=6) — which, notably, is written down nowhere as a rule: it is
+carried in the plan documents for 004, 005 and 009 and was followed since by imitation. Any new migration for identity is numbered
 below every migration the other modules have already applied, so Flyway — with its default
 `outOfOrder=false` — refuses it. The same is true of `V3.4`/`V3.5` added by plan 011.
 

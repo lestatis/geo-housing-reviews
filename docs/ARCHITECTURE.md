@@ -64,7 +64,7 @@ shared-kernel   # tiny: identifiers, clock, domain event abstractions
 
 ### Boundary rules
 
-- each module owns its tables and migrations namespace;
+- each module owns its tables, its migrations namespace, and its migration history;
 - no module reads another module’s tables directly;
 - public application interfaces are explicit;
 - cross-module events contain stable identifiers and minimal data;

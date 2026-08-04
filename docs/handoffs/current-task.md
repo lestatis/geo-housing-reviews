@@ -2,18 +2,17 @@
 
 ## Objective
 
-Implement plan 013, chunk 4: the admin account screen — find an account, change its role, place
-and lift restrictions.
+Implement plan 014: give each module its own Flyway instance and history table, so a module's
+migrations are ordered only against its own.
 
 ## Active branch
 
-`feat/013-admin-account-screen-chunk4`, branched from clean `main` at `be59bb2`. Local only; not
-pushed. Awaiting a fresh independent review before merge.
+`feat/014-per-module-flyway`, branched from clean `main` at `ea8f94e`. Local only; not pushed.
+Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/013-account-roles-and-restrictions.md`, chunk 4 of 4 — the plan is now
-**complete**.
+No issue. `docs/plans/014-per-module-flyway.md` — the plan is **complete**.
 
 ## Current status
 
@@ -21,108 +20,81 @@ completed, awaiting independent review
 
 ## Completed work
 
-- `/accounts` finds an account by the pseudonym on a review; `/accounts/[accountId]` shows role,
-  status, standing and the full restriction history, and offers role change, restrict and lift.
-- `src/accounts/account.ts` is the allowlist of what the screen may show — `AdminAccountView`
-  withholds the email and auth-subject hash by construction, and this is what stops the screen
-  showing them if that ever changes.
-- Seven Playwright journeys (23 in total, all passing), including every refusal: no reason, last
-  administrator, and a second restriction while one is in force.
-- `src/auth/me.ts` asks the API who the caller is, so the screen can tell "step down" from "remove
-  administrative access". This app never decodes the token itself.
-
-### From chunk 3 (unchanged, already merged)
-
-- **`identity.api` is no longer empty.** Two published ports: `AccountStanding.isRestricted` (a yes
-  or no, never the reason) and `AccountRestraint.restrict`. Plus `RestrictedAccountException`, so a
-  calling module refuses without inventing its own vocabulary. Adapters in identity's
-  infrastructure.
-- **`reviews` and `moderation` now depend on `identity`**, reaching only its `api` package. Both are
-  one-way; identity depends on no module, which keeps the graph acyclic.
-- Reviews refuses `submit` and `edit` from a restricted author; moderation refuses `file` a report.
-  Reading stays open everywhere.
-- **`RESTRICT_ACCOUNT` restricts the review's author** through `AccountRestraint`, replacing the
-  no-op arm in `ReviewsModerationEffectApplier` and the comment that said it was identity's job.
-- `ACCOUNT_RESTRICTED` mapped to 403 in both modules' exception handlers.
-- Five Gherkin scenarios (27 in that feature now, all passing); `ARCHITECTURE.md` gained the full
-  table of module dependencies.
-- Mutation thresholds ratcheted where this chunk left headroom: reviews 85 → 90, verification
-  85 → 88, properties 75 → 77.
+- `V1__init.sql` moved to `db/migration/root/`, so each instance has a location of its own.
+- `ModuleMigrationConfiguration` defines six Flyway instances — root plus one per module — each
+  writing its history into its own schema. `spring.flyway.enabled: false`; JPA is held back by an
+  `EntityManagerFactoryDependsOnPostProcessor`, the mechanism Spring Boot's own auto-configuration
+  uses.
+- New root migration `V1.1` installs `pg_trgm` in `public`.
+- The five per-module migration tests now assert against their own module's history table.
+- New `MigrationHistorySplitIntegrationTest` covers the upgrade from a real shared-history database.
+- `CONTRIBUTING.md` gained a **Migrations** section — the version-range convention had never been
+  written down anywhere, which is part of how this went unnoticed. `ARCHITECTURE.md`'s boundary rules
+  now say a module owns its migration *history* too.
 
 ## Remaining work
 
-None in plan 013.
+None for plan 014.
 
 ## Decisions made
 
-- **Appeals stay open to restricted accounts**, contrary to the approved plan. An appeal is how
-  somebody challenges a decision made against them, and restricting an account is frequently part of
-  that same decision; refusing appeals would let a takedown remove the route to contest it, which is
-  what `P-014` exists to prevent. `AppealService.file` carries a comment at the point somebody would
-  otherwise add the check, and a scenario proves it.
-- **A moderation restriction is indefinite.** The decision carries no duration, and inventing a
-  window would be a policy nobody set that then quietly expires. An administrator lifts it.
-- **Restricting an already-restricted account is a no-op**, not a failure: the intended outcome
-  already holds, and the refusal is already in identity's audit trail.
-- **Restricting the author of content that has vanished is a conflict.** The decision said somebody
-  should be stopped; quietly stopping nobody would report success for an outcome that did not happen.
-- **The published port answers yes or no, never why.** What a restricted person is told belongs in
-  one place — identity — rather than being phrased by every module that has to refuse.
+- **The baseline is read, not hardcoded.** The plan pinned each module at the version that existed
+  before the split. Two prior states exist — a database that stopped at `6.1` and never got
+  identity's `2.7`, and one created after that chunk shipped which has it — and a fixed baseline is
+  wrong for one of them. Wrong in the dangerous direction, too: replaying `V2.7` narrows a CHECK that
+  `V2.8` widens, and fails against audit rows only the later vocabulary permits.
+- **Extensions belong to the root range.** A module migrating inside its own schema installs an
+  extension where the runtime cannot see it, and nothing errors — catalogue search simply stops
+  matching. `pg_trgm` moved from `V3.4` to `V1.1`; the old statement stays and is now a no-op.
+- **The root instance got its own history table.** It shared `flyway_schema_history` with the old
+  arrangement, so its own new migration sorted below the `6.1` recorded there and was refused.
 
 ## Changed files
 
-New: `identity/api/{AccountStanding,AccountRestraint,RestrictedAccountException,package-info}.java`,
-`identity/infrastructure/{AccountStandingAdapter,AccountRestraintAdapter}.java`.
+New: `app/src/main/java/.../config/ModuleMigrationConfiguration.java`,
+`app/src/main/resources/db/migration/root/V1.1__install_trigram_extension.sql`,
+`app/src/test/java/.../MigrationHistorySplitIntegrationTest.java`,
+`docs/plans/014-per-module-flyway.md`.
 
-Modified: `ReviewSubmissionService`, `ReviewsBeanConfiguration`, `ReviewsExceptionHandler`,
-`ReportIntakeService`, `AppealService` (comment only), `ModerationBeanConfiguration`,
-`ModerationExceptionHandler`, `ReviewsModerationEffectApplier`, both modules' `build.gradle.kts`,
-their test doubles, `moderate-and-administer.feature`, `docs/ARCHITECTURE.md`,
-`docs/plans/013-account-roles-and-restrictions.md`, and three modules' mutation thresholds.
+Moved: `db/migration/V1__init.sql` → `db/migration/root/V1__init.sql`.
+
+Modified: `application.yml`, the five `*MigrationIntegrationTest` classes,
+`GeoHousingApplicationIntegrationTest`, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`.
 
 ## Commands and tests
 
 ```bash
-cd apps/api && ./gradlew :modules:reviews:check :modules:moderation:check -PskipMutation
-./gradlew :app:test --tests '*AcceptanceTest' -PskipMutation
+cd apps/api && ./gradlew :app:test --tests '*MigrationIntegrationTest' \
+  --tests '*MigrationHistorySplitIntegrationTest' -PskipMutation
 ./scripts/check.sh          # read the EXIT= marker, not a wrapper's status
 ```
 
-Two things were proven rather than assumed, both by breaking them:
-
-1. **Enforcement is load-bearing** — replacing the restriction check in `ReviewSubmissionService`
-   with `false` fails exactly "a restricted account cannot submit a review".
-2. **The module boundary holds** — making `reviews` import `identity.domain.RestrictionScope` fails
-   `ModuleBoundaryArchitectureTest`, and nothing else.
+Verified three ways: a fresh database (the per-module tests), a reconstructed pre-`2.7` database (the
+new test), and by hand against the local dev database in its real state, where identity baselines at
+`2.8`, re-runs nothing, and root applies `V1.1`.
 
 ## Failures and blockers
 
-**A real problem surfaced, and is not fixed here.** Starting the API against a database that already
-had migrations through `6.1` failed with `Detected resolved migration not applied to database: 2.7`.
-The per-module version-prefix registry in `AGENTS.md` numbers every new identity migration below
-migrations the other modules have already applied, so Flyway refuses them as out-of-order. Every
-gate has passed because Testcontainers start an empty database. The first deployment that upgrades
-rather than creates will hit it. See the plan's "A problem this chunk uncovered" for the candidate
-fixes; it needs a decision rather than a workaround.
+None outstanding.
 
-Unblocked locally by dropping the module schemas and the Flyway history from the throwaway dev
-database, which makes Flyway replay from scratch. Docker is also wedged again for the postgres
-container specifically (`cannot stop container: permission denied`), which is why the volume could
-not simply be recreated.
+Two problems were found by running rather than reasoning, and both would have shipped:
+the `pg_trgm` relocation (silent — search stops matching, no error) and the root instance sharing
+the old history. The second was caught only by starting against the real dev database; no test had
+covered it.
 
 ## Unresolved risks
 
-- **No appeal path for a restriction itself.** `user_restriction.appeal_status` exists and stays
-  `NONE`. An account can appeal a *content* decision, but not the restriction — a gap named as a
-  non-goal in the plan and worth closing before launch.
-- **A restriction placed by a decision is indefinite and only an administrator can lift it.** That is
-  deliberate, but it means an operational habit has to exist for reviewing them; nothing expires on
-  its own.
-- **`AccountRestraint` is a write reaching from moderation into identity.** It is narrow (one method,
-  one direction) but it is the first cross-module *write* in the codebase; every other cross-module
-  call so far either reads or applies an effect to content the caller already had authority over.
+- **`baselineOnMigrate` still assumes a module's schema is never partway through its range.** True
+  for anything the old shared history produced, because it was all-or-nothing per migration. A
+  database left half-migrated by a *failed* run is a different matter — I created exactly that state
+  on this machine during implementation, and had to clear the partial history tables by hand before
+  the transition would run correctly. Worth a runbook note before the first real deployment.
+- **Six migration runs at boot** rather than one. Not measured; the gate did not visibly slow, but
+  nobody timed it.
+- **`clean` is now per-module**, so anyone reaching for it gets a narrower blast radius than they may
+  expect.
 
 ## Next action
 
-Independent review of this branch by a fresh session that did not implement it, then merge. Then
-plan 013 chunk 4: the admin account screen.
+Independent review by a fresh session that did not implement this. Six branches now await review;
+none are pushed.
