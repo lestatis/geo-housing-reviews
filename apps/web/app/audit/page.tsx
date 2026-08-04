@@ -2,9 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { serverApi } from "@/src/api/client";
 import { accessToken } from "@/src/auth/session";
-import { describeWindow, toTimelineRow, windowBounds } from "@/src/audit/timeline";
+import { toTimelineRow } from "@/src/audit/timeline";
+import { describeWindow, windowBounds } from "@/src/window";
 
 export const dynamic = "force-dynamic";
+
+/** A week of history, which is what the page says it shows. */
+const AUDIT_WINDOW_DAYS = 7;
 
 export default async function Audit({
   searchParams,
@@ -16,7 +20,7 @@ export default async function Audit({
   }
 
   const { actor, since, until, cursor } = await searchParams;
-  const window = describeWindow(since, until, new Date());
+  const window = describeWindow(since, until, new Date(), AUDIT_WINDOW_DAYS);
   const bounds = windowBounds(window);
   const trimmedActor = actor?.trim() ?? "";
 

@@ -162,6 +162,59 @@
         },
         "type" : "object"
       },
+      "AdminMetrics" : {
+        "properties" : {
+          "appealOverturnPercentage" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "appealsHeard" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "appealsOverturned" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "moderationDecisions" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "oldestOpenCaseAgeDays" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "openModerationCases" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pendingVerifications" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reviewsAwaitingModeration" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reviewsPublished" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reviewsRemoved" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "verificationsApproved" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "verificationsRejected" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "AliasView" : {
         "properties" : {
           "confidence" : {
@@ -1435,6 +1488,53 @@
           }
         },
         "tags" : [ "audit-controller" ]
+      }
+    },
+    "/api/admin/metrics" : {
+      "get" : {
+        "operationId" : "current",
+        "parameters" : [ {
+          "description" : "Inclusive start of the window. Defaults to thirty days ago.",
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "description" : "Exclusive end of the window. Defaults to now.",
+          "in" : "query",
+          "name" : "until",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminMetrics"
+                }
+              }
+            },
+            "description" : "Queue depth as it stands, and throughput over the window."
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The window ends before it starts."
+          }
+        },
+        "tags" : [ "admin-metrics-controller" ]
       }
     },
     "/api/admin/moderation/appeals" : {

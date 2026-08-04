@@ -289,3 +289,55 @@ Feature: Moderate and administer without touching the database
     Given a resident "Nino"
     When Nino asks for the audit timeline
     Then the request is rejected as forbidden
+
+  Scenario: the metrics screen counts an overturned appeal as one
+    # docs/MODERATION.md asks for exactly one measurement by name — "measure overturned decisions".
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And an administrator "Tekla"
+    And Nino created the property "Saburtalo Heights"
+    And Nino published a review of "Saburtalo Heights" saying "ლიფტი არ მუშაობს"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    And Nino appealed saying "Nothing in it identifies anyone."
+    And Tekla overturns that appeal explaining "The review named nobody."
+    When Mari asks for the metrics
+    Then the request succeeds
+    And at least 1 appeal was overturned
+    And every appeal counted as overturned was also counted as heard
+
+  Scenario: a pending appeal has not been heard
+    # Counting it would flatter the queue: an appeal nobody has decided is work outstanding.
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And Nino created the property "Gldani Court"
+    And Nino published a review of "Gldani Court" saying "მეზობლების ხმაური"
+    And Dato reported that review for "PERSONAL_DATA"
+    And Mari decided that case as "REMOVE" for "DOXXING" explaining "Removed."
+    And Mari asked for the metrics
+    When Nino appeals saying "I want it back."
+    And Mari asks for the metrics
+    Then the count of appeals heard has not changed
+
+  Scenario: the metrics name nobody
+    # The audit timeline answers "who did what", with a purpose and a named risk. This answers
+    # "is the work being done", and needs no names to do it.
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And Nino created the property "Isani Gardens"
+    When Mari asks for the metrics
+    Then the request succeeds
+    And no account is named in the response
+
+  Scenario: a window that ends before it starts is refused
+    Given an administrator "Mari"
+    When Mari asks for the metrics from "2026-08-04T00:00:00Z" to "2026-08-01T00:00:00Z"
+    Then the request is refused as invalid
+    And the response explains the problem with code "INVALID_METRICS_WINDOW"
+
+  Scenario: an ordinary account cannot read the metrics
+    Given a resident "Nino"
+    When Nino asks for the metrics
+    Then the request is rejected as forbidden

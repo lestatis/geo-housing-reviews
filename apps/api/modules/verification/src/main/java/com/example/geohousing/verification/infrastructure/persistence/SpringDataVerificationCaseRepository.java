@@ -59,4 +59,7 @@ interface SpringDataVerificationCaseRepository
       """)
   List<VerificationCaseJpaEntity> findByStatus(
       @Param("status") VerificationStatus status, Limit limit);
+
+  /** How many cases sit in a given state. */
+  long countByStatus(VerificationStatus status);
 }

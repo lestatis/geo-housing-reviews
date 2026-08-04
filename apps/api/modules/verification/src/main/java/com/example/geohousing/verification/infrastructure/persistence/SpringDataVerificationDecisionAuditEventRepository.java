@@ -1,5 +1,6 @@
 package com.example.geohousing.verification.infrastructure.persistence;
 
+import com.example.geohousing.verification.domain.VerificationDecisionAction;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -36,4 +37,16 @@ interface SpringDataVerificationDecisionAuditEventRepository
       @Param("beforeId") UUID beforeId,
       @Param("actorAccountId") UUID actorAccountId,
       Limit limit);
+
+  /**
+   * How often one decision was recorded in a window, {@code from} inclusive, {@code until}
+   * exclusive.
+   */
+  @Query(
+      "select count(e) from VerificationDecisionAuditEventJpaEntity e"
+          + " where e.action = :action and e.createdAt >= :from and e.createdAt < :until")
+  long countActionBetween(
+      @Param("action") VerificationDecisionAction action,
+      @Param("from") Instant from,
+      @Param("until") Instant until);
 }

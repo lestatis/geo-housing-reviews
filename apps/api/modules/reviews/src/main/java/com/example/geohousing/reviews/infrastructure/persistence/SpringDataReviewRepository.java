@@ -57,4 +57,7 @@ interface SpringDataReviewRepository extends JpaRepository<ReviewJpaEntity, UUID
       @Param("cursorPublishedAt") Instant cursorPublishedAt,
       @Param("cursorId") UUID cursorId,
       Limit limit);
+
+  /** How many reviews sit in a given state. Counted in the database, not by loading them. */
+  long countByStatus(ReviewStatus status);
 }

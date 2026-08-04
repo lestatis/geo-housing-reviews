@@ -42,4 +42,13 @@ interface SpringDataModerationDecisionRepository
       @Param("beforeId") UUID beforeId,
       @Param("actorAccountId") UUID actorAccountId,
       Limit limit);
+
+  /**
+   * Decisions recorded in a window, {@code from} inclusive and {@code until} exclusive — the same
+   * half-open rule the timeline uses, so the two never disagree about which day a decision fell on.
+   */
+  @Query(
+      "select count(d) from ModerationDecisionJpaEntity d"
+          + " where d.decidedAt >= :from and d.decidedAt < :until")
+  long countDecidedBetween(@Param("from") Instant from, @Param("until") Instant until);
 }
