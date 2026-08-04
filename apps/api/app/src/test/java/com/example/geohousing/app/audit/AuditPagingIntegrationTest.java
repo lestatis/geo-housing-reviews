@@ -132,6 +132,54 @@ class AuditPagingIntegrationTest {
   }
 
   @Test
+  void aCursorCarriedOntoADifferentSearchIsRefused() throws Exception {
+    // Over HTTP, because this is a URL somebody edits: a paged link is shared or bookmarked, the
+    // actor or the dates are changed, and the cursor is still attached. Resuming there returns a
+    // fragment of a timeline whose start was never seen, and then says there is no more of it.
+    String admin = "Bearer subject-paging-scope";
+    UUID adminId = UUID.fromString(accountIdOf(admin));
+    promoteToAdmin(adminId);
+
+    Instant base = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(1800);
+    recordIdentityView(adminId, base);
+    recordIdentityView(adminId, base.plusSeconds(1));
+    Instant since = base.minusSeconds(1);
+    Instant until = base.plusSeconds(2);
+
+    String cursor =
+        JsonPath.read(
+            timeline(admin, since, until, 1, null).andReturn().getResponse().getContentAsString(),
+            "$.nextCursor");
+
+    // Same window, different actor filter.
+    mockMvc
+        .perform(
+            get("/api/admin/audit")
+                .param("since", since.toString())
+                .param("until", until.toString())
+                .param("actor", UUID.randomUUID().toString())
+                .param("cursor", cursor)
+                .header("Authorization", admin))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fieldErrors[0].field").value("cursor"))
+        .andExpect(jsonPath("$.fieldErrors[0].code").value("NOT_FROM_THIS_QUERY"));
+
+    // Same actor, a different — and still enclosing — window.
+    mockMvc
+        .perform(
+            get("/api/admin/audit")
+                .param("since", since.minusSeconds(60).toString())
+                .param("until", until.toString())
+                .param("cursor", cursor)
+                .header("Authorization", admin))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.fieldErrors[0].code").value("NOT_FROM_THIS_QUERY"));
+
+    // And the request it does continue is still answered.
+    timeline(admin, since, until, 1, cursor).andExpect(jsonPath("$.items.length()").value(1));
+  }
+
+  @Test
   void aCursorThatCannotBeReadIsRefusedRatherThanTreatedAsAFirstPage() throws Exception {
     String admin = "Bearer subject-paging-badcursor";
     promoteToAdmin(UUID.fromString(accountIdOf(admin)));

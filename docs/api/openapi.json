@@ -1370,7 +1370,7 @@
       "get" : {
         "operationId" : "recorded",
         "parameters" : [ {
-          "description" : "Inclusive start of the window. Defaults to seven days ago.",
+          "description" : "Inclusive start of the window. Defaults to seven days ago, and is taken from the cursor when one is given.",
           "in" : "query",
           "name" : "since",
           "required" : false,
@@ -1396,7 +1396,7 @@
             "type" : "string"
           }
         }, {
-          "description" : "Continue a previous page: pass back its nextCursor unchanged.",
+          "description" : "Continue a previous page: pass back its nextCursor unchanged. The cursor carries the window and actor filter it came from; restating them is optional, but asking for different ones is refused rather than answered with a fragment of a different timeline.",
           "in" : "query",
           "name" : "cursor",
           "required" : false,

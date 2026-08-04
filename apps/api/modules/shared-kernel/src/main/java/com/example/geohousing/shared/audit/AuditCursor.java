@@ -1,8 +1,6 @@
 package com.example.geohousing.shared.audit;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
@@ -18,6 +16,9 @@ import java.util.UUID;
  *
  * <p>{@link #idBoundFor} is what lets each source turn that global order into a predicate it can
  * push into SQL, knowing only its own module name.
+ *
+ * <p>A position and nothing more. How a page is handed back to a caller — and which query it is a
+ * position <em>in</em> — belongs to whoever serves the timeline, not to the ordering.
  */
 public record AuditCursor(Instant at, String module, UUID id) {
 
@@ -44,8 +45,6 @@ public record AuditCursor(Instant at, String module, UUID id) {
 
   /** Sorts below every real UUID, so "nothing at this instant" is expressible as the same bound. */
   public static final UUID LOWEST_ID = UUID.fromString("00000000-0000-0000-0000-000000000000");
-
-  private static final String SEPARATOR = "|";
 
   /**
    * Sorts below every real module name, so a first page excludes nothing. Module names are
@@ -87,41 +86,5 @@ public record AuditCursor(Instant at, String module, UUID id) {
       return LOWEST_ID;
     }
     return id;
-  }
-
-  /** Opaque to callers on purpose: the shape of a position is not part of the contract. */
-  public String encode() {
-    String raw = at.toString() + SEPARATOR + module + SEPARATOR + id;
-    return Base64.getUrlEncoder()
-        .withoutPadding()
-        .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-  }
-
-  /**
-   * Reads a cursor back.
-   *
-   * @throws IllegalArgumentException if it cannot be read — refused rather than treated as "start
-   *     again", which would show a reader the same page and let them believe they had reached the
-   *     end of a list they had not
-   */
-  public static AuditCursor decode(String encoded) {
-    if (encoded == null || encoded.isBlank()) {
-      throw new IllegalArgumentException("a cursor is required");
-    }
-    String raw;
-    try {
-      raw = new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
-    } catch (IllegalArgumentException notBase64) {
-      throw new IllegalArgumentException("this is not a timeline cursor", notBase64);
-    }
-    String[] parts = raw.split("\\" + SEPARATOR, 3);
-    if (parts.length != 3) {
-      throw new IllegalArgumentException("this is not a timeline cursor");
-    }
-    try {
-      return new AuditCursor(Instant.parse(parts[0]), parts[1], UUID.fromString(parts[2]));
-    } catch (RuntimeException unreadable) {
-      throw new IllegalArgumentException("this is not a timeline cursor", unreadable);
-    }
   }
 }

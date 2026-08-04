@@ -13,22 +13,6 @@ class AuditCursorTest {
   private static final UUID ID = UUID.fromString("77777777-7777-4777-8777-777777777777");
 
   @Test
-  void aCursorSurvivesBeingWrittenDownAndReadBack() {
-    AuditCursor cursor = new AuditCursor(AT, "identity", ID);
-
-    assertThat(AuditCursor.decode(cursor.encode())).isEqualTo(cursor);
-  }
-
-  @Test
-  void anUnreadableCursorIsRefusedRatherThanGuessedAt() {
-    // A cursor that silently resets to the newest page would show an administrator the same events
-    // again and let them believe they had reached the end of a list they had not.
-    assertThatThrownBy(() -> AuditCursor.decode("not-a-cursor"))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> AuditCursor.decode("")).isInstanceOf(IllegalArgumentException.class);
-  }
-
-  @Test
   void aSourceSharingTheCursorsModuleResumesAtTheCursorsOwnRow() {
     // Same instant, same module: only rows below the cursor's id are still to come.
     assertThat(new AuditCursor(AT, "identity", ID).idBoundFor("identity")).isEqualTo(ID);

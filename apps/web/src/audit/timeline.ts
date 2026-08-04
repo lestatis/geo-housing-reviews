@@ -99,7 +99,14 @@ function asCalendarDate(value: string | undefined): string | undefined {
   if (!trimmed || !DATE.test(trimmed)) {
     return undefined;
   }
-  return Number.isNaN(new Date(`${trimmed}T00:00:00Z`).getTime()) ? undefined : trimmed;
+  // The round trip is the check. JavaScript rejects a thirteenth month but *normalizes* a day that
+  // overruns its month — `2026-02-31` becomes 3 March — so a date that parses is not necessarily
+  // the date that was written. Accepting it would show one window and ask the API for another.
+  const parsed = new Date(`${trimmed}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== trimmed) {
+    return undefined;
+  }
+  return trimmed;
 }
 
 function asDate(moment: Date): string {

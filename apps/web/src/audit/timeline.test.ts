@@ -85,6 +85,20 @@ describe("the window a timeline covers", () => {
     expect(window.since).toBe("2026-07-29");
     expect(window.until).toBe("2026-08-04");
   });
+
+  it("refuses a day that does not exist, rather than silently moving it", () => {
+    // JavaScript rejects a thirteenth month but rolls an overrunning day forward: `2026-02-31`
+    // parses as 3 March. Kept, it would label the screen "2026-02-31" while asking the API about a
+    // window ending in March — a window that says one thing and fetches another.
+    const window = describeWindow("2026-02-31", "2026-04-31", new Date("2026-08-04T12:00:00Z"));
+
+    expect(window.since).toBe("2026-07-29");
+    expect(window.until).toBe("2026-08-04");
+    // A real leap day is still a real date.
+    expect(describeWindow("2024-02-29", undefined, new Date("2026-08-04T12:00:00Z")).since).toBe(
+      "2024-02-29",
+    );
+  });
 });
 
 describe("translating that window for the API", () => {

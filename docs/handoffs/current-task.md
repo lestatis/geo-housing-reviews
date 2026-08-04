@@ -15,8 +15,8 @@ No issue. `docs/plans/015-audit-log-readable.md` — the plan is complete; this 
 
 ## Current status
 
-in_progress — all four findings are implemented; `./scripts/check.sh` reports `EXIT=0` and all 31
-Playwright tests pass against the local stack. A fresh independent review is the remaining step.
+in_progress — the second independent review's blocking finding is fixed and covered.
+`./scripts/check.sh` reports `EXIT=0` and all 31 Playwright tests pass. Awaiting a third review.
 
 ## Completed work
 
@@ -81,7 +81,8 @@ rejected query tells the reader nothing and a mangled one tells them something f
 
 ## Remaining work
 
-A fresh independent review of this branch.
+A fresh independent review of the cursor-binding fix.
+
 Of the MVP Must-haves, right of reply (blocked on representative claims per `P-013`) and basic
 analytics remain. Eight branches are on `main` with no independent review — still awaiting a
 decision.
@@ -126,13 +127,66 @@ rows, three per second, then three rows sharing one instant across two modules w
 side of the signed/unsigned boundary, and asserts that reading seven at a time returns exactly what
 one page of the same window returns.
 
-## Failures and blockers
+## Second review's findings, both fixed
 
-None open. Two Docker containers are wedged (`could not kill container: permission denied`) and
-cannot be removed without a privileged `systemctl restart docker`, which this repository forbids an
-agent from running. Nothing has failed because of them; if integration tests start reporting
-`address already in use`, that recovery is `CONTRIBUTING.md` → "If the gate is unexpectedly slow or
-fails oddly", and it needs a human.
+### P1 — continuation cursors were not bound to their query (blocking) — FIXED
+
+`AuditPageToken` now carries the position *and* the normalized `since`, `until` and actor. Restating
+them on the request is optional; asking for different ones is `INVALID_AUDIT_QUERY` on `cursor` with
+code `NOT_FROM_THIS_QUERY`. Dropping the actor counts as disagreement too — "everyone" is a filter,
+so continuing an unfiltered timeline while asking about one person is as wrong as the reverse.
+
+Taking the bounds *from* the token also removed a latent trap the review did not name: with the
+window read from the request, a cursor issued against the **default** window could never have
+validated, because that default is computed from `now` on every call. A continuation is now
+well-defined for a caller who never stated a window.
+
+The wire format moved out of `shared-kernel` into `app/audit`: which query a page belongs to is an
+application concern, and `AuditCursor` is now only a place in an ordering — which is all any
+module's adapter needs.
+
+**No HMAC, deliberately.** The review suggested integrity protection "preferably". The token carries
+no authority: the endpoint is `ADMIN`-gated and anything a forged token can express is a query the
+same caller could simply send. A signing key would add key management and rotation without adding a
+property worth having. Reopen this if the token ever starts carrying something a caller could not
+ask for directly.
+
+Proved non-vacuous: commenting out `verifyContinues` fails `aCursorCarriedOntoADifferentSearchIsRefused`
+and nothing else.
+
+### P2 — overflow calendar dates were accepted by the screen — FIXED
+
+Measured rather than assumed: JavaScript rejects `2026-13-45` and `2026-01-32` but **normalizes**
+`2026-02-31` to 3 March and `2026-04-31` to 1 May. The screen would have displayed "2026-02-31"
+while asking the API for a window ending 4 March. `asCalendarDate` now round-trips the parse against
+the input; a real leap day still passes.
+
+## The original finding text, for the record
+
+### P1 — continuation cursors are not bound to their query (blocking)
+
+`AuditCursor` encodes only `(at, module, id)`, and `AuditQuery` merely checks whether `at` lies
+inside the newly supplied window. It carries and checks neither the actor filter nor the exact
+`since`/`until` bounds. Reusing a valid cursor from an actor-A timeline for actor B, or for a
+different enclosing window, resumes after the old position. It therefore drops entries newer than
+that position and can return `nextCursor: null`, falsely telling an administrator they reached the
+end of the requested audit history.
+
+Bind the normalized query identity (`since`, `until`, actor) to the continuation token, preferably
+with integrity protection, and reject mismatches as `INVALID_AUDIT_QUERY` on `cursor`. Cover both
+filter and window changes in an HTTP integration test.
+
+### P2 — overflow calendar dates are not rejected by the screen (non-blocking)
+
+`asCalendarDate` checks only the `YYYY-MM-DD` shape and whether JavaScript can construct a `Date`.
+JavaScript normalizes values such as `2026-02-31`, so the function returns the invalid original
+text and `windowBounds` sends an invalid instant to the API. Verify that parsing round-trips to the
+same ISO calendar date before accepting it, and add a unit test.
+
+The independent reviewer ran the web timeline unit tests, typecheck, and lint successfully. A
+scoped backend audit-test rerun was stopped after its Gradle/Testcontainers process did not finish;
+do not treat that rerun as fresh verification. Existing committed test reports are passing, but
+they do not cover the P1 misuse case.
 
 ## Unresolved risks
 
@@ -145,7 +199,8 @@ fails oddly", and it needs a human.
 
 ## Next action
 
-Request a fresh independent review of this branch, in a session that did not implement it.
+Implement and verify the cursor-query binding fix, then request a fresh independent review in a
+session that did not implement the fix.
 
 ## Last updated
 

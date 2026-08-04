@@ -1,6 +1,5 @@
 package com.example.geohousing.app.audit;
 
-import com.example.geohousing.shared.audit.AuditCursor;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -65,7 +64,10 @@ class AuditController {
               schema = @Schema(implementation = org.springframework.http.ProblemDetail.class)))
   AuditTimelineResponse recorded(
       Authentication authentication,
-      @Parameter(description = "Inclusive start of the window. Defaults to seven days ago.")
+      @Parameter(
+              description =
+                  "Inclusive start of the window. Defaults to seven days ago, and is taken from the"
+                      + " cursor when one is given.")
           @RequestParam(name = "since", required = false)
           Instant since,
       @Parameter(
@@ -77,22 +79,48 @@ class AuditController {
       @Parameter(description = "Show only this account's actions. Absent means everyone's.")
           @RequestParam(name = "actor", required = false)
           String actor,
-      @Parameter(description = "Continue a previous page: pass back its nextCursor unchanged.")
+      @Parameter(
+              description =
+                  "Continue a previous page: pass back its nextCursor unchanged. The cursor carries"
+                      + " the window and actor filter it came from; restating them is optional, but"
+                      + " asking for different ones is refused rather than answered with a fragment"
+                      + " of a different timeline.")
           @RequestParam(name = "cursor", required = false)
           String cursor,
       @RequestParam(name = "limit", required = false) Integer limit) {
-    AuditQuery query =
-        new AuditQuery(
-            since == null ? Instant.now().minus(DEFAULT_WINDOW) : since,
-            until == null ? Instant.now() : until,
-            cursorFrom(cursor),
-            actorFrom(actor),
-            limit == null ? 0 : limit);
+    AuditQuery query = asked(since, until, actorFrom(actor), cursor, limit);
 
     AuditPage page = timeline.recorded(query, callerOf(authentication));
     return new AuditTimelineResponse(
         page.entries().stream().map(AuditEntryView::from).toList(),
-        page.nextCursor() == null ? null : page.nextCursor().encode());
+        page.nextCursor() == null ? null : AuditPageToken.encode(page.nextCursor(), query));
+  }
+
+  /**
+   * The query as asked, or as continued.
+   *
+   * <p>A continuation takes its window and actor from the token rather than from the request. That
+   * is what stops a cursor being carried onto a different search, where it would resume partway
+   * through a timeline the caller has never seen the start of and then report no further pages.
+   */
+  private static AuditQuery asked(
+      Instant since, Instant until, UUID actor, String cursor, Integer limit) {
+    if (cursor == null || cursor.isBlank()) {
+      return new AuditQuery(
+          since == null ? Instant.now().minus(DEFAULT_WINDOW) : since,
+          until == null ? Instant.now() : until,
+          null,
+          actor,
+          limit == null ? 0 : limit);
+    }
+    AuditPageToken token = AuditPageToken.decode(cursor);
+    token.verifyContinues(since, until, actor);
+    return new AuditQuery(
+        token.since(),
+        token.until(),
+        token.position(),
+        token.actorAccountId(),
+        limit == null ? 0 : limit);
   }
 
   /**
@@ -108,19 +136,6 @@ class AuditController {
     } catch (IllegalArgumentException notAnId) {
       throw new InvalidAuditQueryException(
           "actor", "NOT_AN_ID", "The actor filter is not an account id.");
-    }
-  }
-
-  /** Likewise: a cursor that cannot be read is not a first page. */
-  private static AuditCursor cursorFrom(String cursor) {
-    if (cursor == null || cursor.isBlank()) {
-      return null;
-    }
-    try {
-      return AuditCursor.decode(cursor);
-    } catch (IllegalArgumentException unreadable) {
-      throw new InvalidAuditQueryException(
-          "cursor", "UNREADABLE", "This is not a timeline cursor.");
     }
   }
 
