@@ -1,8 +1,12 @@
 package com.example.geohousing.moderation.infrastructure.persistence;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 interface SpringDataModerationDecisionRepository
     extends JpaRepository<ModerationDecisionJpaEntity, UUID> {
@@ -13,4 +17,19 @@ interface SpringDataModerationDecisionRepository
    * on.
    */
   List<ModerationDecisionJpaEntity> findByCaseIdOrderByDecidedAtAscIdAsc(UUID caseId);
+
+  /**
+   * Entries in a window, newest first, optionally narrowed to one moderator. The null check keeps
+   * "everyone" and "this person" as one query rather than two code paths.
+   */
+  @Query(
+      "select d from ModerationDecisionJpaEntity d"
+          + " where d.decidedAt >= :from and d.decidedAt < :until"
+          + " and (:actorAccountId is null or d.decidedByAccountId = :actorAccountId)"
+          + " order by d.decidedAt desc, d.id desc")
+  List<ModerationDecisionJpaEntity> findForTimeline(
+      @Param("from") Instant from,
+      @Param("until") Instant until,
+      @Param("actorAccountId") UUID actorAccountId,
+      Limit limit);
 }

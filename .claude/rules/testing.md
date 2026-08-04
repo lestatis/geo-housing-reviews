@@ -8,6 +8,10 @@
   (`mutationTesting { }`, ADR-0009). Raise the threshold when a chunk leaves the score above it;
   never lower it to make a build pass — a threshold that only moves down measures nothing.
 - `-PskipMutation` is for local iteration only. Never use it for a pre-review or CI run.
+- A mutation score of 0% usually means no test was selected, not that every mutant survived. The
+  test glob defaults to the module's Gradle name, which is its package for every module except
+  `shared-kernel` (package `shared`) — set `mutationTesting.targetTests` when the two differ. The
+  failure is silent: PITest reports a score rather than saying it selected nothing.
 - Iterate with a scoped check (`:modules:<module>:test -PskipMutation`, or a single `--tests` class);
   run the full `./scripts/check.sh` once per chunk, before requesting review. Do not defer the gate
   to the end of a module — every chunk merges, so an unverified chunk becomes the next one's

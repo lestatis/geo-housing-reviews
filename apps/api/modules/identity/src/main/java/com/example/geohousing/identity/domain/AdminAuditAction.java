@@ -13,5 +13,7 @@ public enum AdminAuditAction {
   /** A restriction placed on an account. */
   RESTRICT_ACCOUNT,
   /** A restriction ended before its own end date. */
-  LIFT_RESTRICTION
+  LIFT_RESTRICTION,
+  /** Somebody read the audit timeline. Recorded for the same reason a view of an account is. */
+  VIEW_AUDIT
 }

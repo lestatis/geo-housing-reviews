@@ -55,4 +55,28 @@ class PropertyAdminAuditEventJpaEntity {
     this.outcome = outcome;
     this.createdAt = createdAt;
   }
+
+  UUID adminAccountId() {
+    return adminAccountId;
+  }
+
+  PropertyAdminAction action() {
+    return action;
+  }
+
+  UUID propertyId() {
+    return propertyId;
+  }
+
+  UUID targetPropertyId() {
+    return targetPropertyId;
+  }
+
+  PropertyAdminOutcome outcome() {
+    return outcome;
+  }
+
+  Instant createdAt() {
+    return createdAt;
+  }
 }

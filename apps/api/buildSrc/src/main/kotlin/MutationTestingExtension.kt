@@ -22,4 +22,12 @@ abstract class MutationTestingExtension {
      * dominated by noise is one nobody acts on.
      */
     abstract val targetClasses: ListProperty<String>
+
+    /**
+     * Glob of tests allowed to kill the mutants. Defaults to the module's own package, which for
+     * every module so far is its Gradle name — except `shared-kernel`, whose package is `shared`.
+     * Getting this wrong is silent: no test matches, nothing is killed, and the score reads 0%
+     * rather than failing with anything that mentions test selection.
+     */
+    abstract val targetTests: Property<String>
 }

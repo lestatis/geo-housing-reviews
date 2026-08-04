@@ -233,3 +233,36 @@ Feature: Moderate and administer without touching the database
     And Dato reported that review for "HARASSMENT_OR_THREAT"
     When Mari decided that case as "RESTRICT_ACCOUNT" for "HARASSMENT" explaining "Repeated abuse."
     Then Nino is restricted
+
+  Scenario: the audit timeline shows what was done across modules
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And Nino created the property "Chugureti Court"
+    And Mari makes Nino an administrator
+    And Mari withdraws that property
+    When Mari asks for the audit timeline
+    Then the request succeeds
+    And the timeline records a "GRANT_ADMIN" by Mari in "identity"
+    And the timeline records a "HIDE" by Mari in "properties"
+
+  Scenario: the timeline can follow one administrator across modules
+    Given an administrator "Mari"
+    And an administrator "Tekla"
+    And a resident "Nino"
+    And Nino created the property "Avlabari Heights"
+    And Tekla withdraws that property
+    When Mari asks for the audit timeline of Tekla
+    Then the request succeeds
+    And the timeline records a "HIDE" by Tekla in "properties"
+    And the timeline names nobody but Tekla
+
+  Scenario: reading the timeline is itself recorded
+    Given an administrator "Mari"
+    And Mari asked for the audit timeline
+    When Mari asks for the audit timeline
+    Then the timeline records a "VIEW_AUDIT" by Mari in "identity"
+
+  Scenario: an ordinary account cannot read the audit timeline
+    Given a resident "Nino"
+    When Nino asks for the audit timeline
+    Then the request is rejected as forbidden

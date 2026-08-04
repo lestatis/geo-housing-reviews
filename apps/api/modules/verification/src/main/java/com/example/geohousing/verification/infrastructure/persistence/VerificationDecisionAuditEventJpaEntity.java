@@ -58,4 +58,28 @@ class VerificationDecisionAuditEventJpaEntity {
     this.outcome = outcome;
     this.createdAt = createdAt;
   }
+
+  UUID actorAccountId() {
+    return actorAccountId;
+  }
+
+  VerificationDecisionAction action() {
+    return action;
+  }
+
+  UUID caseId() {
+    return caseId;
+  }
+
+  String reasonCode() {
+    return reasonCode;
+  }
+
+  VerificationDecisionOutcome outcome() {
+    return outcome;
+  }
+
+  Instant createdAt() {
+    return createdAt;
+  }
 }

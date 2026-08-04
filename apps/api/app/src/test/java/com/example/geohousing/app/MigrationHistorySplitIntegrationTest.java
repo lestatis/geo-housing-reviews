@@ -66,18 +66,23 @@ class MigrationHistorySplitIntegrationTest {
    * Puts the container back to how a database looked before identity's {@code 2.7} and {@code 2.8}
    * existed.
    *
-   * <p>Flyway's {@code target} cannot express "everything except these two" — it is a ceiling, and
-   * both sort below the {@code 6.1} the other modules need. So they are applied and then undone:
-   * the rows leave the shared history and the CHECK goes back to the vocabulary {@code V2.5} left.
-   * That is the state a real deployment is in today, and the one where {@code 2.7} sorting below
-   * {@code 6.1} makes it unapplyable.
+   * <p>Flyway's {@code target} cannot express "everything except identity's later ones" — it is a
+   * ceiling, and they all sort below the {@code 6.1} the other modules need. So they are applied
+   * and then undone: the rows leave the shared history and the CHECK goes back to what {@code V2.5}
+   * left. That is the state a real deployment is in today, and the one where {@code 2.7} sorting
+   * below {@code 6.1} makes it unapplyable.
    */
   private static void rewindPastTheMigrationsThatCameLater() {
     try (java.sql.Connection connection =
             java.sql.DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
         java.sql.Statement statement = connection.createStatement()) {
-      statement.execute("delete from flyway_schema_history where version in ('2.7', '2.8')");
+      // Everything identity added after 2.6, by number rather than by name — a list of versions
+      // would need editing every time identity gains a migration, and would fail silently by
+      // leaving the newest one applied.
+      statement.execute(
+          "delete from flyway_schema_history"
+              + " where version ~ '^2\\.' and split_part(version, '.', 2)::int > 6");
       statement.execute(
           "alter table identity.admin_audit_event drop constraint admin_audit_event_action_check");
       statement.execute(

@@ -202,6 +202,47 @@
         },
         "type" : "object"
       },
+      "AuditEntryView" : {
+        "properties" : {
+          "action" : {
+            "type" : "string"
+          },
+          "actorAccountId" : {
+            "type" : "string"
+          },
+          "at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "module" : {
+            "type" : "string"
+          },
+          "outcome" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "subjectId" : {
+            "type" : "string"
+          },
+          "subjectType" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AuditTimelineResponse" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AuditEntryView"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "BadgeView" : {
         "properties" : {
           "explanationKey" : {
@@ -1293,6 +1334,56 @@
           }
         },
         "tags" : [ "admin-account-controller" ]
+      }
+    },
+    "/api/admin/audit" : {
+      "get" : {
+        "operationId" : "recorded",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "since",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "until",
+          "required" : false,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "actor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuditTimelineResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "audit-controller" ]
       }
     },
     "/api/admin/moderation/appeals" : {

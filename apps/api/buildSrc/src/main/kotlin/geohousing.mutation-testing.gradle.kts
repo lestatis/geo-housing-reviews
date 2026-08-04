@@ -17,6 +17,7 @@ val junitVersion = "6.1.1"
 val mutationTesting = extensions.create<MutationTestingExtension>("mutationTesting")
 mutationTesting.mutationThreshold.convention(0)
 mutationTesting.coverageThreshold.convention(0)
+mutationTesting.targetTests.convention("com.example.geohousing.${project.name}.*")
 mutationTesting.targetClasses.convention(
     listOf(
         "com.example.geohousing.${project.name}.domain.*",
@@ -61,7 +62,7 @@ val mutationTest = tasks.register<JavaExec>("mutationTest") {
             listOf(
                 "--reportDir", pitestReportDir.get().asFile.absolutePath,
                 "--targetClasses", mutationTesting.targetClasses.get().joinToString(","),
-                "--targetTests", "com.example.geohousing.${project.name}.*",
+                "--targetTests", mutationTesting.targetTests.get(),
                 // The target glob matches anything sharing the package, so without this PITest
                 // mutates the tests and their in-memory doubles too. Mutating a fake measures
                 // nothing about the production code and quietly pads the denominator.

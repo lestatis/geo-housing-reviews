@@ -89,6 +89,18 @@ public final class AdminAuditEvent {
         occurredAt);
   }
 
+  /**
+   * Records that an admin read the audit timeline.
+   *
+   * <p>No target: the subject is the log itself, and naming one account would misdescribe a query
+   * that may have spanned everybody.
+   */
+  public static AdminAuditEvent auditView(
+      UUID id, AccountId adminAccountId, AdminAuditOutcome outcome, Instant occurredAt) {
+    return new AdminAuditEvent(
+        id, adminAccountId, AdminAuditAction.VIEW_AUDIT, null, outcome, occurredAt);
+  }
+
   /** Rebuilds an event from persisted state. Intended for persistence adapters only. */
   public static AdminAuditEvent reconstitute(
       UUID id,
