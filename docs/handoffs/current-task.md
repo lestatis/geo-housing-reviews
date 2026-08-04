@@ -21,7 +21,9 @@ No issue. `docs/plans/016-basic-metrics.md`, both chunks implemented.
 
 ## Current status
 
-in_progress — both chunks are built, 36/36 Playwright pass, and the full gate is running.
+in_progress — both blocking findings from the independent review are fixed and covered by
+regressions. `./scripts/check.sh` reports `EXIT=0`, with all three touched modules re-running their
+tests and mutation tests. Awaiting a fresh review.
 
 ## Completed work
 
@@ -55,8 +57,8 @@ in_progress — both chunks are built, 36/36 Playwright pass, and the full gate 
 
 ## Remaining work
 
-Finish the gate, commit, and request an independent review. Then only right of reply remains of the
-MVP Must-haves, and it stays blocked on representative claims (`P-013`).
+A fresh independent review of the fixes. Then only right of reply remains of the MVP Must-haves, and
+it stays blocked on representative claims (`P-013`).
 
 ## Decisions made
 
@@ -106,9 +108,80 @@ Three guards proved by breaking them:
 3. The half-open window is pinned by decisions placed at the inclusive start, the last instant
    inside, and the exclusive end.
 
-## Failures and blockers
+## Second review's findings, all three fixed
 
-None open. Four things worth carrying forward:
+### P1 — outcome metrics counted failed attempts — FIXED
+
+Confirmed before changing anything: `ReviewModerationOutcome` and `VerificationDecisionOutcome` both
+carry `APPLIED` and `NOT_FOUND`, and both count queries filtered on action and time alone. A
+moderator publishing a review that no longer exists would have counted as a publication.
+
+Both queries now filter `outcome = APPLIED`. `anAttemptThatFoundNothingIsNotWorkCompleted` places
+`NOT_FOUND` rows in the window and asserts none of the four displayed totals move; neutralising the
+filter fails exactly that test and nothing else.
+
+### P1 — appeal counts could observe two snapshots — FIXED
+
+Confirmed, and the consequence was worse than a wrong number. At READ COMMITTED each statement takes
+its own snapshot, so an appeal decided between the two counts yields one overturned out of zero
+heard; `ModerationThroughput` refuses that impossible pair; and the advice reported it as *"the
+window ends before it starts"*. A routine appeal decision could break the screen and blame the
+reader's dates.
+
+Both numbers now come from **one grouped query** (`group by a.status`). "Overturned ≤ heard" is
+structural — every overturned appeal is one of the rows being summed — rather than an invariant
+checked afterwards and violated by ordinary use. Widening the isolation level would have been the
+other option; grouping removes the race instead of tolerating it.
+
+**Worth recording against my own earlier claim.** In the previous chunk I defended that
+`ModerationThroughput` guard as protection against a bad predicate. It is, and it stays. What I
+missed is that it also converted a benign race into a user-visible failure. Both things were true.
+
+### P2 — the advice caught too much — FIXED
+
+`InvalidMetricsWindowException` now, handled alone. Catching bare `IllegalArgumentException` meant
+any internal fault reached an administrator as a complaint about their input, sending them to fix
+dates that were never wrong while the real fault went unreported.
+
+## Earlier findings, for the record
+
+### P1 — outcome metrics count failed moderation and verification attempts
+
+`JpaReviewMetrics` and `JpaVerificationMetrics` ask their audit repositories to count by action
+only. The new JPQL predicates likewise filter only `action` and time. Those same append-only tables
+explicitly store `NOT_FOUND` attempts: a moderator acting on a review or verification case that has
+been deleted still creates an auditable event, but no review was published or removed and no
+verification was approved or rejected. Consequently, an administrator can see inflated throughput
+and conclude that moderation completed work it did not complete.
+
+Add an `outcome = APPLIED` predicate to both count queries and tests that place a `NOT_FOUND` row in
+the window; it must not change any of the four displayed outcome totals.
+
+### P1 — appeal counts can observe different snapshots during a normal decision
+
+`JpaModerationMetrics.between` issues `countDecidedBetween` and then
+`countWithStatusDecidedBetween` as separate SQL statements. At PostgreSQL's default read-committed
+isolation, a concurrent transaction changing an appeal from `PENDING` to `OVERTURNED` can commit
+between them. The first count then sees zero heard appeals and the second sees one overturned
+appeal. `ModerationThroughput` correctly refuses that impossible pair, but the handler catches the
+resulting `IllegalArgumentException` and returns the false message that the request window is
+invalid. A routine appeal decision can therefore make the metrics screen fail to load.
+
+Return both appeal counts from one aggregate query (for example `COUNT(*)` plus conditional count)
+or use one explicit consistent snapshot, and have the web advice handle only a dedicated invalid
+window exception. Add a concurrent/snapshot regression test or a repository test that establishes
+the single-query aggregate.
+
+The independent reviewer ran successfully:
+
+```bash
+cd apps/web && pnpm vitest run src/window.test.ts src/metrics/metrics.test.ts
+cd apps/web && pnpm typecheck
+cd apps/web && pnpm lint
+```
+
+The full backend gate was not rerun by the reviewer. Four earlier implementation notes worth
+carrying forward:
 
 - **The schema caught the test fixture three times.** A `CLOSED` case needs a `closed_at`; an adverse
   decision needs a public explanation ("no takedown without telling the author why" is a `CHECK`, not
@@ -135,9 +208,9 @@ None open. Four things worth carrying forward:
 
 ## Next action
 
-Read the gate's `EXIT=` marker, commit, and request an independent review of this branch in a
-session that did not implement it. 015's review is still outstanding and blocked on a human
-`codex update`.
+Fix the two independent-review findings, run the relevant backend and web checks, and request a
+fresh independent review of this branch in a session that did not implement the fixes. 015's review
+is still outstanding and blocked on a human `codex update`.
 
 ## Last updated
 

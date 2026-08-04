@@ -14,22 +14,29 @@ interface SpringDataAppealRepository extends JpaRepository<AppealJpaEntity, UUID
 
   List<AppealJpaEntity> findByStatusOrderByCreatedAtAsc(String status);
 
-  /**
-   * Appeals that reached an outcome in a window. Keyed on {@code decidedAt}, which is null until
-   * one does — a pending appeal has not been heard, and counting it would flatter the queue.
-   */
-  @Query(
-      "select count(a) from AppealJpaEntity a"
-          + " where a.decidedAt >= :from and a.decidedAt < :until")
-  long countDecidedBetween(@Param("from") Instant from, @Param("until") Instant until);
+  /** One row per outcome, so both appeal numbers come from a single snapshot. */
+  interface AppealOutcomeCount {
+    String getStatus();
+
+    long getTotal();
+  }
 
   /**
-   * Of those, the ones with this outcome. {@code docs/MODERATION.md} asks for overturns by name: it
-   * is the measurement that says whether decisions are made well, not merely quickly.
+   * Appeals that reached an outcome in a window, grouped by that outcome.
+   *
+   * <p>Keyed on {@code decidedAt}, which is null until one does — a pending appeal has not been
+   * heard, and counting it would flatter the queue.
+   *
+   * <p><strong>One query, deliberately.</strong> Counting "heard" and "overturned" separately meant
+   * two statements, and PostgreSQL's default READ COMMITTED gives each statement its own snapshot:
+   * a moderator deciding an appeal between them could produce one overturned appeal out of zero
+   * heard. Grouping makes the relationship structural — every overturned appeal is one of the rows
+   * being summed — instead of an invariant checked after the fact and violated by ordinary use.
    */
   @Query(
-      "select count(a) from AppealJpaEntity a"
-          + " where a.status = :status and a.decidedAt >= :from and a.decidedAt < :until")
-  long countWithStatusDecidedBetween(
-      @Param("status") String status, @Param("from") Instant from, @Param("until") Instant until);
+      "select a.status as status, count(a) as total from AppealJpaEntity a"
+          + " where a.decidedAt >= :from and a.decidedAt < :until"
+          + " group by a.status")
+  List<AppealOutcomeCount> countByOutcomeDecidedBetween(
+      @Param("from") Instant from, @Param("until") Instant until);
 }

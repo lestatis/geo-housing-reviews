@@ -1,6 +1,7 @@
 package com.example.geohousing.reviews.infrastructure.persistence;
 
 import com.example.geohousing.reviews.domain.ReviewModerationAction;
+import com.example.geohousing.reviews.domain.ReviewModerationOutcome;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -39,15 +40,21 @@ interface SpringDataReviewModerationAuditEventRepository
       Limit limit);
 
   /**
-   * How often one moderation action was applied in a window, {@code from} inclusive and {@code
-   * until} exclusive — the same half-open rule as the timeline, so the two cannot disagree about
-   * which day an action fell on.
+   * How often one moderation action was actually applied in a window, {@code from} inclusive and
+   * {@code until} exclusive — the same half-open rule as the timeline, so the two cannot disagree
+   * about which day an action fell on.
+   *
+   * <p>{@code APPLIED} only. This table also records attempts that found nothing: a moderator
+   * publishing a review that no longer exists is an auditable event, and rightly so, but no review
+   * was published. Counting it would tell an administrator that work was completed which was not.
    */
   @Query(
       "select count(e) from ReviewModerationAuditEventJpaEntity e"
-          + " where e.action = :action and e.createdAt >= :from and e.createdAt < :until")
+          + " where e.action = :action and e.outcome = :outcome"
+          + " and e.createdAt >= :from and e.createdAt < :until")
   long countActionBetween(
       @Param("action") ReviewModerationAction action,
+      @Param("outcome") ReviewModerationOutcome outcome,
       @Param("from") Instant from,
       @Param("until") Instant until);
 }

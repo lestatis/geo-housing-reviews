@@ -3,6 +3,7 @@ package com.example.geohousing.reviews.infrastructure.persistence;
 import com.example.geohousing.reviews.api.ReviewMetrics;
 import com.example.geohousing.reviews.api.ReviewThroughput;
 import com.example.geohousing.reviews.domain.ReviewModerationAction;
+import com.example.geohousing.reviews.domain.ReviewModerationOutcome;
 import com.example.geohousing.reviews.domain.ReviewStatus;
 import java.time.Instant;
 import org.springframework.stereotype.Repository;
@@ -32,9 +33,12 @@ class JpaReviewMetrics implements ReviewMetrics {
   @Transactional(readOnly = true)
   public ReviewThroughput between(Instant from, Instant until) {
     // From the audit rows, not from current status: a review published on Monday and removed on
-    // Friday is one publication that really happened, and today's status would erase it.
+    // Friday is one publication that really happened, and today's status would erase it. Applied
+    // outcomes only — an attempt that found nothing changed nothing.
     return new ReviewThroughput(
-        moderationEvents.countActionBetween(ReviewModerationAction.PUBLISH, from, until),
-        moderationEvents.countActionBetween(ReviewModerationAction.REMOVE, from, until));
+        moderationEvents.countActionBetween(
+            ReviewModerationAction.PUBLISH, ReviewModerationOutcome.APPLIED, from, until),
+        moderationEvents.countActionBetween(
+            ReviewModerationAction.REMOVE, ReviewModerationOutcome.APPLIED, from, until));
   }
 }

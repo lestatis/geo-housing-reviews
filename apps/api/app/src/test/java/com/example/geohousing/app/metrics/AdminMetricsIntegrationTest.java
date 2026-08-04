@@ -3,6 +3,7 @@ package com.example.geohousing.app.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.geohousing.moderation.api.ModerationMetrics;
+import com.example.geohousing.moderation.api.ModerationThroughput;
 import com.example.geohousing.reviews.api.ReviewMetrics;
 import com.example.geohousing.verification.api.VerificationMetrics;
 import java.time.Instant;
@@ -171,5 +172,72 @@ class AdminMetricsIntegrationTest {
         UUID.randomUUID(),
         decidedAt == null ? null : UUID.randomUUID(),
         decidedAt == null ? null : java.sql.Timestamp.from(decidedAt));
+  }
+
+  @Test
+  void anAttemptThatFoundNothingIsNotWorkCompleted() {
+    // The audit tables record attempts as well as effects: acting on a review or a case that has
+    // gone is an auditable event, and rightly so. But nothing was published, removed, approved or
+    // rejected by it, and counting it would tell an administrator that work was done which was not.
+    Instant start = Instant.parse("2026-07-01T00:00:00Z");
+    Instant end = start.plus(1, ChronoUnit.DAYS);
+
+    reviewModeration("PUBLISH", "APPLIED", start);
+    reviewModeration("PUBLISH", "NOT_FOUND", start.plusSeconds(1));
+    reviewModeration("REMOVE", "NOT_FOUND", start.plusSeconds(2));
+    verificationDecision("APPROVE", "APPLIED", start);
+    verificationDecision("APPROVE", "NOT_FOUND", start.plusSeconds(1));
+    verificationDecision("REJECT", "NOT_FOUND", start.plusSeconds(2));
+
+    assertThat(reviews.between(start, end).published()).isEqualTo(1);
+    assertThat(reviews.between(start, end).removed()).isZero();
+    assertThat(verification.between(start, end).approved()).isEqualTo(1);
+    assertThat(verification.between(start, end).rejected()).isZero();
+  }
+
+  @Test
+  void bothAppealNumbersComeFromOneQuery() {
+    // The guard on ModerationThroughput refuses "more overturned than heard". Two separate counts
+    // could produce exactly that from an ordinary appeal decision landing between them, at READ
+    // COMMITTED — and the screen would fail rather than the race being invisible. Grouping makes
+    // the relationship structural, so every outcome counted is one of the rows summed.
+    Instant start = Instant.parse("2026-07-10T00:00:00Z");
+    Instant end = start.plus(1, ChronoUnit.DAYS);
+    UUID caseId = openCase(start.minusSeconds(60), "CLOSED");
+    appeal(recordDecision(caseId, start), "OVERTURNED", start.plusSeconds(5));
+    appeal(recordDecision(caseId, start), "UPHELD", start.plusSeconds(6));
+
+    ModerationThroughput throughput = moderation.between(start, end);
+
+    assertThat(throughput.appealsOverturned()).isEqualTo(1);
+    assertThat(throughput.appealsHeard())
+        .as("heard is the sum of every outcome, so it can never be smaller than one of them")
+        .isEqualTo(2);
+  }
+
+  private void reviewModeration(String action, String outcome, Instant at) {
+    jdbcTemplate.update(
+        "insert into reviews.review_moderation_audit_event"
+            + " (id, moderator_account_id, action, review_id, reason_code, outcome, created_at)"
+            + " values (?, ?, ?, ?, 'CLEAN', ?, ?)",
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        action,
+        UUID.randomUUID(),
+        outcome,
+        java.sql.Timestamp.from(at));
+  }
+
+  private void verificationDecision(String action, String outcome, Instant at) {
+    jdbcTemplate.update(
+        "insert into verification.verification_decision_audit_event"
+            + " (id, actor_account_id, action, case_id, reason_code, outcome, created_at)"
+            + " values (?, ?, ?, ?, 'DOCUMENT_UNCLEAR', ?, ?)",
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        action,
+        UUID.randomUUID(),
+        outcome,
+        java.sql.Timestamp.from(at));
   }
 }

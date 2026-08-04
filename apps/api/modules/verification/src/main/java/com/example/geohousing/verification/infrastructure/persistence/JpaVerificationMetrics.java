@@ -3,6 +3,7 @@ package com.example.geohousing.verification.infrastructure.persistence;
 import com.example.geohousing.verification.api.VerificationMetrics;
 import com.example.geohousing.verification.api.VerificationThroughput;
 import com.example.geohousing.verification.domain.VerificationDecisionAction;
+import com.example.geohousing.verification.domain.VerificationDecisionOutcome;
 import com.example.geohousing.verification.domain.VerificationStatus;
 import java.time.Instant;
 import org.springframework.stereotype.Repository;
@@ -33,8 +34,11 @@ class JpaVerificationMetrics implements VerificationMetrics {
   @Override
   @Transactional(readOnly = true)
   public VerificationThroughput between(Instant from, Instant until) {
+    // Applied outcomes only: a decision recorded against a case that has gone approved nobody.
     return new VerificationThroughput(
-        decisions.countActionBetween(VerificationDecisionAction.APPROVE, from, until),
-        decisions.countActionBetween(VerificationDecisionAction.REJECT, from, until));
+        decisions.countActionBetween(
+            VerificationDecisionAction.APPROVE, VerificationDecisionOutcome.APPLIED, from, until),
+        decisions.countActionBetween(
+            VerificationDecisionAction.REJECT, VerificationDecisionOutcome.APPLIED, from, until));
   }
 }

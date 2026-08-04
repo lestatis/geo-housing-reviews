@@ -55,7 +55,7 @@ public class AdminMetricsService {
 
   private AdminMetrics over(Instant from, Instant until) {
     if (until.isBefore(from)) {
-      throw new IllegalArgumentException("the window ends before it starts");
+      throw new InvalidMetricsWindowException("the window ends before it starts");
     }
 
     ModerationThroughput moderated = moderation.between(from, until);

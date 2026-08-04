@@ -4,6 +4,7 @@ import com.example.geohousing.moderation.api.ModerationMetrics;
 import com.example.geohousing.moderation.api.ModerationThroughput;
 import com.example.geohousing.moderation.domain.AppealStatus;
 import com.example.geohousing.moderation.domain.ModerationCaseStatus;
+import com.example.geohousing.moderation.infrastructure.persistence.SpringDataAppealRepository.AppealOutcomeCount;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -59,9 +60,20 @@ class JpaModerationMetrics implements ModerationMetrics {
   @Override
   @Transactional(readOnly = true)
   public ModerationThroughput between(Instant from, Instant until) {
-    return new ModerationThroughput(
-        decisions.countDecidedBetween(from, until),
-        appeals.countDecidedBetween(from, until),
-        appeals.countWithStatusDecidedBetween(AppealStatus.OVERTURNED.name(), from, until));
+    // Both appeal numbers come out of one grouped query. Asking twice meant two statements, and
+    // READ COMMITTED gives each its own snapshot — a moderator deciding an appeal between them
+    // could yield one overturned appeal out of zero heard, which is impossible and would surface
+    // as a broken screen rather than as the race it is.
+    List<SpringDataAppealRepository.AppealOutcomeCount> outcomes =
+        appeals.countByOutcomeDecidedBetween(from, until);
+
+    long heard = outcomes.stream().mapToLong(AppealOutcomeCount::getTotal).sum();
+    long overturned =
+        outcomes.stream()
+            .filter(outcome -> AppealStatus.OVERTURNED.name().equals(outcome.getStatus()))
+            .mapToLong(AppealOutcomeCount::getTotal)
+            .sum();
+
+    return new ModerationThroughput(decisions.countDecidedBetween(from, until), heard, overturned);
   }
 }
