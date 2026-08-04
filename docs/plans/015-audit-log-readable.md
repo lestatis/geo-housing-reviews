@@ -1,6 +1,6 @@
 # Plan 015 — the audit log, made readable
 
-Status: **chunk 1 complete**; chunk 2 (the screen) outstanding
+Status: **complete**
 
 ## Context
 
@@ -80,7 +80,7 @@ Test-first for the merge (ordering, trimming, an actor filter that crosses modul
 adapter's mapping. Every module gains its first `api` consumer outside itself, so
 `ModuleBoundaryArchitectureTest` must be shown to fail if an adapter reaches past `api`.
 
-### 2. The timeline screen
+### 2. The timeline screen — **complete**
 
 `apps/web`: `/audit`, filterable by actor and window, with the same view-model allowlist the other
 screens use. Playwright: an administrator grants a role, then finds that grant in the timeline —
@@ -172,3 +172,31 @@ Three proofs, each by breaking the thing and watching exactly the right scenario
 Also caught by the gate rather than by reasoning: `V2.9` broke `MigrationHistorySplitIntegrationTest`,
 whose rewind removed named versions. It now removes identity's migrations above `2.6` by number, so
 the next one does not break it again.
+
+
+## Chunk 2 notes
+
+`/audit` shows the merged timeline, filterable by account and window, and **always states the window
+it is showing**. That last part is the one thing the screen does that the endpoint does not: the API
+defaults to seven days, and a screen that quietly applied that default would let somebody conclude
+nothing happened when they were looking at the wrong week. For an audit log that is the failure that
+matters.
+
+An entry with no actor renders as **System** rather than a dash — verification expires a lapsed badge
+on a schedule, and nobody decided it. A dash would read as data that went missing.
+
+`humanise` now uppercases its first character. It was built for `SCREAMING_CASE` enum names, where
+the first letter is already capital; module names arrive lowercase, and the column read "identity"
+among otherwise capitalised values.
+
+## A test-hygiene bug this chunk introduced and then fixed
+
+The first audit journey promoted a resident to administrator and never demoted them. Runs share a
+database, so on the *next* full run that leftover administrator meant `accounts.spec.ts`'s "the last
+administrator is told why they cannot step down" no longer had a last administrator — a test in
+another file, failing because of state this one left behind.
+
+Both halves are fixed: the audit journey puts the role back, and the last-administrator journey now
+*establishes* its precondition with `leaveOnlyAdministrator` instead of hoping the previous run
+tidied up. That is the same lesson the backend acceptance suite learned in plan 013, and the same
+helper by the same name. Proven by running the whole suite twice in succession.

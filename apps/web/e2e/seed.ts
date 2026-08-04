@@ -78,6 +78,36 @@ function grantAdmin(accountId: string): void {
   );
 }
 
+/**
+ * Makes this account the platform's only administrator.
+ *
+ * <p>Written directly, like the bootstrap above, because it is a statement about the whole
+ * population rather than about one account — no endpoint expresses "and nobody else". Runs share a
+ * database and each leaves its administrators behind, so a test asserting "this is the last one"
+ * has to establish that rather than hope the previous run tidied up.
+ */
+export function leaveOnlyAdministrator(accountId: string): void {
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      COMPOSE,
+      "exec",
+      "-T",
+      "postgres",
+      "psql",
+      "-U",
+      "geo_housing",
+      "-d",
+      "geo_housing",
+      "-c",
+      `update identity.account set role = 'USER' where role = 'ADMIN' and id <> '${accountId}'`,
+    ],
+    { stdio: "pipe" },
+  );
+}
+
 export type SeededCase = {
   propertyId: string;
   reviewId: string;

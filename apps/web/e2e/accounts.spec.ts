@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MODERATOR, SECOND_MODERATOR, seedAccounts } from "./seed";
+import { MODERATOR, SECOND_MODERATOR, leaveOnlyAdministrator, seedAccounts } from "./seed";
 import { signIn } from "./sign-in";
 
 /**
@@ -82,12 +82,10 @@ test("an administrator grants and removes another account's access", async ({ pa
 
 test("the last administrator is told why they cannot step down", async ({ page }) => {
   const seeded = await seedAccounts();
+  // Established rather than assumed: runs share a database and each leaves its administrators
+  // behind, so "the last administrator" is only true if this test makes it true.
+  leaveOnlyAdministrator(seeded.moderatorAccountId);
   await signIn(page, MODERATOR);
-  // Every other administrator gives up the role first, leaving exactly one.
-  await page.goto(`/accounts/${seeded.secondModeratorAccountId}`);
-  await page.waitForLoadState("networkidle");
-  await page.getByRole("button", { name: "Remove administrative access" }).click();
-  await expect(page.getByTestId("role")).toHaveText("User");
 
   await page.goto(`/accounts/${seeded.moderatorAccountId}`);
   await page.waitForLoadState("networkidle");
@@ -97,7 +95,7 @@ test("the last administrator is told why they cannot step down", async ({ page }
   await expect(page.locator("form").getByRole("alert")).toContainText("only administrator");
   await expect(page.getByTestId("role")).toHaveText("Admin");
 
-  // Put it back, because scenarios share a database and the next one needs two administrators.
+  // Put a second one back, because the next scenario needs two administrators.
   await page.goto(`/accounts/${seeded.secondModeratorAccountId}`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("button", { name: "Make administrator" }).click();

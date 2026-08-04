@@ -23,10 +23,16 @@ export function formatInstant(timestamp: string | undefined): string {
   }).format(moment)} UTC`;
 }
 
-/** "APPROVE_WITH_REDACTION" as something to read. */
+/**
+ * "APPROVE_WITH_REDACTION" as something to read.
+ *
+ * <p>The first character is uppercased rather than assumed to be: most callers pass SCREAMING_CASE
+ * enum names, but module names arrive lowercase, and leaving those alone produced "identity" in a
+ * column of otherwise capitalised values.
+ */
 export function humanise(value: string | undefined): string {
   if (!value) {
     return "—";
   }
-  return value.charAt(0) + value.slice(1).toLowerCase().replaceAll("_", " ");
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase().replaceAll("_", " ");
 }

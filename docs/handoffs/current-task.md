@@ -2,23 +2,33 @@
 
 ## Objective
 
-Implement plan 015, chunk 1: make the audit log readable — one timeline across every module, over
-HTTP.
+Implement plan 015, chunk 2: the audit timeline screen.
 
 ## Active branch
 
-`feat/015-audit-log-chunk1`, branched from clean `main` at `501d8fa`. Local only; not pushed.
+`feat/015-audit-screen-chunk2`, branched from clean `main` at `6906512`. Local only; not pushed.
 Awaiting a fresh independent review before merge.
 
 ## Related issue or plan
 
-No issue. `docs/plans/015-audit-log-readable.md`, chunk 1 of 2.
+No issue. `docs/plans/015-audit-log-readable.md`, chunk 2 of 2 — the plan is now **complete**.
 
 ## Current status
 
 completed, awaiting independent review
 
 ## Completed work
+
+- `/audit` shows the merged timeline, filterable by account and window, and **always states the
+  window it is showing** — the API defaults to seven days, and a screen that quietly applied that
+  would let somebody conclude nothing happened when they were looking at the wrong week.
+- `src/audit/timeline.ts` is the allowlist of what the screen may show; an entry with no actor reads
+  as **System** rather than a dash, because verification's scheduled expiry was decided by nobody.
+- `humanise` now uppercases its first character — it was built for `SCREAMING_CASE`, and module
+  names arrive lowercase.
+- Five Playwright journeys, 28 in total, run twice in succession to prove repeatability.
+
+### From chunk 1 (unchanged, already merged)
 
 - `shared-kernel` gains its first real contents: `AuditEntry` (when, who, which action, on what, how
   it ended, why) and the `AuditTrail` port every module implements.
@@ -35,7 +45,8 @@ completed, awaiting independent review
 
 ## Remaining work
 
-Plan 015 chunk 2: the timeline screen in `apps/web`.
+None in plan 015. Of the MVP Must-haves, right of reply (blocked on representative claims per
+`P-013`) and basic analytics remain.
 
 ## Decisions made
 
@@ -80,7 +91,15 @@ properties' trail reach `identity.domain` fails `ModuleBoundaryArchitectureTest`
 
 None outstanding.
 
-**The mutation gate had a silent hole.** `shared-kernel` scored 0% on its first run — not because
+**A test-hygiene bug this chunk introduced and fixed.** The first audit journey promoted a resident
+to administrator and never demoted them; runs share a database, so on the next full run that
+leftover meant `accounts.spec.ts`'s last-administrator test no longer had a last administrator — a
+test in another file failing on state this one left behind. Both halves fixed: the journey puts the
+role back, and the last-administrator journey now establishes its precondition with
+`leaveOnlyAdministrator` rather than hoping the previous run tidied up. Same lesson, same helper
+name, as the backend acceptance suite learned in plan 013.
+
+**The mutation gate had a silent hole (chunk 1).** `shared-kernel` scored 0% on its first run — not because
 mutants survived, but because the test glob is built from the Gradle module name and this module's
 package is `shared`, so no test was ever selected. PITest reports that as a score rather than as
 having selected nothing. `targetTests` is now configurable and the module is at 100%. Every other
@@ -100,5 +119,5 @@ module's name matches its package, so their scores have always been real — che
 
 ## Next action
 
-Independent review by a fresh session that did not implement this, then plan 015 chunk 2 — the
-timeline screen. Seven branches now await review; none are pushed.
+Independent review by a fresh session that did not implement this. **Eight branches now await
+review and none are pushed** — that backlog is itself worth a decision before more is stacked on it.
