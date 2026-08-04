@@ -262,6 +262,33 @@ const SYNTHETIC_PNG = Uint8Array.from(
   (c) => c.charCodeAt(0),
 );
 
+/**
+ * Fills the timeline past one page, with entries that are told apart on screen.
+ *
+ * <p>Each is a lookup of an account id that does not exist — audited on purpose (the log must
+ * record the id an administrator tried to reach, and a miss is itself worth recording), and each
+ * carries a different subject, so a test asserting that no entry appears on two pages is comparing
+ * things that genuinely differ. Repeated reads of the *timeline* would not do: they render as
+ * identical lines, and identical lines cannot show whether a page boundary repeated one.
+ */
+export async function fillAuditTimeline(entries: number): Promise<string[]> {
+  const moderatorToken = await tokenFor(MODERATOR);
+  grantAdmin((await call<{ accountId: string }>(moderatorToken, "GET", "/api/me")).accountId);
+
+  const looked: string[] = [];
+  for (let index = 0; index < entries; index++) {
+    const missing = crypto.randomUUID();
+    const response = await fetch(`${API}/api/admin/accounts/${missing}`, {
+      headers: { authorization: `Bearer ${moderatorToken}` },
+    });
+    if (response.status !== 404) {
+      throw new Error(`expected a miss for ${missing}, got ${response.status}`);
+    }
+    looked.push(missing);
+  }
+  return looked;
+}
+
 /** A property an administrator can act on. Created DRAFT, like every user-contributed record. */
 export async function seedProperty(): Promise<{ propertyId: string; name: string }> {
   const moderatorToken = await tokenFor(MODERATOR);

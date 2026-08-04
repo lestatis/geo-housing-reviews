@@ -1,5 +1,6 @@
 package com.example.geohousing.moderation.infrastructure.persistence;
 
+import com.example.geohousing.shared.audit.AuditCursor;
 import com.example.geohousing.shared.audit.AuditEntry;
 import com.example.geohousing.shared.audit.AuditTrail;
 import java.time.Instant;
@@ -34,14 +35,19 @@ class JpaModerationAuditTrail implements AuditTrail {
 
   @Override
   @Transactional(readOnly = true)
-  public List<AuditEntry> recorded(Instant from, Instant until, UUID actorAccountId, int limit) {
-    return decisions.findForTimeline(from, until, actorAccountId, Limit.of(limit)).stream()
+  public List<AuditEntry> recorded(
+      Instant from, AuditCursor before, UUID actorAccountId, int limit) {
+    return decisions
+        .findForTimeline(
+            from, before.at(), before.idBoundFor(MODULE), actorAccountId, Limit.of(limit))
+        .stream()
         .map(JpaModerationAuditTrail::toEntry)
         .toList();
   }
 
   private static AuditEntry toEntry(ModerationDecisionJpaEntity decision) {
     return new AuditEntry(
+        decision.id(),
         decision.decidedAt(),
         decision.decidedByAccountId(),
         MODULE,

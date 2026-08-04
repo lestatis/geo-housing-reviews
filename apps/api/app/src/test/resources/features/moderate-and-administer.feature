@@ -262,6 +262,29 @@ Feature: Moderate and administer without touching the database
     When Mari asks for the audit timeline
     Then the timeline records a "VIEW_AUDIT" by Mari in "identity"
 
+  Scenario: a timeline longer than one page can be read to the end
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And Nino created the property "Didube Gardens"
+    And Mari makes Nino an administrator
+    And Mari withdraws that property
+    When Mari reads the whole timeline 2 at a time
+    Then the walk reads the same entries as one page of the same window
+
+  Scenario: a mistyped actor filter is refused rather than answered for everyone
+    Given an administrator "Mari"
+    When Mari asks for the audit timeline of the actor "not-an-account-id"
+    Then the request is refused as invalid
+    And the response explains the problem with code "INVALID_AUDIT_QUERY"
+    And the response blames the "actor" parameter
+
+  Scenario: a window that ends before it starts is refused rather than answered with nothing
+    Given an administrator "Mari"
+    When Mari asks for the audit timeline from "2026-08-04T00:00:00Z" to "2026-08-01T00:00:00Z"
+    Then the request is refused as invalid
+    And the response explains the problem with code "INVALID_AUDIT_QUERY"
+    And the response blames the "until" parameter
+
   Scenario: an ordinary account cannot read the audit timeline
     Given a resident "Nino"
     When Nino asks for the audit timeline

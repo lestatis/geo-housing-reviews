@@ -22,10 +22,14 @@ import java.util.UUID;
 public interface AuditTrail {
 
   /**
-   * Entries in a half-open window {@code [from, until)}, newest first.
+   * Entries from {@code from} up to the position {@code before}, newest first.
+   *
+   * <p>The window's exclusive upper bound arrives as a cursor rather than an instant, because a
+   * page after the first resumes partway through one. {@link AuditCursor#idBoundFor} turns the
+   * global order into a predicate this source can push into its own query.
    *
    * @param actorAccountId only this actor's entries, or null for everyone's
    * @param limit at most this many; a caller merging several trails trims again afterwards
    */
-  List<AuditEntry> recorded(Instant from, Instant until, UUID actorAccountId, int limit);
+  List<AuditEntry> recorded(Instant from, AuditCursor before, UUID actorAccountId, int limit);
 }

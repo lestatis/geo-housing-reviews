@@ -56,6 +56,10 @@ class PropertyAdminAuditEventJpaEntity {
     this.createdAt = createdAt;
   }
 
+  UUID id() {
+    return id;
+  }
+
   UUID adminAccountId() {
     return adminAccountId;
   }

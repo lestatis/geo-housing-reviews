@@ -18,6 +18,9 @@ import java.util.UUID;
  * moderators: an internal note lives on its case, and a timeline is not a reason to widen where it
  * can be read.
  *
+ * <p>Carries the source row's id, which is not for display: it is the tiebreaker that makes the
+ * merged order total, and therefore what lets a cursor resume exactly where it left off.
+ *
  * <p>First occupant of {@code shared-kernel}. It earns the place by having five current callers
  * rather than an anticipated one, and it has no behaviour beyond validation and an ordering — the
  * next type that wants to live here should have to argue as hard.
@@ -28,10 +31,20 @@ import java.util.UUID;
  */
 public final class AuditEntry {
 
-  /** The order a timeline is read in. */
+  /**
+   * The order a timeline is read in, and a total one.
+   *
+   * <p>Time alone is not enough: five sources can record something in the same millisecond, and a
+   * merge that reordered itself between reads would make cursor paging skip or repeat entries.
+   * Module then id break every tie the same way each time.
+   */
   public static final Comparator<AuditEntry> NEWEST_FIRST =
-      Comparator.comparing(AuditEntry::at).reversed();
+      Comparator.comparing(AuditEntry::at)
+          .reversed()
+          .thenComparing(AuditEntry::module)
+          .thenComparing(Comparator.comparing(AuditEntry::id, AuditCursor.ID_ORDER).reversed());
 
+  private final UUID id;
   private final Instant at;
   private final UUID actorAccountId;
   private final String module;
@@ -42,6 +55,7 @@ public final class AuditEntry {
   private final String reason;
 
   public AuditEntry(
+      UUID id,
       Instant at,
       UUID actorAccountId,
       String module,
@@ -50,6 +64,7 @@ public final class AuditEntry {
       String subjectId,
       String outcome,
       String reason) {
+    this.id = Objects.requireNonNull(id, "id");
     this.at = Objects.requireNonNull(at, "at");
     this.actorAccountId = actorAccountId;
     this.module = required(module, "module");
@@ -58,6 +73,11 @@ public final class AuditEntry {
     this.subjectId = subjectId;
     this.outcome = outcome;
     this.reason = reason;
+  }
+
+  /** The source row's own identifier — the tiebreaker that makes the order total. */
+  public UUID id() {
+    return id;
   }
 
   public Instant at() {

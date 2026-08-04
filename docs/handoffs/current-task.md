@@ -2,122 +2,151 @@
 
 ## Objective
 
-Implement plan 015, chunk 2: the audit timeline screen.
+Fix the four findings from the independent review of plan 015 (the audit timeline).
 
 ## Active branch
 
-`feat/015-audit-screen-chunk2`, branched from clean `main` at `6906512`. Local only; not pushed.
-Awaiting a fresh independent review before merge.
+`fix/015-audit-review-findings`, branched from `main` at `a3c7d69`. Plan 015's two chunks are
+already on `main` and `origin/main`; this branch changes only what the review asked for.
 
 ## Related issue or plan
 
-No issue. `docs/plans/015-audit-log-readable.md`, chunk 2 of 2 — the plan is now **complete**.
+No issue. `docs/plans/015-audit-log-readable.md` — the plan is complete; this is its fix pass.
 
 ## Current status
 
-completed, awaiting independent review
+in_progress — all four findings are implemented; `./scripts/check.sh` reports `EXIT=0` and all 31
+Playwright tests pass against the local stack. A fresh independent review is the remaining step.
 
 ## Completed work
 
-- `/audit` shows the merged timeline, filterable by account and window, and **always states the
-  window it is showing** — the API defaults to seven days, and a screen that quietly applied that
-  would let somebody conclude nothing happened when they were looking at the wrong week.
-- `src/audit/timeline.ts` is the allowlist of what the screen may show; an entry with no actor reads
-  as **System** rather than a dash, because verification's scheduled expiry was decided by nobody.
-- `humanise` now uppercases its first character — it was built for `SCREAMING_CASE`, and module
-  names arrive lowercase.
-- Five Playwright journeys, 28 in total, run twice in succession to prove repeatability.
+### P1a — the timeline can be read past its first page
 
-### From chunk 1 (unchanged, already merged)
+`API_GUIDELINES.md` §Pagination requires cursor pagination and stable sort semantics for audit
+events; the review was right that "no deep paging" was never mine to declare out of scope.
 
-- `shared-kernel` gains its first real contents: `AuditEntry` (when, who, which action, on what, how
-  it ended, why) and the `AuditTrail` port every module implements.
-- Five trails — identity, properties, reviews, verification, moderation — each answering only about
-  its own tables. Three entities that were write-only gained read accessors; each Spring Data
-  repository gained one windowed, actor-filtered, newest-first query.
-- `AuditTimelineService` merges them: each trail asked for the full limit, merged, trimmed again.
-- `GET /api/admin/audit?since=&until=&actor=&limit=` behind the existing admin gate.
-- Reading the timeline is itself audited (`VIEW_AUDIT`, migration `V2.9`, published through
-  `identity.api.AuditReadRecorder`). An unrecorded read is not a successful one.
-- Four Gherkin scenarios; `AuditSteps`. `AdminAuditEventTest` covers the factories in identity's own
-  suite, where its mutation gate can see them.
-- `mutationTesting.targetTests` is now configurable — see below.
+- `shared-kernel` gains `AuditCursor(at, module, id)` — a position in the merged order, encoded
+  base64url and opaque to callers. An unreadable cursor is **refused**, not treated as a first page:
+  showing somebody the same page again would let them believe they had reached the end of a list
+  they had not.
+- `AuditEntry` carries the source row's `id`, which makes `NEWEST_FIRST` a **total** order
+  (`at` desc, `module` asc, `id` desc). Without a total order a page boundary is free to repeat one
+  entry and drop another.
+- `AuditCursor.idBoundFor(module)` turns that global order into a predicate each source can push
+  into SQL knowing only its own name: its own module resumes at its own row, a module sorting after
+  it has not been read at this instant at all, one sorting before it is finished with this instant.
+- All five queries are keyset now: `at >= :from and (at < :beforeAt or (at = :beforeAt and
+  id < :beforeId))`.
+- `AuditTimelineService` asks each trail for `limit + 1`. That extra row is the whole test for "is
+  there more": with exactly `limit`, a full merge could equally mean the history ended or that one
+  trail was cut off mid-answer.
+- `AuditTimelineResponse` gains `nextCursor` (null on the last page). `/audit` shows **"more remain"
+  vs "this is the end of the window"** in the caption and a *Show older entries* link.
+
+**`UUID.compareTo` was wrong here, and the test found it.** It compares the two halves as *signed*
+longs, so every id with the high bit set — about half of all random ids — sorts below every id
+without it. PostgreSQL compares `uuid` as sixteen unsigned bytes. The keyset predicate is evaluated
+by Postgres and the merge is evaluated in Java, so the two disagreeing meant rows quietly missing at
+a page boundary. `AuditCursor.ID_ORDER` is the unsigned comparator, and it is what `NEWEST_FIRST`
+uses.
+
+### P1b — an inclusive end date no longer drops the last second of the day
+
+`windowBounds` translates the screen's two inclusive UTC dates into the half-open range the API
+takes: the end date becomes the **start of the next day**. The screen previously sent `23:59:59Z`
+against SQL asking for `created_at < :until`, so anything in the final sliver of the chosen day
+vanished from an audit log. Beyond year 9999 an ISO instant grows a sign and a fifth digit, so the
+translation clamps at `9999-12-31T23:59:59.999Z` — nothing can be recorded after it.
+
+### P2a — the window semantic is now one thing, stated
+
+Two **inclusive UTC calendar dates**, which is what the date inputs mean to whoever types them. The
+default is today plus the six days before it — seven inclusive days, matching what the screen says.
+It used to subtract seven and show eight dated days. The screen says "both days included". A `since`
+or `until` that is not a calendar date falls back to the default rather than being passed on: a
+rejected query tells the reader nothing and a mangled one tells them something false.
+
+### P2b — invalid queries are 400s that name the parameter
+
+- `InvalidAuditQueryException(field, code, detail)` and an `AuditExceptionHandler` scoped to
+  `app.audit` (a global advice would answer for other modules' controllers). Malformed actor id,
+  reversed window and unreadable cursor are RFC 7807 with `code: INVALID_AUDIT_QUERY` and
+  `fieldErrors[].field`.
+- Documented in OpenAPI. **Both** responses had to be declared: adding one `@ApiResponse` replaces
+  springdoc's derived set rather than adding to it, and a documented 400 that silently deleted the
+  200 would take the response schema out of the generated client.
+- The screen shows a targeted message per field. A mistyped account id used to come back a 500 and
+  read as "the timeline could not be loaded" — telling an administrator the audit log was broken
+  when they had fumbled a paste.
 
 ## Remaining work
 
-None in plan 015. Of the MVP Must-haves, right of reply (blocked on representative claims per
-`P-013`) and basic analytics remain.
+A fresh independent review of this branch.
+Of the MVP Must-haves, right of reply (blocked on representative claims per `P-013`) and basic
+analytics remain. Eight branches are on `main` with no independent review — still awaiting a
+decision.
 
 ## Decisions made
 
-- **The port lives in `shared-kernel`, not five `api` packages.** Five separate interfaces cannot be
-  collected polymorphically, so the app would need five injection points and five adapters to a
-  common type — the translation layer the shared entry existed to avoid.
-- **No internal note, no public explanation in the timeline.** A moderator's note lives on its case.
-  The timeline says an action happened; the module owning the subject says what it contained.
-- **A window is mandatory and a reversed one is refused.** Answering an impossible window with an
-  empty list reads as "nothing happened", which is the one answer an audit log must never give by
-  accident.
-- **`AuditEntry` is a class, not a record** — half its fields are optional, and records cannot have
-  accessors of a different type than their components.
+- **The cursor carries a module and an id, not just an instant.** Five sources can record in the
+  same millisecond; with a timestamp alone a page ending mid-millisecond either repeats that instant
+  or skips the rest of it, and skipping is how an audit log loses the row somebody is looking for.
+- **A cursor from outside the requested window is refused.** A cursor names a position, not a
+  window; pairing one with a window it did not come from would answer a question nobody asked.
+- **The screen's dates are inclusive; the API's `until` is exclusive.** One translation, in one
+  function, tested.
+- **`limit + 1` over-fetch per trail** rather than a count query — five counts per page to answer a
+  yes/no question the extra row already answers.
 
 ## Changed files
 
-New: `shared-kernel/.../audit/{AuditEntry,AuditTrail}.java` and `AuditEntryTest`,
-`identity/api/AuditReadRecorder.java`, `identity/infrastructure/AuditReadRecorderAdapter.java`,
-five `Jpa*AuditTrail.java`, `app/.../audit/{AuditQuery,AuditTimelineService,AuditController,
-AuditEntryView,AuditTimelineResponse,AuditBeanConfiguration}.java`, their tests,
-`acceptance/AuditSteps.java`, `identity/domain/AdminAuditEventTest.java`,
-`V2.9__audit_the_audit_read.sql`, `docs/plans/015-audit-log-readable.md`.
+New: `shared-kernel/.../audit/AuditCursor.java` + test, `app/.../audit/AuditPage.java`,
+`InvalidAuditQueryException.java`, `AuditExceptionHandler.java`, `AuditPagingIntegrationTest.java`.
 
-Modified: `AdminAuditAction`, `AdminAuditEvent`, five Spring Data repositories, three audit entities
-(read accessors), five `build.gradle.kts` (shared-kernel dependency),
-`buildSrc/.../MutationTestingExtension.kt` and the mutation convention,
-`MigrationHistorySplitIntegrationTest`, `moderate-and-administer.feature`, `docs/api/openapi.json`,
-`.claude/rules/testing.md`.
+Modified: `AuditEntry`, `AuditTrail`, five `Jpa*AuditTrail`, five Spring Data repositories, three
+audit entities (`id()` accessors), `AuditQuery`, `AuditTimelineService`, `AuditController`,
+`AuditTimelineResponse`, `AuditTimelineServiceTest`, `AuditSteps`, `ScenarioState`,
+`moderate-and-administer.feature`, `docs/api/openapi.json`, `apps/web/app/audit/page.tsx`,
+`apps/web/src/audit/timeline.ts` + test, `apps/web/e2e/{audit.spec.ts,seed.ts}`.
 
 ## Commands and tests
 
 ```bash
 cd apps/api && ./gradlew :app:test --tests '*Audit*' -PskipMutation
+cd apps/api && ./gradlew :app:test --tests '*OpenApiContractIntegrationTest' -DupdateOpenApiSpec=true
+cd apps/web && pnpm vitest run src/audit/timeline.test.ts && pnpm typecheck && pnpm lint
 ./scripts/check.sh          # read the EXIT= marker, not a wrapper's status
+cd apps/web && pnpm e2e     # needs the stack; see apps/web/README.md
 ```
 
-Three proofs, each by breaking the thing: limiting the merge to one trail fails the cross-module
-scenarios; dropping the actor filter fails exactly the follow-one-administrator scenario; making
-properties' trail reach `identity.domain` fails `ModuleBoundaryArchitectureTest`.
+**The paging guard was proved by breaking it.** Reverting `NEWEST_FIRST` to `UUID.compareTo`
+(signed) makes `AuditPagingIntegrationTest.walkingALongTimelineReadsEveryEntryExactlyOnce` fail and
+nothing else — which is what that test exists to catch. The integration test inserts sixty identity
+rows, three per second, then three rows sharing one instant across two modules with ids on either
+side of the signed/unsigned boundary, and asserts that reading seven at a time returns exactly what
+one page of the same window returns.
 
 ## Failures and blockers
 
-None outstanding.
-
-**A test-hygiene bug this chunk introduced and fixed.** The first audit journey promoted a resident
-to administrator and never demoted them; runs share a database, so on the next full run that
-leftover meant `accounts.spec.ts`'s last-administrator test no longer had a last administrator — a
-test in another file failing on state this one left behind. Both halves fixed: the journey puts the
-role back, and the last-administrator journey now establishes its precondition with
-`leaveOnlyAdministrator` rather than hoping the previous run tidied up. Same lesson, same helper
-name, as the backend acceptance suite learned in plan 013.
-
-**The mutation gate had a silent hole (chunk 1).** `shared-kernel` scored 0% on its first run — not because
-mutants survived, but because the test glob is built from the Gradle module name and this module's
-package is `shared`, so no test was ever selected. PITest reports that as a score rather than as
-having selected nothing. `targetTests` is now configurable and the module is at 100%. Every other
-module's name matches its package, so their scores have always been real — checked, not assumed.
+None open. Two Docker containers are wedged (`could not kill container: permission denied`) and
+cannot be removed without a privileged `systemctl restart docker`, which this repository forbids an
+agent from running. Nothing has failed because of them; if integration tests start reporting
+`address already in use`, that recovery is `CONTRIBUTING.md` → "If the gate is unexpectedly slow or
+fails oddly", and it needs a human.
 
 ## Unresolved risks
 
-- **The timeline concentrates what was scattered.** Five tables nobody could read become one screen
-  answering "what has this moderator been doing" — useful for the access review `SECURITY_PRIVACY.md`
-  §4 asks for, and equally a way to pressure a moderator. Admin-only and audited is what the platform
-  can do about it; naming it here so a reviewer weighs it deliberately.
-- **No paging.** One window, newest first, `limit` clamped to 200. Deep paging across five
-  independently ordered sources needs a composite cursor and is not built.
-- **Five queries per page.** Fine now; the first shape to revisit if the audit tables grow.
-- **No retention.** `SECURITY_PRIVACY.md` §7 leaves audit retention at a policy period still pending
-  legal approval, and inventing one here would be setting policy by implementation.
+- **The timeline concentrates what was scattered.** Admin-only and audited is what the platform can
+  do about "what has this moderator been doing" being one screen; naming it so a reviewer weighs it.
+- **Five queries per page, now `limit + 1` rows each.** Fine at current volume; the first shape to
+  revisit if the audit tables grow.
+- **No retention.** `SECURITY_PRIVACY.md` §7 leaves audit retention at a policy period pending legal
+  approval; inventing one here would be setting policy by implementation.
 
 ## Next action
 
-Independent review by a fresh session that did not implement this. **Eight branches now await
-review and none are pushed** — that backlog is itself worth a decision before more is stacked on it.
+Request a fresh independent review of this branch, in a session that did not implement it.
+
+## Last updated
+
+2026-08-04

@@ -64,6 +64,10 @@ class ReviewModerationAuditEventJpaEntity {
     this.createdAt = createdAt;
   }
 
+  UUID id() {
+    return id;
+  }
+
   UUID moderatorAccountId() {
     return moderatorAccountId;
   }

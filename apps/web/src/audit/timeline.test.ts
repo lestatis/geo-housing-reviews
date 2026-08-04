@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type AuditEntry, describeWindow, toTimelineRow } from "./timeline";
+import { type AuditEntry, describeWindow, toTimelineRow, windowBounds } from "./timeline";
 
 const ENTRY: AuditEntry = {
   at: "2026-08-04T10:15:00Z",
@@ -62,12 +62,12 @@ describe("a line of the audit timeline", () => {
 });
 
 describe("the window a timeline covers", () => {
-  it("defaults to the last seven days, stated rather than implied", () => {
-    // The endpoint defaults to seven days. A screen that showed a filtered view without saying so
-    // would let somebody conclude nothing happened when they were looking at the wrong week.
+  it("defaults to seven inclusive days, which is what the screen says it does", () => {
+    // Today and the six before it. Subtracting seven would show eight dated days under a label
+    // saying seven — a screen and a window disagreeing about what is being looked at.
     const window = describeWindow(undefined, undefined, new Date("2026-08-04T12:00:00Z"));
 
-    expect(window.since).toBe("2026-07-28");
+    expect(window.since).toBe("2026-07-29");
     expect(window.until).toBe("2026-08-04");
   });
 
@@ -76,5 +76,43 @@ describe("the window a timeline covers", () => {
 
     expect(window.since).toBe("2026-07-01");
     expect(window.until).toBe("2026-07-15");
+  });
+
+  it("falls back to the default rather than passing on something that is not a date", () => {
+    // A rejected query tells the reader nothing; a mangled one tells them something false.
+    const window = describeWindow("last tuesday", "2026-13-45", new Date("2026-08-04T12:00:00Z"));
+
+    expect(window.since).toBe("2026-07-29");
+    expect(window.until).toBe("2026-08-04");
+  });
+});
+
+describe("translating that window for the API", () => {
+  it("ends at the next midnight, so the last second of the chosen day is inside it", () => {
+    // The regression this exists for: the screen sent 23:59:59Z against SQL asking for
+    // created_at < :until, so anything recorded in the final fraction of the day vanished from an
+    // audit log — the one place a missing entry matters most.
+    const bounds = windowBounds({ since: "2026-08-01", until: "2026-08-04" });
+
+    expect(bounds.since).toBe("2026-08-01T00:00:00Z");
+    expect(new Date("2026-08-04T23:59:59.500Z") < new Date(bounds.until)).toBe(true);
+    expect(new Date("2026-08-05T00:00:00.000Z") < new Date(bounds.until)).toBe(false);
+  });
+
+  it("crosses a month and a year boundary", () => {
+    expect(windowBounds({ since: "2026-01-01", until: "2026-01-31" }).until).toBe(
+      "2026-02-01T00:00:00.000Z",
+    );
+    expect(windowBounds({ since: "2026-01-01", until: "2026-12-31" }).until).toBe(
+      "2027-01-01T00:00:00.000Z",
+    );
+  });
+
+  it("clamps at the end of representable time rather than emitting a five-digit year", () => {
+    // Nothing can be recorded after it, so the clamp loses nothing — and an expanded ISO year is
+    // something the API would refuse to parse.
+    expect(windowBounds({ since: "9999-12-31", until: "9999-12-31" }).until).toBe(
+      "9999-12-31T23:59:59.999Z",
+    );
   });
 });

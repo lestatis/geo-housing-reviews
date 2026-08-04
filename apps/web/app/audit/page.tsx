@@ -2,21 +2,22 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { serverApi } from "@/src/api/client";
 import { accessToken } from "@/src/auth/session";
-import { describeWindow, toTimelineRow } from "@/src/audit/timeline";
+import { describeWindow, toTimelineRow, windowBounds } from "@/src/audit/timeline";
 
 export const dynamic = "force-dynamic";
 
 export default async function Audit({
   searchParams,
 }: {
-  searchParams: Promise<{ actor?: string; since?: string; until?: string }>;
+  searchParams: Promise<{ actor?: string; since?: string; until?: string; cursor?: string }>;
 }) {
   if (!(await accessToken())) {
     redirect("/");
   }
 
-  const { actor, since, until } = await searchParams;
+  const { actor, since, until, cursor } = await searchParams;
   const window = describeWindow(since, until, new Date());
+  const bounds = windowBounds(window);
   const trimmedActor = actor?.trim() ?? "";
 
   const result = await (
@@ -24,9 +25,10 @@ export default async function Audit({
   ).GET("/api/admin/audit", {
     params: {
       query: {
-        since: `${window.since}T00:00:00Z`,
-        until: `${window.until}T23:59:59Z`,
+        since: bounds.since,
+        until: bounds.until,
         actor: trimmedActor || undefined,
+        cursor: cursor?.trim() || undefined,
       },
     },
   });
@@ -37,17 +39,27 @@ export default async function Audit({
   if (!result.response.ok || !result.data) {
     return (
       <main>
+        <p>
+          <Link href="/moderation">← Moderation</Link>
+        </p>
         <h1>Audit</h1>
-        <p role="alert">
-          {result.response.status === 403
-            ? "This account is not a moderator."
-            : "The timeline could not be loaded."}
+        <p role="alert" data-testid="audit-error">
+          {problemMessage(result.response.status, result.error)}
         </p>
       </main>
     );
   }
 
   const rows = (result.data.items ?? []).map(toTimelineRow);
+  const older = result.data.nextCursor;
+  const olderHref = older
+    ? `/audit?${new URLSearchParams({
+        since: window.since,
+        until: window.until,
+        ...(trimmedActor ? { actor: trimmedActor } : {}),
+        cursor: older,
+      })}`
+    : null;
 
   return (
     <main>
@@ -67,17 +79,24 @@ export default async function Audit({
       </form>
 
       {/* Stated, never implied: a filtered timeline that looked unfiltered would let somebody
-          conclude nothing happened when they were looking at the wrong week. */}
+          conclude nothing happened when they were looking at the wrong week. Both dates are
+          included — "to 4 August" shows the whole of the 4th. */}
       <p data-testid="window">
-        {window.since} to {window.until}
+        {window.since} to {window.until}, both days included
         {trimmedActor ? `, account ${trimmedActor.slice(0, 8)} only` : ", everyone"}
+        {cursor ? ", continued" : ""}
       </p>
 
       {rows.length === 0 ? (
         <p data-testid="empty">Nothing was recorded in this window.</p>
       ) : (
         <table>
-          <caption>{rows.length} entries, newest first</caption>
+          {/* Says whether this is all of it. "42 entries" over a page that stopped at the limit
+              reads as a complete answer, which is how somebody concludes nothing else happened. */}
+          <caption data-testid="page-summary">
+            {rows.length} entries, newest first
+            {olderHref ? " — more remain" : " — this is the end of the window"}
+          </caption>
           <thead>
             <tr>
               <th scope="col">When</th>
@@ -104,6 +123,41 @@ export default async function Audit({
           </tbody>
         </table>
       )}
+
+      {olderHref ? (
+        <p>
+          <Link href={olderHref} data-testid="older">
+            Show older entries
+          </Link>
+        </p>
+      ) : null}
     </main>
   );
+}
+
+/** Enough of a Problem Details body to point at the field that is wrong. */
+type Problem = { code?: string; fieldErrors?: { field?: string; code?: string }[] };
+
+const FIELD_MESSAGES: Record<string, string> = {
+  actor: "That account id is not an id. Paste the whole identifier, or leave it blank for everyone.",
+  until: "The end of the window is before its start. Swap the two dates.",
+  cursor: "That link no longer works. Start again from the top of the window.",
+};
+
+/**
+ * What went wrong, in the reader's terms.
+ *
+ * <p>A mistyped account id used to reach the API as an unhandled failure and come back a 500, which
+ * the screen reported as "the timeline could not be loaded" — telling an administrator the audit
+ * log had broken when they had made a typo.
+ */
+function problemMessage(status: number, error: unknown): string {
+  if (status === 403) {
+    return "This account is not a moderator.";
+  }
+  const field = (error as Problem | undefined)?.fieldErrors?.[0]?.field;
+  if (status === 400 && field && FIELD_MESSAGES[field]) {
+    return FIELD_MESSAGES[field];
+  }
+  return "The timeline could not be loaded.";
 }

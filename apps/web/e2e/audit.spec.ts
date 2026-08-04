@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MODERATOR, seedAccounts } from "./seed";
+import { MODERATOR, fillAuditTimeline, seedAccounts } from "./seed";
 import { signIn } from "./sign-in";
 
 /**
@@ -95,4 +95,50 @@ test("an ordinary account gets no timeline", async ({ page }) => {
     "This account is not a moderator.",
   );
   await expect(page.getByTestId("audit-row")).toHaveCount(0);
+});
+
+test("a timeline longer than a page says so, and can be read further", async ({ page }) => {
+  // A page that stopped at the limit and said "50 entries" would read as a complete answer. For an
+  // audit log that is the failure that matters: somebody concludes nothing else happened.
+  await seedAccounts();
+  const looked = await fillAuditTimeline(55);
+  await signIn(page, MODERATOR);
+  await page.goto("/audit");
+
+  await expect(page.getByTestId("page-summary")).toContainText("more remain");
+  const firstPage = await page.getByTestId("audit-row").allInnerTexts();
+
+  await page.getByTestId("older").click();
+  await expect(page.getByTestId("window")).toContainText("continued");
+
+  const secondPage = await page.getByTestId("audit-row").allInnerTexts();
+  expect(secondPage.length).toBeGreaterThan(0);
+  // No entry appears on both pages: the cursor resumes after the boundary rather than at it.
+  expect(secondPage.filter((row) => firstPage.includes(row))).toEqual([]);
+
+  // And nothing fell into the gap between them: every lookup is on one page or the other.
+  const both = [...firstPage, ...secondPage].join("\n");
+  for (const missing of looked) {
+    expect(both).toContain(missing.slice(0, 8));
+  }
+});
+
+test("a mistyped account id is answered as a typo, not as a broken timeline", async ({ page }) => {
+  // This used to reach the API as an unhandled failure and come back a 500, which the screen
+  // reported as "the timeline could not be loaded" — telling an administrator the audit log was
+  // broken when they had fumbled a paste.
+  await seedAccounts();
+  await signIn(page, MODERATOR);
+  await page.goto("/audit?actor=not-an-account-id");
+
+  await expect(page.getByTestId("audit-error")).toContainText("not an id");
+  await expect(page.getByTestId("audit-row")).toHaveCount(0);
+});
+
+test("a window that ends before it starts is answered as such", async ({ page }) => {
+  await seedAccounts();
+  await signIn(page, MODERATOR);
+  await page.goto("/audit?since=2026-08-04&until=2026-08-01");
+
+  await expect(page.getByTestId("audit-error")).toContainText("before its start");
 });

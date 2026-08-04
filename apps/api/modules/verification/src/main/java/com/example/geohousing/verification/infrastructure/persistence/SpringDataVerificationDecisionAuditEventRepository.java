@@ -13,17 +13,27 @@ interface SpringDataVerificationDecisionAuditEventRepository
     extends JpaRepository<VerificationDecisionAuditEventJpaEntity, UUID> {
 
   /**
-   * Entries in a window, newest first, optionally narrowed to one actor. The null check keeps
-   * "everyone" and "this person" as one query rather than two code paths.
+   * A page of the timeline, newest first, resumed from a cursor.
+   *
+   * <p>Keyset rather than offset: the caller merges five sources, and an offset into one of them
+   * means nothing in the merged order. {@code beforeAt} with {@code beforeId} expresses "strictly
+   * after this position", where the id bound is whatever the cursor says this module's rows must
+   * sort below at that exact instant.
+   *
+   * <p>The null check on the actor keeps "everyone" and "this person" as one query rather than two
+   * code paths.
    */
   @Query(
       "select e from VerificationDecisionAuditEventJpaEntity e"
-          + " where e.createdAt >= :from and e.createdAt < :until"
+          + " where e.createdAt >= :from"
+          + " and (e.createdAt < :beforeAt"
+          + "      or (e.createdAt = :beforeAt and e.id < :beforeId))"
           + " and (:actorAccountId is null or e.actorAccountId = :actorAccountId)"
           + " order by e.createdAt desc, e.id desc")
   List<VerificationDecisionAuditEventJpaEntity> findForTimeline(
       @Param("from") Instant from,
-      @Param("until") Instant until,
+      @Param("beforeAt") Instant beforeAt,
+      @Param("beforeId") UUID beforeId,
       @Param("actorAccountId") UUID actorAccountId,
       Limit limit);
 }

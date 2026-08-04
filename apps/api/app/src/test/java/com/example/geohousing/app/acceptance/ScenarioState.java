@@ -20,6 +20,7 @@ public class ScenarioState {
   private final Map<String, String> actorAccountIds = new HashMap<>();
   private final Map<String, String> propertyIds = new HashMap<>();
   private final Set<String> helpfulVoters = new LinkedHashSet<>();
+  private java.util.List<String> timelineWalk = java.util.List.of();
 
   private String currentReviewId;
   private String currentRestrictionId;
@@ -95,6 +96,15 @@ public class ScenarioState {
 
   public Set<String> helpfulVoters() {
     return Set.copyOf(helpfulVoters);
+  }
+
+  /** What a page-by-page walk of the timeline read, for comparing against one page of it. */
+  public void rememberTimelineWalk(java.util.List<String> entries) {
+    timelineWalk = java.util.List.copyOf(entries);
+  }
+
+  public java.util.List<String> timelineWalk() {
+    return timelineWalk;
   }
 
   /** Every account this scenario introduced, for asserting that none of them leaks into a view. */

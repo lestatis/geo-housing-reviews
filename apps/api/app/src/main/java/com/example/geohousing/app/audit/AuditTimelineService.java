@@ -1,6 +1,7 @@
 package com.example.geohousing.app.audit;
 
 import com.example.geohousing.identity.api.AuditReadRecorder;
+import com.example.geohousing.shared.audit.AuditCursor;
 import com.example.geohousing.shared.audit.AuditEntry;
 import com.example.geohousing.shared.audit.AuditTrail;
 import java.util.List;
@@ -36,24 +37,40 @@ public class AuditTimelineService {
    * what to whom is exactly the access an audit log exists to capture, so an unrecorded read must
    * not be a successful one.
    */
-  public List<AuditEntry> recorded(AuditQuery query, UUID readBy) {
+  public AuditPage recorded(AuditQuery query, UUID readBy) {
     Objects.requireNonNull(query, "query");
     Objects.requireNonNull(readBy, "readBy");
-    List<AuditEntry> entries = merged(query);
+    AuditPage page = merged(query);
     auditReadRecorder.recordTimelineRead(readBy);
-    return entries;
+    return page;
   }
 
-  private List<AuditEntry> merged(AuditQuery query) {
-    return trails.stream()
-        .flatMap(
-            trail ->
-                trail
-                    .recorded(
-                        query.from(), query.until(), query.actor().orElse(null), query.limit())
-                    .stream())
-        .sorted(AuditEntry.NEWEST_FIRST)
-        .limit(query.limit())
-        .toList();
+  /**
+   * Asks every trail for one more entry than the page holds.
+   *
+   * <p>That extra entry is the whole test for "is there more": with exactly {@code limit} asked
+   * for, a merge of exactly {@code limit} entries could equally mean the history ended there or
+   * that one trail was cut off mid-answer, and the two need different answers to the reader.
+   */
+  private AuditPage merged(AuditQuery query) {
+    AuditCursor after = query.startsAt();
+    List<AuditEntry> found =
+        trails.stream()
+            .flatMap(
+                trail ->
+                    trail
+                        .recorded(
+                            query.from(), after, query.actor().orElse(null), query.limit() + 1)
+                        .stream())
+            .sorted(AuditEntry.NEWEST_FIRST)
+            .limit(query.limit() + 1L)
+            .toList();
+
+    if (found.size() <= query.limit()) {
+      return new AuditPage(found, null);
+    }
+    List<AuditEntry> page = found.subList(0, query.limit());
+    AuditEntry last = page.get(page.size() - 1);
+    return new AuditPage(page, new AuditCursor(last.at(), last.module(), last.id()));
   }
 }

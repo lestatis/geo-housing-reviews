@@ -9,7 +9,7 @@ dependencies {
 }
 
 mutationTesting {
-    // One value type with validation and an ordering, fully covered. The bar is the score, and it
+    // Two value types with validation and an ordering, fully covered. The bar is the score, and it
     // should stay there: anything landing here that cannot be killed does not belong in a module
     // every other module depends on.
     mutationThreshold.set(100)

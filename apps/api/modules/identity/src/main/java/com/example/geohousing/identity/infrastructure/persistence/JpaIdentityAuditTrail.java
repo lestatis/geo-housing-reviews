@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.infrastructure.persistence;
 
+import com.example.geohousing.shared.audit.AuditCursor;
 import com.example.geohousing.shared.audit.AuditEntry;
 import com.example.geohousing.shared.audit.AuditTrail;
 import java.time.Instant;
@@ -24,14 +25,19 @@ class JpaIdentityAuditTrail implements AuditTrail {
 
   @Override
   @Transactional(readOnly = true)
-  public List<AuditEntry> recorded(Instant from, Instant until, UUID actorAccountId, int limit) {
-    return events.findForTimeline(from, until, actorAccountId, Limit.of(limit)).stream()
+  public List<AuditEntry> recorded(
+      Instant from, AuditCursor before, UUID actorAccountId, int limit) {
+    return events
+        .findForTimeline(
+            from, before.at(), before.idBoundFor(MODULE), actorAccountId, Limit.of(limit))
+        .stream()
         .map(JpaIdentityAuditTrail::toEntry)
         .toList();
   }
 
   private static AuditEntry toEntry(AdminAuditEventJpaEntity entity) {
     return new AuditEntry(
+        entity.id(),
         entity.createdAt(),
         entity.adminAccountId(),
         MODULE,
