@@ -33,7 +33,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * Clock} bean would make every {@code Clock} injection ambiguous.
  */
 @Configuration
-@EnableConfigurationProperties(EvidenceRetentionProperties.class)
+@EnableConfigurationProperties({
+  EvidenceRetentionProperties.class,
+  VerificationExpiryProperties.class
+})
 @EnableScheduling
 public class VerificationBeanConfiguration {
 

@@ -56,6 +56,10 @@ verification:
       # The scheduled sweep is bounded so a large backlog never monopolizes an application worker.
       sweep-batch-size: ${EVIDENCE_RETENTION_SWEEP_BATCH_SIZE:100}
       sweep-fixed-delay: ${EVIDENCE_RETENTION_SWEEP_DELAY:PT15M}
+  expiry:
+    # A badge with a validThrough expires on its own only if something sweeps for it. Nothing did.
+    sweep-batch-size: ${VERIFICATION_EXPIRY_SWEEP_BATCH_SIZE:100}
+    sweep-fixed-delay: ${VERIFICATION_EXPIRY_SWEEP_DELAY:PT15M}
 
 server:
   port: 8080
