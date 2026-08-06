@@ -287,6 +287,9 @@
       },
       "AuditTimelineResponse" : {
         "properties" : {
+          "appliedActorAccountId" : {
+            "type" : "string"
+          },
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/AuditEntryView"

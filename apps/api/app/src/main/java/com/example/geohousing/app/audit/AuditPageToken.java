@@ -86,11 +86,11 @@ record AuditPageToken(AuditCursor position, Instant since, Instant until, UUID a
     boolean sameWindow =
         (requestedSince == null || requestedSince.equals(since))
             && (requestedUntil == null || requestedUntil.equals(until));
+    // Omission is inheritance here too. A caller handed a nextCursor must be able to send it back
+    // on its own — that is what makes it a continuation rather than a fragment of a query they
+    // have to reconstruct. Naming a *different* actor is still a contradiction and still refused.
     boolean sameActor = requestedActor == null || requestedActor.equals(actorAccountId);
-    // "Everyone" is a filter too: continuing an unfiltered timeline while asking about one person
-    // is as wrong as the reverse, so an absent actor on the token must not accept a named one.
-    boolean actorWasDropped = requestedActor == null && actorAccountId != null;
-    if (!sameWindow || !sameActor || actorWasDropped) {
+    if (!sameWindow || !sameActor) {
       throw new InvalidAuditQueryException(
           "cursor",
           "NOT_FROM_THIS_QUERY",

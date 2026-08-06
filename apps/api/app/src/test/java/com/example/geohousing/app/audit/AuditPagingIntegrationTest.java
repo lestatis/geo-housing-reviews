@@ -280,4 +280,62 @@ class AuditPagingIntegrationTest {
   private void promoteToAdmin(UUID accountId) {
     jdbcTemplate.update("update identity.account set role = 'ADMIN' where id = ?", accountId);
   }
+
+  @Test
+  void aCursorFromAFilteredTimelineCanBeSentBackAlone() throws Exception {
+    // The continuation an API client actually makes: take nextCursor, send it, get the next page.
+    // It must keep the filter it was issued under — and the response must say which filter that
+    // was, because a caller who never stated one would otherwise have to guess, and a screen that
+    // guessed "everyone" would label one administrator's actions as the whole platform's.
+    String admin = "Bearer subject-paging-inherit";
+    UUID adminId = UUID.fromString(accountIdOf(admin));
+    promoteToAdmin(adminId);
+    UUID somebodyElse = UUID.fromString(accountIdOf("Bearer subject-paging-other"));
+
+    Instant base = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(2400);
+    recordIdentityView(adminId, base);
+    recordIdentityView(adminId, base.plusSeconds(1));
+    recordIdentityViewBy(somebodyElse, base.plusSeconds(2));
+    Instant since = base.minusSeconds(1);
+    Instant until = base.plusSeconds(3);
+
+    String firstPage =
+        mockMvc
+            .perform(
+                get("/api/admin/audit")
+                    .param("since", since.toString())
+                    .param("until", until.toString())
+                    .param("actor", adminId.toString())
+                    .param("limit", "1")
+                    .header("Authorization", admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.appliedActorAccountId").value(adminId.toString()))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    // Only the cursor. No window, no actor.
+    mockMvc
+        .perform(
+            get("/api/admin/audit")
+                .param("cursor", JsonPath.read(firstPage, "$.nextCursor").toString())
+                .param("limit", "5")
+                .header("Authorization", admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.appliedActorAccountId").value(adminId.toString()))
+        .andExpect(jsonPath("$.items.length()").value(1))
+        .andExpect(jsonPath("$.items[0].actorAccountId").value(adminId.toString()));
+  }
+
+  private void recordIdentityViewBy(UUID actorId, Instant at) {
+    UUID id = UUID.randomUUID();
+    jdbcTemplate.update(
+        "insert into identity.admin_audit_event"
+            + " (id, admin_account_id, action, target_account_id, outcome, created_at)"
+            + " values (?, ?, 'VIEW_ACCOUNT', ?, 'FOUND', ?)",
+        id,
+        actorId,
+        id,
+        java.sql.Timestamp.from(at));
+  }
 }

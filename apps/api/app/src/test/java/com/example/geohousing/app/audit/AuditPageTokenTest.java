@@ -57,8 +57,6 @@ class AuditPageTokenTest {
 
     assertThatThrownBy(() -> token.verifyContinues(SINCE, UNTIL, TEKLA))
         .isInstanceOf(InvalidAuditQueryException.class);
-    assertThatThrownBy(() -> token.verifyContinues(SINCE, UNTIL, null))
-        .isInstanceOf(InvalidAuditQueryException.class);
     assertThatThrownBy(() -> token.verifyContinues(SINCE.minusSeconds(1), UNTIL, MARI))
         .isInstanceOf(InvalidAuditQueryException.class);
     assertThatThrownBy(() -> token.verifyContinues(SINCE, UNTIL.plusSeconds(1), MARI))
@@ -72,6 +70,29 @@ class AuditPageTokenTest {
 
     sameQuery.verifyContinues(SINCE, UNTIL, MARI);
     everyone.verifyContinues(SINCE, UNTIL, null);
+  }
+
+  @Test
+  void aCursorCanBeSentBackOnItsOwn() {
+    // What makes a nextCursor a continuation rather than a fragment: a caller handed one must be
+    // able to return it without reconstructing the query it came from. Omitting the actor is not a
+    // disagreement, it is silence — and the token is the statement being continued.
+    AuditPageToken filtered = AuditPageToken.decode(AuditPageToken.encode(POSITION, query(MARI)));
+
+    filtered.verifyContinues(null, null, null);
+  }
+
+  @Test
+  void namingADifferentActorIsStillRefused() {
+    // Silence inherits; contradiction does not. Asking about Tekla while continuing Mari's
+    // timeline would resume partway through a list the caller has never seen the start of.
+    AuditPageToken filtered = AuditPageToken.decode(AuditPageToken.encode(POSITION, query(MARI)));
+    AuditPageToken everyone = AuditPageToken.decode(AuditPageToken.encode(POSITION, query(null)));
+
+    assertThatThrownBy(() -> filtered.verifyContinues(null, null, TEKLA))
+        .isInstanceOf(InvalidAuditQueryException.class);
+    assertThatThrownBy(() -> everyone.verifyContinues(null, null, TEKLA))
+        .isInstanceOf(InvalidAuditQueryException.class);
   }
 
   @Test

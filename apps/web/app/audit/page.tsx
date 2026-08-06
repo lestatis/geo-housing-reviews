@@ -55,12 +55,16 @@ export default async function Audit({
   }
 
   const rows = (result.data.items ?? []).map(toTimelineRow);
+  // What was actually filtered on, not what this request happened to say. A continuation inherits
+  // its filter from the cursor, so a page reached by cursor alone would otherwise be labelled
+  // "everyone" while showing one administrator's actions.
+  const appliedActor = result.data.appliedActorAccountId ?? "";
   const older = result.data.nextCursor;
   const olderHref = older
     ? `/audit?${new URLSearchParams({
         since: window.since,
         until: window.until,
-        ...(trimmedActor ? { actor: trimmedActor } : {}),
+        ...(appliedActor ? { actor: appliedActor } : {}),
         cursor: older,
       })}`
     : null;
@@ -78,7 +82,7 @@ export default async function Audit({
         <label htmlFor="until">To</label>
         <input id="until" name="until" type="date" defaultValue={window.until} />
         <label htmlFor="actor">Account id (optional)</label>
-        <input id="actor" name="actor" defaultValue={trimmedActor} />
+        <input id="actor" name="actor" defaultValue={appliedActor} />
         <button type="submit">Show</button>
       </form>
 
@@ -87,7 +91,7 @@ export default async function Audit({
           included — "to 4 August" shows the whole of the 4th. */}
       <p data-testid="window">
         {window.since} to {window.until}, both days included
-        {trimmedActor ? `, account ${trimmedActor.slice(0, 8)} only` : ", everyone"}
+        {appliedActor ? `, account ${appliedActor.slice(0, 8)} only` : ", everyone"}
         {cursor ? ", continued" : ""}
       </p>
 

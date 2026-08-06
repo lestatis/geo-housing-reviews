@@ -142,3 +142,29 @@ test("a window that ends before it starts is answered as such", async ({ page })
 
   await expect(page.getByTestId("audit-error")).toContainText("before its start");
 });
+
+test("a page reached by cursor alone still says whose actions it shows", async ({ page }) => {
+  // The label is drawn from what the API actually filtered on, not from what the URL happens to
+  // say. A continuation inherits its filter from the cursor, so a hand-trimmed link carrying only
+  // the cursor would otherwise show one administrator's actions under the word "everyone" — the
+  // misreading the whole screen exists to prevent.
+  const seeded = await seedAccounts();
+  await fillAuditTimeline(55);
+  await signIn(page, MODERATOR);
+
+  await page.goto(`/audit?actor=${seeded.moderatorAccountId}`);
+  await expect(page.getByTestId("window")).toContainText("only");
+  const older = await page.getByTestId("older").getAttribute("href");
+  const cursor = new URLSearchParams(older!.split("?")[1]).get("cursor")!;
+
+  // Only the cursor survives the trim.
+  await page.goto(`/audit?cursor=${encodeURIComponent(cursor)}`);
+
+  await expect(page.getByTestId("window")).toContainText(
+    `account ${seeded.moderatorAccountId.slice(0, 8)} only`,
+  );
+  await expect(page.getByTestId("window")).not.toContainText("everyone");
+  for (const text of await page.getByTestId("audit-row").allInnerTexts()) {
+    expect(text).toContain(seeded.moderatorAccountId.slice(0, 8));
+  }
+});
