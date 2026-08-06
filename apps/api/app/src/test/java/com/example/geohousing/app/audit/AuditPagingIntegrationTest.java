@@ -309,7 +309,7 @@ class AuditPagingIntegrationTest {
                     .param("limit", "1")
                     .header("Authorization", admin))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.appliedActorAccountId").value(adminId.toString()))
+            .andExpect(jsonPath("$.applied.actorAccountId").value(adminId.toString()))
             .andReturn()
             .getResponse()
             .getContentAsString();
@@ -322,7 +322,9 @@ class AuditPagingIntegrationTest {
                 .param("limit", "5")
                 .header("Authorization", admin))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.appliedActorAccountId").value(adminId.toString()))
+        .andExpect(jsonPath("$.applied.actorAccountId").value(adminId.toString()))
+        .andExpect(jsonPath("$.applied.since").exists())
+        .andExpect(jsonPath("$.applied.until").exists())
         .andExpect(jsonPath("$.items.length()").value(1))
         .andExpect(jsonPath("$.items[0].actorAccountId").value(adminId.toString()));
   }
@@ -337,5 +339,19 @@ class AuditPagingIntegrationTest {
         actorId,
         id,
         java.sql.Timestamp.from(at));
+  }
+
+  @Test
+  void anUnfilteredPageSaysSoRatherThanOmittingTheField() throws Exception {
+    // Null, not absent: "everyone" is an answer to "whose actions is this", and a strict client
+    // reading the contract must find the field there to read it.
+    String admin = "Bearer subject-applied-everyone";
+    promoteToAdmin(UUID.fromString(accountIdOf(admin)));
+
+    mockMvc
+        .perform(get("/api/admin/audit").header("Authorization", admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.applied.actorAccountId").doesNotExist())
+        .andExpect(jsonPath("$.applied.since").exists());
   }
 }

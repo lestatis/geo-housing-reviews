@@ -143,23 +143,32 @@ test("a window that ends before it starts is answered as such", async ({ page })
   await expect(page.getByTestId("audit-error")).toContainText("before its start");
 });
 
-test("a page reached by cursor alone still says whose actions it shows", async ({ page }) => {
-  // The label is drawn from what the API actually filtered on, not from what the URL happens to
-  // say. A continuation inherits its filter from the cursor, so a hand-trimmed link carrying only
-  // the cursor would otherwise show one administrator's actions under the word "everyone" — the
-  // misreading the whole screen exists to prevent.
+test("a page reached by cursor alone states the window and filter it inherited", async ({
+  page,
+}) => {
+  // A hand-trimmed link carrying only the cursor. The screen must not re-derive a window: after
+  // midnight UTC the default it would compute is a different window from the one the cursor was
+  // issued for, and the API refuses the contradiction — the link would simply die overnight.
+  //
+  // Issued here from an explicitly non-default window so today's default cannot match it by
+  // coincidence. That is what makes this test reproduce the overnight failure on any day, rather
+  // than passing because it happens to run within hours of the cursor being made.
   const seeded = await seedAccounts();
   await fillAuditTimeline(55);
   await signIn(page, MODERATOR);
 
-  await page.goto(`/audit?actor=${seeded.moderatorAccountId}`);
-  await expect(page.getByTestId("window")).toContainText("only");
+  const since = "2020-01-01";
+  const until = new Date().toISOString().slice(0, 10);
+  await page.goto(`/audit?since=${since}&until=${until}&actor=${seeded.moderatorAccountId}`);
+  await expect(page.getByTestId("window")).toContainText(`${since} to ${until}`);
   const older = await page.getByTestId("older").getAttribute("href");
   const cursor = new URLSearchParams(older!.split("?")[1]).get("cursor")!;
 
   // Only the cursor survives the trim.
   await page.goto(`/audit?cursor=${encodeURIComponent(cursor)}`);
 
+  // The inherited window, not the seven-day default this page would otherwise have chosen.
+  await expect(page.getByTestId("window")).toContainText(`${since} to ${until}`);
   await expect(page.getByTestId("window")).toContainText(
     `account ${seeded.moderatorAccountId.slice(0, 8)} only`,
   );

@@ -255,6 +255,22 @@
         },
         "type" : "object"
       },
+      "AppliedQuery" : {
+        "properties" : {
+          "actorAccountId" : {
+            "type" : [ "string", "null" ]
+          },
+          "since" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "until" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AuditEntryView" : {
         "properties" : {
           "action" : {
@@ -287,8 +303,8 @@
       },
       "AuditTimelineResponse" : {
         "properties" : {
-          "appliedActorAccountId" : {
-            "type" : "string"
+          "applied" : {
+            "$ref" : "#/components/schemas/AppliedQuery"
           },
           "items" : {
             "items" : {
@@ -297,7 +313,7 @@
             "type" : "array"
           },
           "nextCursor" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           }
         },
         "type" : "object"

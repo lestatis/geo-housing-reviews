@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { serverApi } from "@/src/api/client";
 import { accessToken } from "@/src/auth/session";
 import { toTimelineRow } from "@/src/audit/timeline";
-import { describeWindow, windowBounds } from "@/src/window";
+import { describeWindow, windowBounds, windowFromBounds } from "@/src/window";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +20,24 @@ export default async function Audit({
   }
 
   const { actor, since, until, cursor } = await searchParams;
-  const window = describeWindow(since, until, new Date(), AUDIT_WINDOW_DAYS);
-  const bounds = windowBounds(window);
-  const trimmedActor = actor?.trim() ?? "";
+  const continuing = cursor?.trim() || undefined;
+  const bounds = continuing
+    ? undefined
+    : windowBounds(describeWindow(since, until, new Date(), AUDIT_WINDOW_DAYS));
 
+  // A continuation states nothing about its query; the cursor carries it. Sending a window
+  // alongside would be this page guessing — and a guess made after midnight is a different window
+  // from the one the cursor was issued for, which the API refuses. The old link would have died
+  // overnight.
   const result = await (
     await serverApi()
   ).GET("/api/admin/audit", {
     params: {
       query: {
-        since: bounds.since,
-        until: bounds.until,
-        actor: trimmedActor || undefined,
-        cursor: cursor?.trim() || undefined,
+        since: bounds?.since,
+        until: bounds?.until,
+        actor: continuing ? undefined : actor?.trim() || undefined,
+        cursor: continuing,
       },
     },
   });
@@ -40,7 +45,11 @@ export default async function Audit({
   if (result.response.status === 401) {
     redirect("/api/auth/expired");
   }
-  if (!result.response.ok || !result.data) {
+  // `applied` says which window and filter produced this page. Without it the screen cannot label
+  // itself honestly, and a mislabelled audit page is worse than a missing one — so it declines to
+  // render rather than falling back to the window it would have guessed.
+  const applied = result.data?.applied;
+  if (!result.response.ok || !result.data || !applied?.since || !applied.until) {
     return (
       <main>
         <p>
@@ -55,10 +64,11 @@ export default async function Audit({
   }
 
   const rows = (result.data.items ?? []).map(toTimelineRow);
-  // What was actually filtered on, not what this request happened to say. A continuation inherits
-  // its filter from the cursor, so a page reached by cursor alone would otherwise be labelled
-  // "everyone" while showing one administrator's actions.
-  const appliedActor = result.data.appliedActorAccountId ?? "";
+  // What was actually asked, not what this request happened to say. A continuation inherits both
+  // window and filter from its cursor, and a page labelled with the question it did not ask is how
+  // somebody concludes nothing happened.
+  const window = windowFromBounds(applied.since, applied.until);
+  const appliedActor = applied.actorAccountId ?? "";
   const older = result.data.nextCursor;
   const olderHref = older
     ? `/audit?${new URLSearchParams({

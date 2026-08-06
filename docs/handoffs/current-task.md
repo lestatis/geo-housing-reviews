@@ -20,7 +20,8 @@ holds that plan's history.
 
 ## Current status
 
-in_progress — implemented, `./scripts/check.sh` reports `EXIT=0`, e2e running.
+in_progress — the first review's P2 and both of the **second** review's P2s are implemented.
+`./scripts/check.sh` reports `EXIT=0`; 37/37 Playwright.
 
 ## The review
 
@@ -54,10 +55,35 @@ So both halves changed:
   and the screen states that instead of guessing from the URL. The "show older" link and the filter
   box read from it too, so a trimmed link repairs itself rather than compounding.
 
+## Second review of this branch — two more P2s, both fixed
+
+### P2 — a cursor-only link died overnight
+
+The screen always re-derived a window and sent it. Opened after UTC midnight, a `?cursor=…` URL
+therefore sends a *different* window from the one its token was issued for, the API refuses the
+contradiction, and the link is dead. **My e2e claimed "only the cursor remains" but passed only
+because a same-day default happened to equal the token's window** — the test was weaker than its
+name, which the reviewer spotted and I had not.
+
+A continuation now sends no window and no actor at all: the token owns the query. The response
+carries an `applied` object (`since`, `until`, `actorAccountId`) and the screen renders that, via
+`windowFromBounds` — the tested inverse of `windowBounds`, so the page states a window it was told
+rather than one it guessed. The e2e issues its cursor from an explicitly non-default window, so
+today's default cannot match by coincidence and the overnight path is exercised on any day.
+
+Proved non-vacuous: restoring the old "always re-derive" line fails exactly that test and nothing
+else.
+
+### P2 — a nullable field declared non-nullable
+
+`appliedActorAccountId` is null for an unfiltered page while the schema said `type: string`. Correct,
+and **this is the second time on this branch family** — the metrics fields hit the same thing, I
+fixed them with `@Schema(nullable = true)` and wrote the lesson into a handoff, then added a new
+nullable field without it. Both are now `["string","null"]` in the regenerated spec.
+
 ## Remaining work
 
-Finish e2e, commit, and have this branch independently reviewed before it is merged — the previous
-round was merged before its review, which is how this defect reached `main`.
+Commit, then a third independent review before merge.
 
 ## Decisions made
 
@@ -102,9 +128,11 @@ None open.
 - **`main` carries ten branches that were merged without an independent review.** This round shows
   the step is load-bearing rather than ceremonial: it found a real defect that shipped. Worth a
   deliberate decision about whether merges wait for it.
-- **The audit endpoint's response now has three top-level fields** (`items`, `nextCursor`,
-  `appliedActorAccountId`). A fourth should prompt the question of whether the shape wants a
-  `query` object rather than growing flat.
+- **`@Schema(requiredMode = REQUIRED)` does not reach the generated spec.** Verified, not assumed:
+  `applied` is still optional in the generated client type. The screen therefore declines to render
+  when it is missing rather than falling back to a guessed window — a mislabelled audit page is
+  worse than a missing one. Worth understanding why springdoc ignores it before relying on the
+  annotation anywhere else.
 - Unchanged: wedged Docker containers needing a privileged `systemctl restart docker`; no agent can
   clear them.
 

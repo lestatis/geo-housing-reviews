@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeWindow, windowBounds } from "./window";
+import { describeWindow, windowBounds, windowFromBounds } from "./window";
 
 describe("the window a screen covers", () => {
   it("defaults to seven inclusive days, which is what the screen says it does", () => {
@@ -81,5 +81,30 @@ describe("a screen's own default span", () => {
     expect(week.since).toBe("2026-07-29");
     expect(month.since).toBe("2026-07-06");
     expect(week.until).toBe(month.until);
+  });
+});
+
+describe("reading a window back from the bounds that were applied", () => {
+  it("undoes the translation exactly", () => {
+    const window = { since: "2026-08-01", until: "2026-08-04" };
+
+    expect(windowFromBounds(windowBounds(window).since, windowBounds(window).until)).toEqual(window);
+  });
+
+  it("survives a month and a year boundary", () => {
+    expect(windowFromBounds("2026-01-01T00:00:00Z", "2026-02-01T00:00:00.000Z")).toEqual({
+      since: "2026-01-01",
+      until: "2026-01-31",
+    });
+    expect(windowFromBounds("2026-12-01T00:00:00Z", "2027-01-01T00:00:00.000Z")).toEqual({
+      since: "2026-12-01",
+      until: "2026-12-31",
+    });
+  });
+
+  it("reads back the clamped end of representable time", () => {
+    expect(windowFromBounds("9999-12-31T00:00:00Z", "9999-12-31T23:59:59.999Z").until).toBe(
+      "9999-12-31",
+    );
   });
 });

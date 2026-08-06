@@ -94,7 +94,8 @@ class AuditController {
     return new AuditTimelineResponse(
         page.entries().stream().map(AuditEntryView::from).toList(),
         page.nextCursor() == null ? null : AuditPageToken.encode(page.nextCursor(), query),
-        query.actor().map(UUID::toString).orElse(null));
+        new AppliedQuery(
+            query.from(), query.until(), query.actor().map(UUID::toString).orElse(null)));
   }
 
   /**

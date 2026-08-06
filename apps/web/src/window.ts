@@ -75,3 +75,17 @@ function asCalendarDate(value: string | undefined): string | undefined {
 function asDate(moment: Date): string {
   return moment.toISOString().slice(0, 10);
 }
+
+/**
+ * The inverse of {@link windowBounds}: the two inclusive dates a half-open range came from.
+ *
+ * <p>Needed because a continuation inherits its window from its cursor, so the screen is *told*
+ * which window it is showing rather than deciding. Stating the dates it would have chosen instead
+ * would label the page with a question nobody asked.
+ */
+export function windowFromBounds(since: string, until: string): DateWindow {
+  const end = new Date(until);
+  // The exclusive bound is the next midnight, so the last day included is the millisecond before.
+  end.setTime(end.getTime() - 1);
+  return { since: since.slice(0, 10), until: end.toISOString().slice(0, 10) };
+}
