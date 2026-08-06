@@ -18,3 +18,12 @@ paths:
 - Use Testcontainers for behavior depending on PostgreSQL/PostGIS.
 - Migrations are append-only after merge; fix forward rather than editing applied migrations.
 - Time-dependent behavior uses an injected clock.
+- A response field that can be null needs `@Schema(nullable = true)`. Springdoc assumes not-null, so
+  without it the generated client declares a type the API contradicts — and the fields most likely to
+  be null are the ones where null carries meaning ("no appeals were heard" is not "none were
+  overturned"). Missed twice: on `AdminMetrics` and again on the audit response two commits later.
+- Check what the annotation actually produced. `@Schema(requiredMode = REQUIRED)` on a record
+  component does **not** reach `docs/api/openapi.json`; the field stays optional in the client. Read
+  the regenerated spec rather than trusting the annotation.
+- Declaring one `@ApiResponse` replaces springdoc's derived set instead of adding to it. Document a
+  400 and the 200 disappears, taking the response schema out of the generated client with it.

@@ -191,6 +191,19 @@ PostgreSQL container. Two failure modes are worth recognising:
   failure — an interrupted run left Gradle's test bookkeeping inconsistent. Remove
   `apps/api/app/build/test-results` and re-run.
 
+- **A green `compileJava` that did not compile your new file.** Observed on 2026-08-04: `:app:test`
+  failed a scenario with a 500 because a newly added `@RestControllerAdvice` was never registered.
+  The cause was not the code — incremental compilation had skipped the file, and
+  `:app:compileJava` still reported `BUILD SUCCESSFUL`. When a class you just added behaves as
+  though it does not exist, check that it does:
+
+  ```bash
+  ls apps/api/app/build/classes/java/main/com/example/geohousing/app/<package>/
+  ./gradlew :app:compileJava --rerun-tasks   # if it is missing
+  ```
+
+  A successful build is not evidence that a new class was produced.
+
 When capturing the result programmatically, read the script's own exit code rather than a wrapper's;
 a background runner may report the wrapper's status instead.
 
