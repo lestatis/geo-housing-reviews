@@ -341,3 +341,14 @@ Feature: Moderate and administer without touching the database
     Given a resident "Nino"
     When Nino asks for the metrics
     Then the request is rejected as forbidden
+
+  Scenario: a restriction is lifted only through the account that has it
+    # A stale or mistyped link puts somebody else's identifier in the path. Lifting the wrong
+    # account's restriction is silent: the moderator sees success and the wrong person walks free.
+    Given an administrator "Mari"
+    And a resident "Nino"
+    And a resident "Dato"
+    And Mari restricted Nino saying "posted a neighbour's flat number"
+    When Mari lifts that restriction through Dato's account
+    Then the content is reported as not found
+    And Nino is restricted

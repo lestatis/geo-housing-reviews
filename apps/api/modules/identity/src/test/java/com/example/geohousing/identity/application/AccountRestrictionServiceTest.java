@@ -83,7 +83,7 @@ class AccountRestrictionServiceTest {
   void anExpiredRestrictionDoesNotBlockANewOne() {
     UserRestriction first =
         service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "first", IN_A_WEEK);
-    service.lift(MODERATOR, first.id());
+    service.lift(MODERATOR, TARGET, first.id());
     audit.events.clear();
 
     service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "again", IN_A_WEEK);
@@ -108,7 +108,7 @@ class AccountRestrictionServiceTest {
         service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "spam", IN_A_WEEK);
     audit.events.clear();
 
-    UserRestriction lifted = service.lift(MODERATOR, placed.id());
+    UserRestriction lifted = service.lift(MODERATOR, TARGET, placed.id());
 
     assertThat(lifted.isActiveAt(NOW)).isFalse();
     assertThat(lifted.reason()).isEqualTo("spam");
@@ -123,10 +123,10 @@ class AccountRestrictionServiceTest {
     // Lifting again would move the end date forward and rewrite when the account regained access.
     UserRestriction placed =
         service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "spam", IN_A_WEEK);
-    service.lift(MODERATOR, placed.id());
+    service.lift(MODERATOR, TARGET, placed.id());
     audit.events.clear();
 
-    assertThatThrownBy(() -> service.lift(MODERATOR, placed.id()))
+    assertThatThrownBy(() -> service.lift(MODERATOR, TARGET, placed.id()))
         .isInstanceOf(RestrictionNotActiveException.class);
 
     assertThat(audit.only().outcome()).isEqualTo(AdminAuditOutcome.REFUSED);
@@ -134,7 +134,7 @@ class AccountRestrictionServiceTest {
 
   @Test
   void liftingSomethingThatIsNotThereIsRecordedAsAnAttempt() {
-    assertThatThrownBy(() -> service.lift(MODERATOR, UUID.randomUUID()))
+    assertThatThrownBy(() -> service.lift(MODERATOR, TARGET, UUID.randomUUID()))
         .isInstanceOf(RestrictionNotFoundException.class);
 
     assertThat(audit.only().outcome()).isEqualTo(AdminAuditOutcome.NOT_FOUND);
@@ -212,5 +212,21 @@ class AccountRestrictionServiceTest {
     public void save(UserRestriction restriction) {
       stored.put(restriction.id(), restriction);
     }
+  }
+
+  @Test
+  void aRestrictionIsLiftedOnlyThroughTheAccountThatHasIt() {
+    // A lift addressed to one account must never land on another because a stale or mistyped link
+    // put somebody else's identifier in the path. It is silent when it goes wrong: the moderator
+    // sees a success and the wrong person walks free of a restriction nobody meant to end.
+    AccountId somebodyElse = AccountId.of(UUID.randomUUID());
+    UserRestriction theirs =
+        service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "abuse", IN_A_WEEK);
+
+    assertThatThrownBy(() -> service.lift(MODERATOR, somebodyElse, theirs.id()))
+        .isInstanceOf(RestrictionNotFoundException.class);
+    assertThat(restrictions.findActiveRestrictions(TARGET, NOW))
+        .as("the restriction is untouched, because it was never this account's to lift")
+        .isNotEmpty();
   }
 }

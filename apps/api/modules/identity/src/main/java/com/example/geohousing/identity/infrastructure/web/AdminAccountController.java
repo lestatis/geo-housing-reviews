@@ -86,7 +86,9 @@ class AdminAccountController {
       @PathVariable("restrictionId") String restrictionId) {
     return RestrictionView.from(
         accountRestrictionService.lift(
-            WebAuthentication.accountId(authentication), UUID.fromString(restrictionId)),
+            WebAuthentication.accountId(authentication),
+            AccountId.of(UUID.fromString(accountId)),
+            UUID.fromString(restrictionId)),
         clock.instant());
   }
 

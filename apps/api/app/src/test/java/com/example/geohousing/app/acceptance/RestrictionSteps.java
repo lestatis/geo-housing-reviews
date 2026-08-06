@@ -70,6 +70,21 @@ public class RestrictionSteps {
             moderator));
   }
 
+  @When("{word} lifts that restriction through {word}'s account")
+  public void liftsThatRestrictionThrough(String moderator, String other) throws Exception {
+    // The same restriction id, addressed to somebody else's account. A moderation action must land
+    // on the person it names, not on whoever the identifier happens to belong to.
+    api.perform(
+        api.authorized(
+            post(
+                "/api/admin/accounts/"
+                    + state.accountIdFor(other)
+                    + "/restrictions/"
+                    + state.currentRestrictionId()
+                    + "/lift"),
+            moderator));
+  }
+
   @Then("{word} is restricted")
   public void isRestricted(String actor) throws Exception {
     assertThat(activeReasons(actor)).as("%s's active restrictions", actor).isNotEmpty();

@@ -90,14 +90,21 @@ public final class AccountRestrictionService {
   /**
    * Ends a restriction now, keeping the record of it.
    *
-   * @throws RestrictionNotFoundException if no such restriction exists
+   * <p>The restriction must belong to {@code accountId}. A lift is a moderation action on a named
+   * person, and one addressed to A must never land on B because a stale or mistyped link put
+   * somebody else's identifier in the path — a restriction lifted on the wrong account is silent,
+   * and the moderator has no way to notice.
+   *
+   * @throws RestrictionNotFoundException if this account has no such restriction
    * @throws RestrictionNotActiveException if it has already ended
    */
-  public UserRestriction lift(AccountId moderatorId, UUID restrictionId) {
+  public UserRestriction lift(AccountId moderatorId, AccountId accountId, UUID restrictionId) {
     Objects.requireNonNull(moderatorId, "moderatorId");
+    Objects.requireNonNull(accountId, "accountId");
     Objects.requireNonNull(restrictionId, "restrictionId");
 
-    Optional<UserRestriction> found = restrictions.findById(restrictionId);
+    Optional<UserRestriction> found =
+        restrictions.findById(restrictionId).filter(it -> it.accountId().equals(accountId));
     if (found.isEmpty()) {
       // No target account to name, so the audit row records the attempt against nothing rather than
       // guessing at whose restriction it might have been.
