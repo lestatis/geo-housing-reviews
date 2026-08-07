@@ -96,6 +96,16 @@ class AccountDeletionServiceTest {
   }
 
   private static final class SingleAccount implements AccountRepository {
+    /**
+     * Nothing to lock: one thread, one map. What the lock defends against is two transactions
+     * reading the administrator set at once, which only a real database can stage — see {@code
+     * LastAdministratorConcurrencyIntegrationTest}.
+     */
+    @Override
+    public void lockActiveAdministrators() {
+      // Deliberately empty.
+    }
+
     private final Account account;
 
     private SingleAccount(Account account) {

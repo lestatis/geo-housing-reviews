@@ -10,6 +10,15 @@ public interface AccountRepository {
 
   Optional<Account> findById(AccountId accountId);
 
+  /**
+   * Takes a write lock on every active administrator, so a decision about that set cannot be made
+   * against a copy another transaction is halfway through changing.
+   *
+   * <p>Called before counting administrators, never for its result. Locking is persistence's job,
+   * which is why it arrives as a port call rather than as a transaction annotation on this layer.
+   */
+  void lockActiveAdministrators();
+
   /** Looks up only the opaque, already-hashed external subject (never a raw OIDC subject). */
   Optional<Account> findByAuthSubjectHash(String authSubjectHash);
 

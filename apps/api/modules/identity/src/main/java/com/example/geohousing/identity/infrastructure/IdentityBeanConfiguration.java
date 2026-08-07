@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.infrastructure;
 
+import com.example.geohousing.identity.api.AccountRoleUseCase;
 import com.example.geohousing.identity.application.AccountDataExportService;
 import com.example.geohousing.identity.application.AccountDeletionRepository;
 import com.example.geohousing.identity.application.AccountDeletionService;
@@ -25,6 +26,7 @@ import java.util.HexFormat;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Constructs the identity module's framework-free application services as Spring beans. The
@@ -96,6 +98,20 @@ public class IdentityBeanConfiguration {
       AdminAuditEventRepository adminAuditEventRepository,
       Clock identityClock) {
     return new AccountRoleService(accountRepository, adminAuditEventRepository, identityClock);
+  }
+
+  /**
+   * What callers depend on. The plain service holds the rules; this supplies the transaction that
+   * makes them hold under concurrency.
+   *
+   * <p>Primary because the service itself also satisfies the interface. Injecting that one would
+   * compile, run, pass every unit test, and quietly drop the transaction — so the ambiguity is
+   * resolved here rather than left to whichever bean name sorts first.
+   */
+  @Bean
+  @Primary
+  AccountRoleUseCase accountRoleUseCase(AccountRoleService accountRoleService) {
+    return new TransactionalAccountRoleService(accountRoleService);
   }
 
   @Bean

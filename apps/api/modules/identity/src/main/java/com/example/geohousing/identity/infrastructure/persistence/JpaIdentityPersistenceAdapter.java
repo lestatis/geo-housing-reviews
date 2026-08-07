@@ -74,6 +74,15 @@ public class JpaIdentityPersistenceAdapter
 
   @Override
   @Transactional
+  public void lockActiveAdministrators() {
+    // FOR UPDATE, so a concurrent role change waits here rather than deciding against a stale view
+    // of who is left. Serializes role changes; at this volume that costs nothing, and it is the
+    // only thing standing between two simultaneous demotions and an unreachable platform.
+    accountRepository.lockActiveAdministrators();
+  }
+
+  @Override
+  @Transactional
   public Account save(Account account, long expectedVersion) {
     AccountJpaEntity entity =
         accountRepository

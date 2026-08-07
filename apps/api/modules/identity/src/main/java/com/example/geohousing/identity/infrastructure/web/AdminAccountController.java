@@ -1,7 +1,7 @@
 package com.example.geohousing.identity.infrastructure.web;
 
+import com.example.geohousing.identity.api.AccountRoleUseCase;
 import com.example.geohousing.identity.application.AccountRestrictionService;
-import com.example.geohousing.identity.application.AccountRoleService;
 import com.example.geohousing.identity.application.AdminAccountService;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
@@ -33,13 +33,13 @@ import org.springframework.web.bind.annotation.RestController;
 class AdminAccountController {
 
   private final AdminAccountService adminAccountService;
-  private final AccountRoleService accountRoleService;
+  private final AccountRoleUseCase accountRoleService;
   private final AccountRestrictionService accountRestrictionService;
   private final Clock clock;
 
   AdminAccountController(
       AdminAccountService adminAccountService,
-      AccountRoleService accountRoleService,
+      AccountRoleUseCase accountRoleService,
       AccountRestrictionService accountRestrictionService,
       Clock identityClock) {
     this.adminAccountService = adminAccountService;

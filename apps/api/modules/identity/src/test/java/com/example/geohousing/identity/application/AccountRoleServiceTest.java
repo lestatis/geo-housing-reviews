@@ -185,6 +185,21 @@ class AccountRoleServiceTest {
   /** An account store that behaves like the real one about versions, because that is under test. */
   private static final class InMemoryAccountRepository implements AccountRepository {
 
+    /**
+     * One thread and one map cannot stage a race — that is {@code
+     * LastAdministratorConcurrencyIntegrationTest}'s job. What this fake can observe is whether the
+     * lock was taken <em>before</em> the count, which is the ordering the rule depends on and the
+     * part a unit test can hold onto.
+     */
+    private boolean lockedAdministrators;
+
+    private boolean countedAdministratorsWithoutLocking;
+
+    @Override
+    public void lockActiveAdministrators() {
+      lockedAdministrators = true;
+    }
+
     private final Map<AccountId, Account> stored = new HashMap<>();
     private final Map<AccountId, Long> versions = new HashMap<>();
 
@@ -255,9 +270,28 @@ class AccountRoleServiceTest {
 
     @Override
     public long countByRole(AccountRole role) {
+      if (role == AccountRole.ADMIN && !lockedAdministrators) {
+        countedAdministratorsWithoutLocking = true;
+      }
       return stored.values().stream()
           .filter(account -> !account.isClosed() && account.role() == role)
           .count();
     }
+  }
+
+  @Test
+  void theAdministratorsAreLockedBeforeTheyAreCounted() {
+    // The rule is about a set, so the set has to be held still while it is judged. Counting first
+    // and locking afterwards — or not locking at all — reads correctly and lets two simultaneous
+    // demotions both pass. The database proves that in
+    // LastAdministratorConcurrencyIntegrationTest; what belongs here is the ordering itself.
+    Account admin = accounts.givenAdmin();
+    Account other = accounts.givenAdmin();
+
+    service.changeRole(admin.id(), other.id(), AccountRole.USER, 0L);
+
+    assertThat(accounts.countedAdministratorsWithoutLocking)
+        .as("the administrators were counted before anything stopped them changing")
+        .isFalse();
   }
 }

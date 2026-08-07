@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.application;
 
+import com.example.geohousing.identity.api.AccountRoleUseCase;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
@@ -33,7 +34,7 @@ import java.util.UUID;
  * account became privileged, so the write is on the normal path and a failure to record propagates
  * — a grant that could not be audited must not be a grant that happened.
  */
-public final class AccountRoleService {
+public final class AccountRoleService implements AccountRoleUseCase {
 
   private final AccountRepository accountRepository;
   private final AdminAuditEventRepository adminAuditEventRepository;
@@ -58,6 +59,7 @@ public final class AccountRoleService {
    * @throws com.example.geohousing.identity.domain.OptimisticLockConflictException if it changed
    *     under the request
    */
+  @Override
   public Account changeRole(
       AccountId adminAccountId,
       AccountId targetAccountId,
@@ -88,17 +90,29 @@ public final class AccountRoleService {
       throw refused;
     }
 
-    // Recorded before success is returned: if the audit write fails the caller sees a failure, and
-    // the surrounding transaction rolls the role change back with it.
+    // Recorded before success is returned, and the transaction around this use case rolls the role
+    // change back if the audit write fails. That transaction is supplied by the infrastructure
+    // decorator over this service — this comment once claimed it while nothing provided it, so a
+    // failed audit left an unrecorded grant behind.
     Account saved = accountRepository.save(target, expectedVersion);
     record(adminAccountId, targetAccountId, newRole, AdminAuditOutcome.APPLIED);
     return saved;
   }
 
+  /**
+   * Whether this change would leave nobody in charge.
+   *
+   * <p>Locks the administrators before counting them. Counting alone is a question about a set, and
+   * a set that another transaction may be changing as it is read: two demotions racing each other
+   * both saw two administrators and both proceeded. The lock makes the second caller wait, recount,
+   * and find one.
+   */
   private boolean wouldRemoveTheLastAdministrator(Account target, AccountRole newRole) {
-    return target.role() == AccountRole.ADMIN
-        && newRole != AccountRole.ADMIN
-        && accountRepository.countByRole(AccountRole.ADMIN) <= 1;
+    if (target.role() != AccountRole.ADMIN || newRole == AccountRole.ADMIN) {
+      return false;
+    }
+    accountRepository.lockActiveAdministrators();
+    return accountRepository.countByRole(AccountRole.ADMIN) <= 1;
   }
 
   private void record(

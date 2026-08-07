@@ -187,6 +187,15 @@ class AccountProvisioningServiceTest {
   }
 
   private static final class InMemoryAccountRepository implements AccountRepository {
+    /**
+     * Nothing to lock: one thread, one map. What the lock defends against is two transactions
+     * reading the administrator set at once, which only a real database can stage — see {@code
+     * LastAdministratorConcurrencyIntegrationTest}.
+     */
+    @Override
+    public void lockActiveAdministrators() {
+      // Deliberately empty.
+    }
 
     private final Map<AccountId, Account> byId = new HashMap<>();
     private final Map<String, Account> byHash = new HashMap<>();
