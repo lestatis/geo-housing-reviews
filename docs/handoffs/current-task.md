@@ -2,93 +2,100 @@
 
 ## Objective
 
-Review the modules that reached `main` without an independent review, and fix what is proportionate.
+Work through the debt found by reviewing the modules that reached `main` unreviewed
+(`docs/plans/017-unreviewed-module-debt.md`).
 
 ## Active branch
 
-`fix/identity-review-findings`, branched from `main`. Carries both fixes below plus the debt
-inventory. (The branch name understates it — it now holds a verification fix too.)
+`docs/handoff-after-plan-018`, branched from `main` at `030cc18`. Everything below is already on
+`main` and `origin/main`.
 
 ## Current status
 
-in_progress — three modules reviewed, two defects fixed and verified, thirteen findings recorded in
-`docs/plans/017-unreviewed-module-debt.md`. `./scripts/check.sh` reports `EXIT=0`.
+Plan 018 (`docs/plans/018-*`, written into `.claude/plans/`) is **complete and merged** — all three
+chunks, each independently reviewed and each with its review findings fixed.
 
 ## Completed work
 
-### Reviewed
+### Reviews
 
-identity, verification and moderation, each read-only (`codex exec -s read-only`) against
-`AGENTS.md`, `.claude/rules/security.md` and the relevant domain documents. **Fifteen findings, all
-evidenced.** Every one was checked against the code before being acted on or recorded; two severity
-claims were corrected in the process (see the plan).
+identity, verification and moderation, read-only (`codex exec -s read-only`). **Fifteen findings,
+all evidenced.** Two of the reviewer's severities were corrected after checking the documents: the
+MIME-header finding is pre-launch scope under ADR-0008, and the reporter-conflict finding is P2
+because `MODERATION.md` asks for disclosure and recusal rather than enforcement.
 
-### Fixed — identity: a lift landed on the wrong account
+### Fixed and merged
 
-`POST /accounts/A/restrictions/{B's restriction}/lift` lifted **B's** restriction while the URL named
-A. No privilege escalation — the caller is already an administrator, and the audit row recorded the
-true owner — but a moderation action landing on somebody other than the person it names is silent.
+| Commit | What |
+| --- | --- |
+| `75b8052` | A restriction lift landed on whichever account owned the id, not the one named in the URL |
+| `e3a8d40` | Verification badges never expired: the service existed and nothing called it |
+| `f2cff48` | The last-administrator lockout — two concurrent demotions could leave zero admins |
+| `60dc15b`, `2f9d085`, `1809c49` | The restriction race, and the moderation path that bypassed the fix |
+| `a5a6f33`, `030cc18` | Moderation's stale case and appeal writes, and the transaction that undoes them |
 
-Covered at both levels, which mattered: the defect was the *controller* not passing the identifier,
-so a service test alone would not have caught it.
+### The pattern worth carrying forward
 
-### Fixed — verification: badges never expired in production
+Every chunk's review found the same *shape* of mistake: a guard added where the defect was noticed,
+with a sibling path or a second half left untouched.
 
-`VerificationExpiryService.expireLapsed` was written, unit-tested, and called by nothing but tests.
-Evidence retention had a scheduled job; expiry had none. A lapsed badge stayed `APPROVED`, kept
-projecting its tier onto reviews, and kept feeding ranking.
+- Chunk 1: the transaction rolled back the audit rows for refused attempts.
+- Chunk 2: the same refusal-audit defect again, one commit later, plus `AccountRestraintAdapter`
+  still on the concrete class so moderation's path skipped the lock entirely.
+- Chunk 3: the facade my own plan specified and I did not write, so the version check fired after
+  side effects had already committed.
 
-The test asserts the **trigger**, not the bean: removing `@Scheduled` leaves a perfectly healthy bean
-and fails the test. A service that works and is never called is indistinguishable from one that does
-not work. Evidence retention — the only thing that deletes raw identity documents — is now covered
-the same way.
+**The question that would have caught all three: when adding a guard, what else reaches this rule,
+and what has already committed by the time the guard runs?**
+
+Three comments in this codebase have now claimed protections the code did not have — the audit
+transaction in `AccountRoleService`, the cursor javadoc in the audit timeline, and `@Version` in
+`JpaModerationCaseRepository`. A comment asserting safety is worth checking against the code.
 
 ## Remaining work
 
-`docs/plans/017-unreviewed-module-debt.md` holds thirteen findings in three groups, with a proposed
-order. Group A first: it contains the only defect that can lock every administrator out of the
-platform.
+Nine findings in `docs/plans/017-unreviewed-module-debt.md`, none started:
 
-Not yet reviewed: properties, reviews, the app layer, and every cross-module path.
+- **Group C, and the two to do first.** An author is never told *why* their content was removed —
+  the explanation is written and served only through `/api/admin/**`, so they appeal a decision
+  whose grounds they have never seen. And overturning a `RESTRICT_ACCOUNT` decision does not lift
+  the restriction, so an account can win its appeal and stay barred.
+- **Group B**, evidence lifecycle: orphaned objects, a failed deletion holding evidence 30 days
+  instead of 7, an unused reuse signal.
+- Plus: the exclusion constraint deferred from chunk 2 (needs `btree_gist` in the root migration
+  range), and the restriction race test's residual weakness — six callers make a benign
+  interleaving unlikely, not impossible.
 
-## Decisions made
-
-- **Stopped fixing after two.** Fifteen findings across three modules is a body of work needing
-  prioritisation, not end-of-session patching. The two fixed were contained, provable, and did not
-  touch a seam another finding also touches.
-- **Two severities corrected against the reviewer.** The MIME-header finding is pre-launch scope per
-  ADR-0008, not a defect. The reporter-conflict finding is P2, not P1: `MODERATION.md` asks for
-  disclosure and recusal, a human process — though its sibling rule is enforced by a database CHECK,
-  and that asymmetry is the real finding.
+Not reviewed at all: properties, reviews, the app layer, and every cross-module path.
 
 ## Commands and tests
 
 ```bash
-cd apps/api && ./gradlew :modules:identity:test -PskipMutation
-cd apps/api && ./gradlew :app:test --tests '*ScheduledSweepWiringTest' --tests '*Acceptance*' -PskipMutation
-./scripts/check.sh          # read the EXIT= marker
+./scripts/check.sh          # read the EXIT= marker, never a wrapper's status
+cd apps/web && pnpm e2e     # needs the stack; see apps/web/README.md
+codex review --base main    # or --commit <sha> once the work is already merged
 ```
 
-Both fixes proved non-vacuous by breaking them: neutralising the ownership check fails the unit test
-and the acceptance scenario; removing `@Scheduled` fails the wiring test while leaving the bean.
+Every fix above was proved by breaking it and watching exactly the intended test fail.
 
 ## Failures and blockers
 
-None open.
+None open. Testcontainers leaks heavily across a long session — 354 instances holding 21.5 GB were
+cleared once today. `docker container prune -f` then `docker volume prune -f`, in that order.
 
 ## Unresolved risks
 
-- **Thirteen recorded findings, five of them P1.** The most serious can leave the platform with zero
-  administrators.
-- **Reviews were per module**, so cross-module paths were seen from one side only.
-- **Every finding is a claim until re-verified.** Each was read once, by the agent that also wrote
-  the inventory.
-- Unchanged: wedged Docker containers needing a privileged `systemctl restart docker`.
+- **Reviews landed after merges, repeatedly.** `main` moved under this work three times, so the
+  review became a post-merge check rather than a gate. It kept finding real defects, which is the
+  argument for deciding deliberately whether merges should wait for it.
+- **Every finding is a claim until re-verified**; each was read once by the agent that recorded it.
+- Wedged Docker containers still need a privileged `systemctl restart docker`.
 
 ## Next action
 
-A human decision on order. Group A is the recommendation. Each group needs its own plan before
-implementation.
+Group C's first two findings, which are the ones a user experiences as unfairness. Each needs a plan
+first: the author-facing explanation adds a public endpoint, and the restriction reversal crosses
+moderation into identity.
 
 ## Last updated
 
