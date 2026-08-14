@@ -55,8 +55,8 @@ class LastAdministratorConcurrencyIntegrationTest {
 
   @Autowired private AccountRoleUseCase roleUseCase;
   @Autowired private AccountRestrictionUseCase restrictionUseCase;
+  @Autowired private com.example.geohousing.identity.api.AccountRestraint restraint;
   @Autowired private JdbcTemplate jdbcTemplate;
-  @Autowired private org.springframework.context.ApplicationContext context;
 
   @Test
   void theUseCaseActuallyRunsInATransaction() {
@@ -286,19 +286,44 @@ class LastAdministratorConcurrencyIntegrationTest {
   }
 
   @Test
-  void moderationRestrictsThroughTheSameTransactionalPath() {
-    // Moderation's RESTRICT_ACCOUNT reaches identity through AccountRestraintAdapter, which used
-    // the bare service and so skipped the lock entirely — the race survived on the path a real
-    // sanction takes, while the admin screen was protected. Both must be the same object.
-    Object adapter = context.getBean("accountRestraintAdapter");
+  void moderationsOwnPathIsRacedToo() throws Exception {
+    // AccountRestraint is what moderation's RESTRICT_ACCOUNT calls — the path a real sanction
+    // takes. It injected the bare service and so skipped the lock entirely, while the admin screen
+    // was protected and the admin-path test passed. Driving the port itself is the only assertion
+    // that cannot be satisfied by wiring something else correctly.
+    UUID moderator = administrator("subject-restraint-moderator");
+    UUID target = administrator("subject-restraint-target");
 
-    assertThat(adapter).isNotNull();
-    assertThat(restrictionUseCase)
-        .as("the decorated use case is what everything reaching identity must go through")
-        .isInstanceOf(com.example.geohousing.identity.api.AccountRestrictionUseCase.class);
-    assertThat(org.springframework.aop.support.AopUtils.isAopProxy(restrictionUseCase))
-        .as("the restriction decorator is not proxied, so nothing spans its use case")
-        .isTrue();
+    int callers = 6;
+    CountDownLatch allReady = new CountDownLatch(callers);
+    CountDownLatch go = new CountDownLatch(1);
+    ExecutorService threads = Executors.newFixedThreadPool(callers);
+    try {
+      List<Future<?>> attempts = new java.util.ArrayList<>();
+      for (int caller = 0; caller < callers; caller++) {
+        attempts.add(
+            threads.submit(
+                () -> {
+                  allReady.countDown();
+                  awaitQuietly(go);
+                  restraint.restrict(target, moderator, "coordinated abuse");
+                }));
+      }
+      assertThat(allReady.await(10, TimeUnit.SECONDS)).isTrue();
+      go.countDown();
+      for (Future<?> attempt : attempts) {
+        settle(attempt);
+      }
+    } finally {
+      threads.shutdownNow();
+    }
+
+    // Six callers, six chances to interleave. Scheduling could still serialise them all benignly,
+    // so this is a strong signal rather than a proof — the proof is that removing the lock makes it
+    // fail, which is checked by hand and recorded in the commit.
+    assertThat(activeRestrictionsFor(target))
+        .as("moderation wrote more than one restriction for one account")
+        .isEqualTo(1);
   }
 
   private long refusedRestrictionAttempts() {
