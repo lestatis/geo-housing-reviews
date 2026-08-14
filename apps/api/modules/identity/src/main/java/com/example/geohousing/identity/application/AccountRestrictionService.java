@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.application;
 
+import com.example.geohousing.identity.api.AccountRestrictionUseCase;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
 import com.example.geohousing.identity.domain.AdminAuditAction;
@@ -25,7 +26,7 @@ import java.util.UUID;
  * than as a variant of placing one — ending somebody else's restriction early is a distinct
  * decision, and a log that conflated them could not answer "who let this account back in?".
  */
-public final class AccountRestrictionService {
+public final class AccountRestrictionService implements AccountRestrictionUseCase {
 
   private final UserRestrictionRepository restrictions;
   private final AccountRepository accounts;
@@ -49,6 +50,7 @@ public final class AccountRestrictionService {
    * @throws AccountNotFoundException if no such account exists
    * @throws AlreadyRestrictedException if an active restriction already covers this scope
    */
+  @Override
   public UserRestriction restrict(
       AccountId moderatorId,
       AccountId targetId,
@@ -63,6 +65,12 @@ public final class AccountRestrictionService {
       record(moderatorId, targetId, AdminAuditAction.RESTRICT_ACCOUNT, AdminAuditOutcome.NOT_FOUND);
       throw new AccountNotFoundException(targetId);
     }
+
+    // Locked before the question is asked, so the answer is still true when it is acted on. Two
+    // moderators restricting the same account at the same moment both found nothing and both wrote
+    // one, leaving overlapping restrictions the duration rules cannot describe.
+
+    accounts.lockAccount(targetId);
 
     Instant now = clock.instant();
     if (hasActiveRestrictionInScope(targetId, scope, now)) {
@@ -98,6 +106,7 @@ public final class AccountRestrictionService {
    * @throws RestrictionNotFoundException if this account has no such restriction
    * @throws RestrictionNotActiveException if it has already ended
    */
+  @Override
   public UserRestriction lift(AccountId moderatorId, AccountId accountId, UUID restrictionId) {
     Objects.requireNonNull(moderatorId, "moderatorId");
     Objects.requireNonNull(accountId, "accountId");
@@ -141,6 +150,7 @@ public final class AccountRestrictionService {
   }
 
   /** Everything ever placed on this account, for a moderator judging a pattern. */
+  @Override
   public List<UserRestriction> history(AccountId accountId) {
     return restrictions.findAllFor(Objects.requireNonNull(accountId, "accountId"));
   }

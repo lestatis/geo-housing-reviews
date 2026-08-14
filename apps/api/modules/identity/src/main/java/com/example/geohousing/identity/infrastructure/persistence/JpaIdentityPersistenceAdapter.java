@@ -83,6 +83,15 @@ public class JpaIdentityPersistenceAdapter
 
   @Override
   @Transactional
+  public void lockAccount(AccountId accountId) {
+    // NO KEY UPDATE for the same reason as the administrator set: user_restriction.account_id
+    // references this table, so an insert here needs the key-share lock that a plain FOR UPDATE
+    // would block — and the blocked insert would be one this very transaction is waiting to make.
+    accountRepository.lockAccount(accountId.value());
+  }
+
+  @Override
+  @Transactional
   public Account save(Account account, long expectedVersion) {
     AccountJpaEntity entity =
         accountRepository

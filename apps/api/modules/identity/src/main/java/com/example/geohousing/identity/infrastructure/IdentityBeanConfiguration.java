@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.infrastructure;
 
+import com.example.geohousing.identity.api.AccountRestrictionUseCase;
 import com.example.geohousing.identity.api.AccountRoleUseCase;
 import com.example.geohousing.identity.application.AccountDataExportService;
 import com.example.geohousing.identity.application.AccountDeletionRepository;
@@ -90,6 +91,14 @@ public class IdentityBeanConfiguration {
       Clock identityClock) {
     return new AccountRestrictionService(
         userRestrictionRepository, accountRepository, adminAuditEventRepository, identityClock);
+  }
+
+  /** What callers depend on: the rules, wrapped in the transaction that makes them hold. */
+  @Bean
+  @Primary
+  AccountRestrictionUseCase accountRestrictionUseCase(
+      AccountRestrictionService accountRestrictionService) {
+    return new TransactionalAccountRestrictionService(accountRestrictionService);
   }
 
   @Bean

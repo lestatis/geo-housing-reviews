@@ -187,6 +187,12 @@ class AccountProvisioningServiceTest {
   }
 
   private static final class InMemoryAccountRepository implements AccountRepository {
+    /** Nothing to lock: one thread, one map. The race only exists against a real database. */
+    @Override
+    public void lockAccount(AccountId accountId) {
+      // Deliberately empty.
+    }
+
     /**
      * Nothing to lock: one thread, one map. What the lock defends against is two transactions
      * reading the administrator set at once, which only a real database can stage — see {@code

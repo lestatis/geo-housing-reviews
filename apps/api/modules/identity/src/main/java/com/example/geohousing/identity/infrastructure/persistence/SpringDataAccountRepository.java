@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface SpringDataAccountRepository extends JpaRepository<AccountJpaEntity, UUID> {
 
@@ -39,4 +40,10 @@ public interface SpringDataAccountRepository extends JpaRepository<AccountJpaEnt
               + " for no key update",
       nativeQuery = true)
   List<UUID> lockActiveAdministrators();
+
+  /** Locks one account for the transaction, permitting the key-share a foreign key check takes. */
+  @Query(
+      value = "select id from identity.account where id = :accountId for no key update",
+      nativeQuery = true)
+  List<UUID> lockAccount(@Param("accountId") UUID accountId);
 }

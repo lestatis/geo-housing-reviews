@@ -198,6 +198,11 @@ class AccountRoleServiceTest {
 
   /** An account store that behaves like the real one about versions, because that is under test. */
   private static final class InMemoryAccountRepository implements AccountRepository {
+    /** Nothing to lock: one thread, one map. The race only exists against a real database. */
+    @Override
+    public void lockAccount(AccountId accountId) {
+      // Deliberately empty.
+    }
 
     /**
      * One thread and one map cannot stage a race — that is {@code

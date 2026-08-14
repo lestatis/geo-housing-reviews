@@ -19,6 +19,16 @@ public interface AccountRepository {
    */
   void lockActiveAdministrators();
 
+  /**
+   * Takes a write lock on one account, so a decision about what is already true of it cannot be
+   * made against a copy another transaction is changing.
+   *
+   * <p>"At most one active restriction per scope" is a question about that account's rows, asked
+   * and then acted on. Two moderators restricting the same person at once both found nothing and
+   * both wrote one.
+   */
+  void lockAccount(AccountId accountId);
+
   /** Looks up only the opaque, already-hashed external subject (never a raw OIDC subject). */
   Optional<Account> findByAuthSubjectHash(String authSubjectHash);
 

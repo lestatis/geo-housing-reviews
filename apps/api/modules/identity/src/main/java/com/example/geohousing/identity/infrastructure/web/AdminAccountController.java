@@ -1,7 +1,7 @@
 package com.example.geohousing.identity.infrastructure.web;
 
+import com.example.geohousing.identity.api.AccountRestrictionUseCase;
 import com.example.geohousing.identity.api.AccountRoleUseCase;
-import com.example.geohousing.identity.application.AccountRestrictionService;
 import com.example.geohousing.identity.application.AdminAccountService;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountNotFoundException;
@@ -34,13 +34,13 @@ class AdminAccountController {
 
   private final AdminAccountService adminAccountService;
   private final AccountRoleUseCase accountRoleService;
-  private final AccountRestrictionService accountRestrictionService;
+  private final AccountRestrictionUseCase accountRestrictionService;
   private final Clock clock;
 
   AdminAccountController(
       AdminAccountService adminAccountService,
       AccountRoleUseCase accountRoleService,
-      AccountRestrictionService accountRestrictionService,
+      AccountRestrictionUseCase accountRestrictionService,
       Clock identityClock) {
     this.adminAccountService = adminAccountService;
     this.accountRoleService = accountRoleService;

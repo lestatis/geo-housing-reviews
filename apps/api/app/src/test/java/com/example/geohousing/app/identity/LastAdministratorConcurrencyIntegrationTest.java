@@ -2,6 +2,7 @@ package com.example.geohousing.app.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.identity.api.AccountRestrictionUseCase;
 import com.example.geohousing.identity.api.AccountRoleUseCase;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AccountRole;
@@ -53,6 +54,7 @@ class LastAdministratorConcurrencyIntegrationTest {
           DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
 
   @Autowired private AccountRoleUseCase roleUseCase;
+  @Autowired private AccountRestrictionUseCase restrictionUseCase;
   @Autowired private JdbcTemplate jdbcTemplate;
 
   @Test
@@ -199,5 +201,56 @@ class LastAdministratorConcurrencyIntegrationTest {
   private long refusedRoleChanges() {
     return jdbcTemplate.queryForObject(
         "select count(*) from identity.admin_audit_event where outcome = 'REFUSED'", Long.class);
+  }
+
+  @Test
+  void twoModeratorsRestrictingTheSameAccountLeaveOneRestriction() throws Exception {
+    // "At most one active restriction per scope" was checked and then written, in two transactions.
+    // Two moderators acting on the same person at the same moment both found nothing and both wrote
+    // one — overlapping restrictions the duration rules cannot describe, and a lift that ends only
+    // half of them.
+    UUID moderator = administrator("subject-restriction-race-moderator");
+    UUID target = administrator("subject-restriction-race-target");
+
+    CountDownLatch bothReady = new CountDownLatch(2);
+    CountDownLatch go = new CountDownLatch(1);
+    ExecutorService threads = Executors.newFixedThreadPool(2);
+    try {
+      Future<?> a = threads.submit(restrict(moderator, target, "first", bothReady, go));
+      Future<?> b = threads.submit(restrict(moderator, target, "second", bothReady, go));
+
+      assertThat(bothReady.await(10, TimeUnit.SECONDS)).isTrue();
+      go.countDown();
+      settle(a);
+      settle(b);
+    } finally {
+      threads.shutdownNow();
+    }
+
+    assertThat(activeRestrictionsFor(target))
+        .as("both moderators wrote a restriction, so lifting one leaves the account still barred")
+        .isEqualTo(1);
+  }
+
+  private Runnable restrict(
+      UUID moderator, UUID target, String reason, CountDownLatch ready, CountDownLatch go) {
+    return () -> {
+      ready.countDown();
+      awaitQuietly(go);
+      restrictionUseCase.restrict(
+          AccountId.of(moderator),
+          AccountId.of(target),
+          com.example.geohousing.identity.domain.RestrictionScope.ACCOUNT_WIDE,
+          reason,
+          null);
+    };
+  }
+
+  private long activeRestrictionsFor(UUID accountId) {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from identity.user_restriction"
+            + " where account_id = ? and start_at <= now() and (end_at is null or end_at > now())",
+        Long.class,
+        accountId);
   }
 }
