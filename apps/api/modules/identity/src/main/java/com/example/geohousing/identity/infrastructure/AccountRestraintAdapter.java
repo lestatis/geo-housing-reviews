@@ -1,7 +1,7 @@
 package com.example.geohousing.identity.infrastructure;
 
 import com.example.geohousing.identity.api.AccountRestraint;
-import com.example.geohousing.identity.application.AccountRestrictionService;
+import com.example.geohousing.identity.api.AccountRestrictionUseCase;
 import com.example.geohousing.identity.application.AlreadyRestrictedException;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.RestrictionScope;
@@ -17,9 +17,9 @@ import org.springframework.stereotype.Component;
 @Component
 class AccountRestraintAdapter implements AccountRestraint {
 
-  private final AccountRestrictionService restrictions;
+  private final AccountRestrictionUseCase restrictions;
 
-  AccountRestraintAdapter(AccountRestrictionService restrictions) {
+  AccountRestraintAdapter(AccountRestrictionUseCase restrictions) {
     this.restrictions = Objects.requireNonNull(restrictions, "restrictions");
   }
 

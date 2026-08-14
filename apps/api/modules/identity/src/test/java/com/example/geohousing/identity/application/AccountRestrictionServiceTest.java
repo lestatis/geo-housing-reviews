@@ -144,8 +144,21 @@ class AccountRestrictionServiceTest {
 
     private final List<AdminAuditEvent> events = new ArrayList<>();
 
+    /**
+     * Which door each event came through. One joins the caller's transaction so a change and its
+     * record commit together; the other escapes it so a refusal survives the rollback it causes. A
+     * fake blind to the difference lets the routing be swapped without any test noticing.
+     */
+    private final List<AdminAuditEvent> refusalsRecordedIndependently = new ArrayList<>();
+
     @Override
     public void record(AdminAuditEvent event) {
+      events.add(event);
+    }
+
+    @Override
+    public void recordRefusedAttempt(AdminAuditEvent event) {
+      refusalsRecordedIndependently.add(event);
       events.add(event);
     }
 
@@ -156,11 +169,20 @@ class AccountRestrictionServiceTest {
   }
 
   /** Answers only "does this account exist"; the rest of the port is not exercised here. */
-  private record KnownAccounts(AccountId known) implements AccountRepository {
-    /** Nothing to lock: one thread, one map. The race only exists against a real database. */
+  private record KnownAccounts(AccountId known, List<AccountId> locked)
+      implements AccountRepository {
+
+    private KnownAccounts(AccountId known) {
+      this(known, new ArrayList<>());
+    }
+
+    /**
+     * One thread cannot stage the race — that is the integration test's job. What this can observe
+     * is that the account was locked at all, which is the ordering the rule depends on.
+     */
     @Override
     public void lockAccount(AccountId accountId) {
-      // Deliberately empty.
+      locked.add(accountId);
     }
 
     /**
@@ -243,5 +265,32 @@ class AccountRestrictionServiceTest {
     assertThat(restrictions.findActiveRestrictions(TARGET, NOW))
         .as("the restriction is untouched, because it was never this account's to lift")
         .isNotEmpty();
+  }
+
+  @Test
+  void theAccountIsLockedBeforeItIsAskedWhatIsAlreadyTrueOfIt() {
+    // Asking first and locking afterwards — or not locking — reads correctly and lets two
+    // moderators both find nothing and both write a restriction. The database proves that in
+    // LastAdministratorConcurrencyIntegrationTest; the ordering belongs here.
+    service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "abuse", IN_A_WEEK);
+
+    assertThat(accounts.locked())
+        .as("the account was never held still while its restrictions were judged")
+        .contains(TARGET);
+  }
+
+  @Test
+  void aRefusedRestrictionIsRecordedOutsideTheTransactionItWillRollBack() {
+    // A duplicate attempt throws, and the throw takes the caller's transaction with it. The record
+    // that somebody tried has to escape, or a pattern of repeated attempts is invisible.
+    service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "first", IN_A_WEEK);
+
+    assertThatThrownBy(
+            () -> service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "again", null))
+        .isInstanceOf(AlreadyRestrictedException.class);
+
+    assertThat(audit.refusalsRecordedIndependently)
+        .as("a refusal recorded inside the doomed transaction leaves no trace of the attempt")
+        .hasSize(1);
   }
 }

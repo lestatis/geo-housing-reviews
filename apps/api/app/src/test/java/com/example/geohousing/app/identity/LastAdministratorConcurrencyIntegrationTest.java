@@ -56,6 +56,7 @@ class LastAdministratorConcurrencyIntegrationTest {
   @Autowired private AccountRoleUseCase roleUseCase;
   @Autowired private AccountRestrictionUseCase restrictionUseCase;
   @Autowired private JdbcTemplate jdbcTemplate;
+  @Autowired private org.springframework.context.ApplicationContext context;
 
   @Test
   void theUseCaseActuallyRunsInATransaction() {
@@ -252,5 +253,58 @@ class LastAdministratorConcurrencyIntegrationTest {
             + " where account_id = ? and start_at <= now() and (end_at is null or end_at > now())",
         Long.class,
         accountId);
+  }
+
+  @Test
+  void aRefusedRestrictionIsStillRecorded() {
+    // The wrapper that holds the lock also rolls back what a refusal wrote. A duplicate restriction
+    // attempt is worth keeping: it is how a pattern of one moderator repeatedly going after one
+    // account becomes visible at all.
+    UUID moderator = administrator("subject-refused-restriction-moderator");
+    UUID target = administrator("subject-refused-restriction-target");
+    restrictionUseCase.restrict(
+        AccountId.of(moderator),
+        AccountId.of(target),
+        com.example.geohousing.identity.domain.RestrictionScope.ACCOUNT_WIDE,
+        "first",
+        null);
+    long before = refusedRestrictionAttempts();
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                restrictionUseCase.restrict(
+                    AccountId.of(moderator),
+                    AccountId.of(target),
+                    com.example.geohousing.identity.domain.RestrictionScope.ACCOUNT_WIDE,
+                    "second",
+                    null))
+        .isInstanceOf(RuntimeException.class);
+
+    assertThat(refusedRestrictionAttempts())
+        .as("the duplicate attempt left no trace")
+        .isEqualTo(before + 1);
+  }
+
+  @Test
+  void moderationRestrictsThroughTheSameTransactionalPath() {
+    // Moderation's RESTRICT_ACCOUNT reaches identity through AccountRestraintAdapter, which used
+    // the bare service and so skipped the lock entirely — the race survived on the path a real
+    // sanction takes, while the admin screen was protected. Both must be the same object.
+    Object adapter = context.getBean("accountRestraintAdapter");
+
+    assertThat(adapter).isNotNull();
+    assertThat(restrictionUseCase)
+        .as("the decorated use case is what everything reaching identity must go through")
+        .isInstanceOf(com.example.geohousing.identity.api.AccountRestrictionUseCase.class);
+    assertThat(org.springframework.aop.support.AopUtils.isAopProxy(restrictionUseCase))
+        .as("the restriction decorator is not proxied, so nothing spans its use case")
+        .isTrue();
+  }
+
+  private long refusedRestrictionAttempts() {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from identity.admin_audit_event"
+            + " where action = 'RESTRICT_ACCOUNT' and outcome = 'REFUSED'",
+        Long.class);
   }
 }

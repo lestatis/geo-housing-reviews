@@ -117,7 +117,7 @@ public final class AccountRestrictionService implements AccountRestrictionUseCas
     if (found.isEmpty()) {
       // No target account to name, so the audit row records the attempt against nothing rather than
       // guessing at whose restriction it might have been.
-      audit.record(
+      audit.recordRefusedAttempt(
           AdminAuditEvent.restriction(
               UUID.randomUUID(),
               moderatorId,
@@ -166,8 +166,16 @@ public final class AccountRestrictionService implements AccountRestrictionUseCas
       AccountId targetId,
       AdminAuditAction action,
       AdminAuditOutcome outcome) {
-    audit.record(
+    AdminAuditEvent event =
         AdminAuditEvent.restriction(
-            UUID.randomUUID(), moderatorId, targetId, action, outcome, clock.instant()));
+            UUID.randomUUID(), moderatorId, targetId, action, outcome, clock.instant());
+    // The same split as role changes: an applied restriction and its record commit together, while
+    // a refusal is about to throw and would otherwise roll away the only evidence that somebody
+    // tried. Missed here when the role service learned it, one commit earlier.
+    if (outcome == AdminAuditOutcome.APPLIED) {
+      audit.record(event);
+    } else {
+      audit.recordRefusedAttempt(event);
+    }
   }
 }
