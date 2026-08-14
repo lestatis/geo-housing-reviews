@@ -1,6 +1,8 @@
 package com.example.geohousing.moderation.infrastructure;
 
 import com.example.geohousing.identity.api.AccountStanding;
+import com.example.geohousing.moderation.api.AppealUseCase;
+import com.example.geohousing.moderation.api.ModerationCaseUseCase;
 import com.example.geohousing.moderation.application.AppealRepository;
 import com.example.geohousing.moderation.application.AppealService;
 import com.example.geohousing.moderation.application.ModerationCaseRepository;
@@ -17,6 +19,7 @@ import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Constructs the moderation module's framework-free application services as Spring beans. The
@@ -90,5 +93,18 @@ public class ModerationBeanConfiguration {
         effectApplier,
         PolicyVersion.of(policyVersion),
         Clock.systemUTC());
+  }
+
+  /** What the controllers depend on: the rules, inside the transaction that makes them hold. */
+  @Bean
+  @Primary
+  ModerationCaseUseCase moderationCaseUseCase(ModerationCaseService moderationCaseService) {
+    return new TransactionalModerationCaseService(moderationCaseService);
+  }
+
+  @Bean
+  @Primary
+  AppealUseCase appealUseCase(AppealService appealService) {
+    return new TransactionalAppealService(appealService);
   }
 }

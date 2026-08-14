@@ -1,5 +1,6 @@
 package com.example.geohousing.moderation.application;
 
+import com.example.geohousing.moderation.api.AppealUseCase;
 import com.example.geohousing.moderation.domain.Appeal;
 import com.example.geohousing.moderation.domain.AppealDeciderConflictException;
 import com.example.geohousing.moderation.domain.AppealId;
@@ -24,7 +25,7 @@ import java.util.UUID;
  * Without that, a takedown demand that succeeds and then loses on appeal still gets what it wanted
  * (DECISION_LOG {@code P-014}).
  */
-public final class AppealService {
+public final class AppealService implements AppealUseCase {
 
   private static final ReasonCode APPEAL_OVERTURNED = ReasonCode.of("APPEAL_OVERTURNED");
 
@@ -98,6 +99,7 @@ public final class AppealService {
         .orElseThrow(() -> new AppealNotFoundException(appealId));
   }
 
+  @Override
   public List<PendingAppeal> pending() {
     return appealRepository.findPending().stream().map(this::withWhatIsBeingContested).toList();
   }
@@ -120,6 +122,7 @@ public final class AppealService {
   }
 
   /** Confirms the original decision. The content stays as it is. */
+  @Override
   public Appeal uphold(AppealId appealId, ModeratorId moderatorId, String explanation) {
     Appeal appeal = require(appealId);
     appeal.uphold(moderatorId, explanation, clock);
@@ -137,6 +140,7 @@ public final class AppealService {
    * @throws AppealDeciderConflictException if the moderator being appealed against tries to hear it
    * @throws ModerationEffectConflictException if the content could not be put back
    */
+  @Override
   public Appeal overturn(AppealId appealId, ModeratorId moderatorId, String explanation) {
     Appeal appeal = require(appealId);
     if (!appeal.canBeDecidedBy(moderatorId)) {

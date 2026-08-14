@@ -1,6 +1,6 @@
 package com.example.geohousing.moderation.infrastructure.web;
 
-import com.example.geohousing.moderation.application.ModerationCaseService;
+import com.example.geohousing.moderation.api.ModerationCaseUseCase;
 import com.example.geohousing.moderation.application.ModerationQueueService;
 import com.example.geohousing.moderation.domain.DecisionAction;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
@@ -30,9 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
 class AdminModerationController {
 
   private final ModerationQueueService queue;
-  private final ModerationCaseService cases;
+  private final ModerationCaseUseCase cases;
 
-  AdminModerationController(ModerationQueueService queue, ModerationCaseService cases) {
+  AdminModerationController(ModerationQueueService queue, ModerationCaseUseCase cases) {
     this.queue = Objects.requireNonNull(queue, "queue");
     this.cases = Objects.requireNonNull(cases, "cases");
   }

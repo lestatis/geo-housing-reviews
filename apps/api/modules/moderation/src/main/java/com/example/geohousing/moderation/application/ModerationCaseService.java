@@ -1,5 +1,6 @@
 package com.example.geohousing.moderation.application;
 
+import com.example.geohousing.moderation.api.ModerationCaseUseCase;
 import com.example.geohousing.moderation.domain.DecisionAction;
 import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
@@ -22,7 +23,7 @@ import java.util.UUID;
  * owns is the record — who decided, why, under which policy version, and against which version of
  * the content.
  */
-public final class ModerationCaseService {
+public final class ModerationCaseService implements ModerationCaseUseCase {
 
   private final ModerationCaseRepository caseRepository;
   private final ModerationDecisionRepository decisionRepository;
@@ -52,6 +53,7 @@ public final class ModerationCaseService {
   /**
    * A moderator takes the case. Reassignment is allowed so a conflict of interest can be handed on.
    */
+  @Override
   public ModerationCase assign(ModerationCaseId caseId, ModeratorId moderatorId) {
     ModerationCase moderationCase = require(caseId);
     moderationCase.assignTo(moderatorId, clock);
@@ -66,6 +68,7 @@ public final class ModerationCaseService {
    * not displaced: the case record keeps saying who owns it, while the decision records who
    * actually made it — which is the part accountability depends on.
    */
+  @Override
   public void claim(ModerationCaseId caseId, ModeratorId moderatorId) {
     ModerationCase moderationCase = require(caseId);
     if (moderationCase.status() == ModerationCaseStatus.OPEN) {
@@ -81,6 +84,7 @@ public final class ModerationCaseService {
    * @throws com.example.geohousing.moderation.domain.IllegalModerationStateTransitionException if
    *     the case is not in review, so no decision exists without a moderator accountable for it
    */
+  @Override
   public ModerationDecision decide(
       ModerationCaseId caseId,
       ModeratorId moderatorId,

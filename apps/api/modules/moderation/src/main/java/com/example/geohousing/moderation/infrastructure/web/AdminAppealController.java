@@ -1,6 +1,6 @@
 package com.example.geohousing.moderation.infrastructure.web;
 
-import com.example.geohousing.moderation.application.AppealService;
+import com.example.geohousing.moderation.api.AppealUseCase;
 import com.example.geohousing.moderation.domain.Appeal;
 import com.example.geohousing.moderation.domain.AppealId;
 import com.example.geohousing.moderation.domain.ModeratorId;
@@ -26,9 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/moderation/appeals")
 class AdminAppealController {
 
-  private final AppealService appeals;
+  private final AppealUseCase appeals;
 
-  AdminAppealController(AppealService appeals) {
+  AdminAppealController(AppealUseCase appeals) {
     this.appeals = Objects.requireNonNull(appeals, "appeals");
   }
 
