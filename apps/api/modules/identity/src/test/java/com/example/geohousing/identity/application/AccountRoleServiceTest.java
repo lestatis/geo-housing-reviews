@@ -171,8 +171,22 @@ class AccountRoleServiceTest {
 
     private final List<AdminAuditEvent> events = new ArrayList<>();
 
+    /**
+     * Which door each event came through. The two are not interchangeable: one joins the caller's
+     * transaction so a change and its record commit together, the other escapes it so a refusal
+     * survives the rollback it is about to cause. A fake that recorded both the same way would let
+     * the routing be swapped without any test noticing.
+     */
+    private final List<AdminAuditEvent> refusalsRecordedIndependently = new ArrayList<>();
+
     @Override
     public void record(AdminAuditEvent event) {
+      events.add(event);
+    }
+
+    @Override
+    public void recordRefusedAttempt(AdminAuditEvent event) {
+      refusalsRecordedIndependently.add(event);
       events.add(event);
     }
 
@@ -293,5 +307,34 @@ class AccountRoleServiceTest {
     assertThat(accounts.countedAdministratorsWithoutLocking)
         .as("the administrators were counted before anything stopped them changing")
         .isFalse();
+  }
+
+  @Test
+  void aRefusalIsRecordedOutsideTheTransactionItIsAboutToRollBack() {
+    // The refusal throws, and the throw rolls back everything the caller wrote — including, if this
+    // routing were wrong, the only record that somebody tried to remove the last administrator.
+    Account onlyAdmin = accounts.givenAdmin();
+
+    assertThatThrownBy(
+            () -> service.changeRole(onlyAdmin.id(), onlyAdmin.id(), AccountRole.USER, 0L))
+        .isInstanceOf(LastAdministratorException.class);
+
+    assertThat(audit.refusalsRecordedIndependently)
+        .as("a refusal recorded in the doomed transaction leaves no trace of the attempt")
+        .hasSize(1);
+  }
+
+  @Test
+  void anAppliedChangeIsRecordedInsideTheTransactionItBelongsTo() {
+    // The mirror image: a grant and its audit row must be one unit, so an audit failure takes the
+    // grant with it rather than leaving it unrecorded.
+    Account admin = accounts.givenAdmin();
+    Account resident = accounts.givenUser();
+
+    service.changeRole(admin.id(), resident.id(), AccountRole.ADMIN, 0L);
+
+    assertThat(audit.refusalsRecordedIndependently)
+        .as("a successful change escaped the transaction that should own it")
+        .isEmpty();
   }
 }

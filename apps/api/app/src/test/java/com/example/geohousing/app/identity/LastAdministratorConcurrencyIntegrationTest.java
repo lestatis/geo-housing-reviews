@@ -171,4 +171,33 @@ class LastAdministratorConcurrencyIntegrationTest {
     return jdbcTemplate.queryForList(
         "select id from identity.account where role = 'ADMIN' and status = 'ACTIVE'", UUID.class);
   }
+
+  @Test
+  void aRefusedDemotionIsStillRecorded() {
+    // The transaction that makes the lock work also rolls back everything a refusal wrote — and an
+    // attempt to demote the last administrator is exactly what the audit log is for. Recording it
+    // has to outlive the rollback, or fixing one audit defect creates another and a privileged
+    // attempt leaves no trace at all.
+    leaveExactlyTwoAdministrators();
+    UUID onlyOne = administrator("subject-refused-attempt");
+    long before = refusedRoleChanges();
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                roleUseCase.changeRole(
+                    AccountId.of(onlyOne),
+                    AccountId.of(onlyOne),
+                    AccountRole.USER,
+                    versionOf(onlyOne)))
+        .isInstanceOf(RuntimeException.class);
+
+    assertThat(refusedRoleChanges())
+        .as("the attempt to remove the last administrator left no trace")
+        .isEqualTo(before + 1);
+  }
+
+  private long refusedRoleChanges() {
+    return jdbcTemplate.queryForObject(
+        "select count(*) from identity.admin_audit_event where outcome = 'REFUSED'", Long.class);
+  }
 }

@@ -24,10 +24,19 @@ public interface SpringDataAccountRepository extends JpaRepository<AccountJpaEnt
    * <p>The rows are not read for their contents — the lock is the point. Anything deciding "is this
    * the last administrator" must hold it, or two callers answer the question from two snapshots and
    * both act on the answer.
+   *
+   * <p><strong>NO KEY UPDATE, not UPDATE.</strong> It still serializes role changes, which is all
+   * the rule needs, but it permits the {@code FOR KEY SHARE} that a foreign-key check takes — and
+   * {@code admin_audit_event.admin_account_id} references this table. Plain {@code FOR UPDATE}
+   * blocked the audit insert that records a refusal, while the transaction holding the lock waited
+   * for that insert to return. PostgreSQL cannot see that cycle, because half of it is a thread
+   * waiting rather than a session waiting, so nothing detected a deadlock and the request simply
+   * hung. The role column is part of no key, so weakening the lock costs nothing.
    */
   @Query(
       value =
-          "select id from identity.account where role = 'ADMIN' and status = 'ACTIVE' for update",
+          "select id from identity.account where role = 'ADMIN' and status = 'ACTIVE'"
+              + " for no key update",
       nativeQuery = true)
   List<UUID> lockActiveAdministrators();
 }

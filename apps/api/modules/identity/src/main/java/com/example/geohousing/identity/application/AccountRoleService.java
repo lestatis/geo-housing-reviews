@@ -120,8 +120,15 @@ public final class AccountRoleService implements AccountRoleUseCase {
       AccountId targetAccountId,
       AccountRole newRole,
       AdminAuditOutcome outcome) {
-    adminAuditEventRepository.record(
+    AdminAuditEvent event =
         AdminAuditEvent.roleChange(
-            UUID.randomUUID(), adminAccountId, targetAccountId, newRole, outcome, clock.instant()));
+            UUID.randomUUID(), adminAccountId, targetAccountId, newRole, outcome, clock.instant());
+    // An applied change and its record commit together; a refusal is about to throw, and its record
+    // has to survive that. Same log, opposite transactional requirements.
+    if (outcome == AdminAuditOutcome.APPLIED) {
+      adminAuditEventRepository.record(event);
+    } else {
+      adminAuditEventRepository.recordRefusedAttempt(event);
+    }
   }
 }
