@@ -6,6 +6,7 @@ import com.example.geohousing.moderation.domain.Appeal;
 import com.example.geohousing.moderation.domain.AppealId;
 import com.example.geohousing.moderation.domain.AppealStatus;
 import com.example.geohousing.moderation.domain.ModerationDecisionId;
+import com.example.geohousing.moderation.domain.StaleModerationWriteException;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -64,6 +65,15 @@ public class JpaAppealRepository implements AppealRepository {
                 () ->
                     new IllegalStateException(
                         "cannot save an appeal that was never created: " + appeal.id().value()));
+    // The same staleness the case repository has: re-reading the row means Hibernate checks the
+    // version this transaction loaded, not the one the moderator saw. Two moderators can both open
+    // a pending appeal, and the second verdict would overwrite the first — including the ordering
+    // where one restores the content and the other's stale UPHOLD becomes the recorded outcome.
+    if (stored.version() != appeal.version()) {
+      throw new StaleModerationWriteException(
+          "this appeal was decided while it was being read; it may only be heard once");
+    }
+
     stored.apply(
         appeal.status().name(),
         appeal.outcomeExplanation().orElse(null),

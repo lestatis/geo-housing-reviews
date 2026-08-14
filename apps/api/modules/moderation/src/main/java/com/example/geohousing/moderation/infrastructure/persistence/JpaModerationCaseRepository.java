@@ -6,6 +6,7 @@ import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
 import com.example.geohousing.moderation.domain.ModerationCaseStatus;
 import com.example.geohousing.moderation.domain.ModerationTargetRef;
+import com.example.geohousing.moderation.domain.StaleModerationWriteException;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -73,8 +74,17 @@ public class JpaModerationCaseRepository implements ModerationCaseRepository {
                     new IllegalStateException(
                         "cannot save a case that was never created: "
                             + moderationCase.id().value()));
-    // Mutated in place rather than replaced, so Hibernate's @Version check sees the load and the
-    // write as one unit of work and a concurrent moderator's change is not silently overwritten.
+    // The caller's version against the stored one. Hibernate's @Version alone does not cover this:
+    // the row is re-read here, so its check is against what this transaction just loaded, not
+    // against what the moderator actually read before deciding. A decision taken on version 3 would
+    // be applied to version 4 without complaint, which is how a case ends up with two decisions.
+
+    if (stored.version() != moderationCase.version()) {
+      throw new StaleModerationWriteException(
+          "this case changed since it was read; decide it again on what it says now");
+    }
+
+    // Mutated in place rather than replaced, so the write and the check above stay one unit.
     stored.apply(
         moderationCase.status().name(),
         moderationCase.riskLevel().name(),

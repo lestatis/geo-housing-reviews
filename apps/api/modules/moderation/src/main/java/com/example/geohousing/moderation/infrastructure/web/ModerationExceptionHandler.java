@@ -13,6 +13,7 @@ import com.example.geohousing.moderation.application.ReportNotFoundException;
 import com.example.geohousing.moderation.application.SelfReportNotAllowedException;
 import com.example.geohousing.moderation.domain.AppealDeciderConflictException;
 import com.example.geohousing.moderation.domain.IllegalModerationStateTransitionException;
+import com.example.geohousing.moderation.domain.StaleModerationWriteException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -98,6 +99,17 @@ class ModerationExceptionHandler {
         "Case not found",
         "MODERATION_CASE_NOT_FOUND",
         "No moderation case was found for this identifier.");
+  }
+
+  @ExceptionHandler(StaleModerationWriteException.class)
+  ProblemDetail handleStaleWrite(StaleModerationWriteException exception) {
+    // 409, not 500: the moderator did nothing wrong, and the answer is "read it again and decide",
+    // which is a conflict rather than a fault.
+    return problem(
+        HttpStatus.CONFLICT,
+        "Changed since you read it",
+        "STALE_MODERATION_WRITE",
+        exception.getMessage());
   }
 
   @ExceptionHandler(ModerationEffectConflictException.class)
