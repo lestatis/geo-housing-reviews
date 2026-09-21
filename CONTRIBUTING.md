@@ -82,13 +82,44 @@ Use `.github/PULL_REQUEST_TEMPLATE.md`.
 
 ## Required checks
 
-Before requesting review, from the repository root:
+Checks have three deliberately distinct levels. Do not substitute a faster level for a required
+later level, and do not pay for L2 repeatedly while editing.
+
+### L0 — inner loop
+
+Run the narrowest test that can prove the edit while iterating. It should normally take seconds:
+
+```bash
+cd apps/api
+./gradlew :modules:<module>:test -PskipMutation
+./gradlew :app:test --tests '*SomeIntegrationTest' -PskipMutation
+```
+
+### L1 — worker handoff
+
+Before declaring `READY_FOR_LEAD_REVIEW`, run affected-module tests plus their formatting/static
+checks, without mutation testing:
+
+```bash
+./scripts/check-scoped.sh module <module>
+./scripts/check-scoped.sh app-test '*SomeIntegrationTest'
+```
+
+Use `./scripts/check-scoped.sh --help` for the supported commands. The worker reports the exact
+commands and results to the lead. `-PskipMutation` is allowed only at L0 and L1.
+
+### L2 — merge candidate
+
+The full gate runs once per merge candidate in CI, in parallel governance, backend, and frontend
+workflows. From the repository root, it remains available locally when CI is unavailable or a human
+explicitly needs a pre-push reproduction:
 
 ```bash
 ./scripts/check.sh
 ```
 
-It runs three phases and stops at the first failure:
+Do not repeatedly run it during the edit/test loop. It runs three phases and stops at the first
+failure:
 
 1. `scripts/validate_repo_governance.py` — required files exist, `CLAUDE.md` still imports
    `@AGENTS.md`, instruction files stay under 32 KiB, skills match across Claude and Codex, and a
@@ -115,18 +146,7 @@ cd apps/api && ./gradlew :app:test --tests '*OpenApiContractIntegrationTest' -Du
 
 and commit the diff alongside the change that caused it.
 
-### The fast loop
-
-The full gate is the *merge* gate. While iterating, check only what you touched:
-
-```bash
-cd apps/api
-./gradlew :modules:<module>:test -PskipMutation      # seconds
-./gradlew :app:test --tests '*SomeIntegrationTest'   # one suite
-```
-
-`-PskipMutation` is for local iteration only — never for a pre-review or CI run
-(`.claude/rules/testing.md`).
+`-PskipMutation` is never allowed for the L2 gate or CI (`.claude/rules/testing.md`).
 
 ### If the gate is unexpectedly slow or fails oddly
 

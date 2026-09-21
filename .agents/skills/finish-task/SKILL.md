@@ -6,10 +6,13 @@ description: Close an implementation task with deterministic checks and a compac
 # Finish task
 
 1. Inspect `git diff` and verify no unrelated changes or generated secrets are present.
-2. Run the narrowest relevant tests, then `./scripts/check.sh`.
-3. Confirm migrations/contracts/docs match behavior.
-4. Check acceptance criteria one by one.
-5. Produce this handoff:
+2. Confirm L0/L1 scoped checks have passed; run any missing narrow check. Do not rerun the L2
+   full gate after every fix.
+3. Hand the merge candidate to CI for one L2 full-gate run. If CI is unavailable, run
+   `./scripts/check.sh` once and record why local L2 evidence was needed.
+4. Confirm migrations/contracts/docs match behavior.
+5. Check acceptance criteria one by one.
+6. Produce this handoff:
 
 ```text
 Objective:

@@ -18,6 +18,9 @@
 
 ### Implementation and review agents
 
+- DeepSeek Flash is the default implementation worker for an accepted, bounded implementation
+  packet. Use Pro only when a lead explicitly assigns an unusually difficult implementation of an
+  already accepted design.
 - Claude Code may implement or independently review a branch.
 - Codex may implement or independently review a branch.
 - Neither tool is permanently restricted to one role; the role is assigned per branch or task.
@@ -30,8 +33,9 @@
 Issue
 → execution plan
 → implementation branch
-→ local checks
+→ L0/L1 scoped checks
 → handoff summary
+→ parallel CI L2 gate
 → independent review in a fresh session
 → fixes
 → second review when necessary
@@ -41,6 +45,56 @@ Issue
 The assigned implementer inspects relevant sources, keeps the plan and handoff current, implements the smallest bounded change, and records deterministic evidence. The assigned reviewer begins from the complete branch diff, edits nothing, and reports evidence independently. A human owns merge approval.
 
 Cap automated review/fix cycles at two. Persist unresolved disagreements in the PR.
+
+## Lead-to-worker implementation contract
+
+The lead gives an implementation worker a bounded packet; the worker does not infer product policy
+or architecture from a broad request such as "implement the next module." Plans in `docs/plans/`
+are the preferred source for this packet.
+
+```text
+# Worker implementation contract
+
+## Objective
+One measurable outcome.
+
+## Acceptance criteria
+- ...
+
+## Allowed scope
+Modules:
+- ...
+Expected files/areas:
+- ...
+
+## Relevant sources of truth
+- AGENTS.md
+- docs/plans/<plan>.md
+- ...
+
+## Non-goals
+- ...
+
+## Architectural constraints
+- ...
+
+## Required tests
+L0 (inner loop):
+- ...
+L1 (worker handoff):
+- ...
+
+## Escalate instead of deciding when
+- a dependency, public API, or module boundary must change;
+- an accepted ADR conflicts with implementation;
+- security or privacy semantics are ambiguous;
+- a migration would be destructive.
+```
+
+Keep the stable worker instructions first and append only the small task-specific contract. This
+allows provider prompt caching to reuse the stable prefix and avoids loading unrelated documentation.
+The worker runs L0/L1 checks only. `READY_FOR_LEAD_REVIEW` triggers the L2 CI gate; it is not a
+claim that the merge candidate has passed all checks.
 
 ## Agent handoff and takeover
 
@@ -73,6 +127,29 @@ The handoff is supporting context. Git, code, tests, and accepted documentation 
 - Do not hide an unavailable review or replace it with an informal self-check.
 - Follow `prompts/INDEPENDENT_REVIEW.md`; `prompts/CODEX_REVIEW.md` is a concise Codex-specific entry point, not a permanent role assignment.
 
+### Reviewer packet
+
+Give the reviewer the complete branch diff and the smallest context that makes it reviewable:
+
+```text
+Review task <id>.
+
+Read:
+- AGENTS.md
+- docs/plans/<plan>.md
+- relevant accepted ADRs
+
+Review: git diff <base>...HEAD
+CI: governance <status>; backend <status>; frontend <status>
+
+Focus: domain invariants, transaction boundaries, authorization, concurrency, and missing tests.
+Do not edit.
+```
+
+The reviewer does not need the implementer's full conversational context. Accepted review findings
+return to the worker as a bounded fix task; after two review/fix iterations, escalate unresolved
+questions to the lead.
+
 ## Tool availability
 
 - The repository must remain usable when either Claude Code or Codex is unavailable.
@@ -102,7 +179,11 @@ Work one branch at a time by default. Another rollout strategy requires explicit
 ### Implement an issue
 
 ```text
-Implement issue #<id>. First read AGENTS.md and only the source-of-truth documents relevant to this issue. Inspect the current implementation. For non-trivial work, create/update an execution plan and active handoff. Keep scope limited to the acceptance criteria. Run relevant tests and ./scripts/check.sh. Finish with a PR-ready summary, final handoff status, risks, and HUMAN_ACTION_REQUIRED items if any.
+Implement issue #<id> from the supplied Worker implementation contract. First read AGENTS.md and
+only the explicitly relevant source-of-truth documents. Inspect the current implementation. For
+non-trivial work, create/update an execution plan and active handoff. Keep scope limited to the
+acceptance criteria. Run L0/L1 checks; do not run the L2 full gate repeatedly. Finish with a
+PR-ready summary, final handoff status, risks, and HUMAN_ACTION_REQUIRED items if any.
 ```
 
 ### Fix review findings

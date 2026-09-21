@@ -7,15 +7,17 @@
 - A module's mutation score must not fall below the threshold in its `build.gradle.kts`
   (`mutationTesting { }`, ADR-0009). Raise the threshold when a chunk leaves the score above it;
   never lower it to make a build pass — a threshold that only moves down measures nothing.
-- `-PskipMutation` is for local iteration only. Never use it for a pre-review or CI run.
+- `-PskipMutation` is for L0/L1 worker iteration and handoff only. Never use it for the L2 merge
+  gate or CI run.
 - A mutation score of 0% usually means no test was selected, not that every mutant survived. The
   test glob defaults to the module's Gradle name, which is its package for every module except
   `shared-kernel` (package `shared`) — set `mutationTesting.targetTests` when the two differ. The
   failure is silent: PITest reports a score rather than saying it selected nothing.
-- Iterate with a scoped check (`:modules:<module>:test -PskipMutation`, or a single `--tests` class);
-  run the full `./scripts/check.sh` once per chunk, before requesting review. Do not defer the gate
-  to the end of a module — every chunk merges, so an unverified chunk becomes the next one's
-  baseline and a later failure has no bisect point.
+- Iterate with a scoped check (`:modules:<module>:test -PskipMutation`, or a single `--tests` class)
+  and run affected-module L1 checks before worker handoff. CI runs the full L2 gate once per merge
+  candidate before independent review. Do not defer that CI gate to the end of a module — every
+  chunk merges, so an unverified chunk becomes the next one's baseline and a later failure has no
+  bisect point.
 - A killed build leaves Testcontainers instances running, because the reaper dies with the JVM.
   Clear them before trusting any timing (see CONTRIBUTING.md "Required checks").
 - Read `./scripts/check.sh`'s own exit code. A background-task summary may report its wrapper's

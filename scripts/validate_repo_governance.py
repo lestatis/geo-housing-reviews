@@ -40,6 +40,7 @@ REQUIRED = [
     "prompts/CLAUDE_TAKEOVER.md",
     "prompts/RECOVER_INTERRUPTED_TASK.md",
     "prompts/INDEPENDENT_REVIEW.md",
+    "prompts/DEEPSEEK_IMPLEMENT.md",
     ".claude/settings.json",
     ".claude/hooks/block-privileged-commands.sh",
     ".claude/skills/task-handoff/SKILL.md",

@@ -1,0 +1,39 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - apps/web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - docs/api/openapi.json
+      - .github/workflows/frontend-check.yml
+  push:
+    branches: [main]
+    paths:
+      - apps/web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - docs/api/openapi.json
+      - .github/workflows/frontend-check.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - name: Run frontend checks
+        run: corepack pnpm lint && corepack pnpm test && corepack pnpm typecheck
