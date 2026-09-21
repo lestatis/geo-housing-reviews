@@ -51,7 +51,10 @@ class EvidenceEndpointIntegrationTest {
 
   @Container
   static final MinIOContainer MINIO =
-      new MinIOContainer("minio/minio:RELEASE.2025-04-08T15-41-24Z")
+      new MinIOContainer(
+              DockerImageName.parse(
+                      "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
+                  .asCompatibleSubstituteFor("minio/minio"))
           .withEnv("MINIO_KMS_SECRET_KEY", "key1:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
           .withCreateContainerCmdModifier(
               command ->

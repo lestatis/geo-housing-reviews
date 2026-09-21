@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -46,7 +47,10 @@ class S3EvidenceStoreIntegrationTest {
   // supports AES256 natively, but MinIO needs a key configured. Fixed non-secret test value.
   @Container
   static final MinIOContainer minio =
-      new MinIOContainer("minio/minio:RELEASE.2025-04-08T15-41-24Z")
+      new MinIOContainer(
+              DockerImageName.parse(
+                      "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
+                  .asCompatibleSubstituteFor("minio/minio"))
           .withEnv("MINIO_KMS_SECRET_KEY", "key1:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
 
   private static S3Client s3;

@@ -1,6 +1,6 @@
 # Plan 021 — repair the clean-runner CI baseline
 
-Status: Blocked
+Status: Active
 Owner: Codex
 Related issue: None
 Last updated: 2026-09-21
@@ -15,7 +15,7 @@ weakening the L0/L1/L2 model, mutation thresholds, or real S3-compatible integra
 - [x] Frontend CI installs the locked dependencies on Node 22 before lint, test, and typecheck.
 - [x] PITest selects only domain/application tests for modules whose mutation targets are those
   layers; infrastructure integration tests remain in ordinary Gradle test execution.
-- [ ] All three MinIO-backed integration classes start an approved, reproducible official image on
+- [ ] All three MinIO-backed integration classes start the approved, reproducible official image on
   a clean GitHub runner.
 - [ ] Governance, backend, and frontend CI pass on this branch.
 
@@ -23,7 +23,6 @@ weakening the L0/L1/L2 model, mutation thresholds, or real S3-compatible integra
 
 - Changing production storage semantics or removing real S3-compatible integration coverage.
 - Lowering mutation thresholds, disabling PITest, or skipping the app integration suite.
-- Selecting a replacement MinIO image, registry, or version without an accepted decision.
 - Enabling GitHub branch protection; that is an administrator action after CI is green.
 
 ## Current system
@@ -44,14 +43,14 @@ entire module and therefore started the MinIO infrastructure test during PITest.
 | --- | --- | --- | --- |
 | Frontend cache | Remove pnpm cache setup initially | A clean install is required before optimizing cache behavior | CI is green and timing evidence exists |
 | PITest selection | Domain/application test globs only | Matches ADR-0009 target layers and retains infrastructure coverage in `test` | A module has cross-layer tests required to kill a mutant |
-| MinIO source | Block pending lead decision | An image registry/version is a dependency decision outside this plan | Lead accepts an official source/version |
+| MinIO source | `quay.io/minio/minio@sha256:14cea…8936e` | Lead approved an official Quay MinIO image. The public MinIO Inc image starts without the license required by Quay AIStor | CI or compatibility evidence fails |
 
 ## Implementation steps
 
 1. Make the frontend job install from `pnpm-lock.yaml` before its commands. **Completed**
 2. Restrict the default PITest test glob to domain/application packages. **Completed**
-3. Obtain an approved official MinIO image source/version, update all three tests consistently, and
-   verify its startup on a clean runner. **Blocked: lead decision required.**
+3. Update all three tests to the approved public official Quay MinIO image and verify startup on a clean
+   runner. **Local integration evidence completed; CI pending.**
 4. Push this branch and require green governance, backend, and frontend CI before review.
 
 ## Verification
@@ -66,8 +65,9 @@ entire module and therefore started the MinIO infrastructure test during PITest.
 
 The PITest change can expose a mutation-score regression because it no longer permits infrastructure
 tests to kill mutants. That is intended evidence, not a reason to lower a threshold. If it fails,
-add or improve a framework-free test for the mutated behavior. Do not change MinIO dependencies
-until the lead has approved a source/version compatible with ADR-0008.
+add or improve a framework-free test for the mutated behavior. The approved image may still expose
+container-entrypoint or S3-compatibility differences; retain the prior source only as history, not
+as a fallback, because it is unavailable on a clean runner.
 
 ## Progress log
 
@@ -76,7 +76,13 @@ until the lead has approved a source/version compatible with ADR-0008.
 - 2026-09-21: `corepack pnpm install --frozen-lockfile` and the frontend L1 checks passed. The
   verification domain/application tests passed, and `:modules:verification:mutationTest
   --rerun-tasks` passed in 7 seconds at 89%; no MinIO-backed test ran during mutation analysis.
+- 2026-09-21: The approved Quay AIStor image was fetchable but requires a license and exited before
+  its health endpoint. The public official `quay.io/minio/minio` image was verified as MinIO Inc's
+  release `RELEASE.2025-09-07T16-13-09Z` and pinned by manifest digest for testing.
+- 2026-09-21: The pinned public Quay image passed `S3EvidenceStoreIntegrationTest`,
+  `EvidenceEndpointIntegrationTest`, and `EvidencePersistenceIntegrationTest` locally. The branch
+  now awaits the corresponding clean GitHub Actions evidence.
 
 ## Final outcome
 
-Blocked pending the MinIO image decision and subsequent CI evidence.
+Pending local integration and clean-runner CI evidence for the approved image.
