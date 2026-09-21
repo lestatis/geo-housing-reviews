@@ -34,6 +34,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: pnpm
-      - name: Run frontend checks
-        run: corepack pnpm lint && corepack pnpm test && corepack pnpm typecheck
+      - name: Install frontend dependencies
+        run: corepack pnpm install --frozen-lockfile
+      - name: Lint
+        run: corepack pnpm lint
+      - name: Test
+        run: corepack pnpm test
+      - name: Typecheck
+        run: corepack pnpm typecheck

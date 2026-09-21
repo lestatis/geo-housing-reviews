@@ -24,8 +24,10 @@ abstract class MutationTestingExtension {
     abstract val targetClasses: ListProperty<String>
 
     /**
-     * Glob of tests allowed to kill the mutants. Defaults to the module's own package, which for
-     * every module so far is its Gradle name — except `shared-kernel`, whose package is `shared`.
+     * Comma-separated globs of tests allowed to kill the mutants. Defaults to the framework-free
+     * domain and application test packages, matching the layers PITest mutates. Infrastructure
+     * integration tests stay in the normal test gate but must not start external services during
+     * mutation analysis. Modules with a different package layout override this explicitly.
      * Getting this wrong is silent: no test matches, nothing is killed, and the score reads 0%
      * rather than failing with anything that mentions test selection.
      */

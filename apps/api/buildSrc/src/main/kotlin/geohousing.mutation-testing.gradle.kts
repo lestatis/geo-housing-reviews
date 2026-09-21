@@ -17,7 +17,13 @@ val junitVersion = "6.1.1"
 val mutationTesting = extensions.create<MutationTestingExtension>("mutationTesting")
 mutationTesting.mutationThreshold.convention(0)
 mutationTesting.coverageThreshold.convention(0)
-mutationTesting.targetTests.convention("com.example.geohousing.${project.name}.*")
+mutationTesting.targetTests.convention(
+    listOf(
+            "com.example.geohousing.${project.name}.domain.*",
+            "com.example.geohousing.${project.name}.application.*",
+        )
+        .joinToString(","),
+)
 mutationTesting.targetClasses.convention(
     listOf(
         "com.example.geohousing.${project.name}.domain.*",
