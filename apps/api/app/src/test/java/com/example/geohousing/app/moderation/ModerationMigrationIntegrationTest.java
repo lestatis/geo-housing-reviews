@@ -39,6 +39,26 @@ class ModerationMigrationIntegrationTest {
             "select count(*) from moderation.flyway_schema_history where version = '6.1' and success = true",
             Integer.class);
     assertThat(applied).isEqualTo(1);
+    Integer linkMigrationApplied =
+        jdbcTemplate.queryForObject(
+            "select count(*) from moderation.flyway_schema_history"
+                + " where version = '6.2' and success = true",
+            Integer.class);
+    assertThat(linkMigrationApplied).isEqualTo(1);
+  }
+
+  @Test
+  void anOptionalRestrictionLinkDoesNotCreateACrossModuleForeignKey() {
+    // The opaque id makes an appeal reversal precise, but identity still owns restrictions. A
+    // foreign key would couple this module's migration to identity's table lifecycle.
+    String nullable =
+        jdbcTemplate.queryForObject(
+            "select is_nullable from information_schema.columns"
+                + " where table_schema = 'moderation' and table_name = 'moderation_decision'"
+                + " and column_name = 'created_restriction_id'",
+            String.class);
+
+    assertThat(nullable).isEqualTo("YES");
   }
 
   @Test

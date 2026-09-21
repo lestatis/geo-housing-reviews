@@ -1,5 +1,6 @@
 package com.example.geohousing.identity.api;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -7,9 +8,9 @@ import java.util.UUID;
  *
  * <p>Moderation can decide {@code RESTRICT_ACCOUNT} about a review, but the account belongs to
  * identity — which owns the restriction rows, the audit trail, and the rules about what a
- * restriction may look like. This is the whole of what moderation may do to an account: place one.
- * Lifting is an administrator's deliberate act through identity's own endpoint, never a side effect
- * somewhere else.
+ * restriction may look like. Moderation may place one, and undo the one it placed — nothing wider.
+ * An administrator lifting a restriction for their own reasons is still a deliberate act through
+ * identity's own endpoint.
  */
 public interface AccountRestraint {
 
@@ -23,5 +24,19 @@ public interface AccountRestraint {
    * intended outcome — that this account cannot contribute — already holds, and a moderator
    * deciding a second case about the same person should not have that decision refused.
    */
-  void restrict(UUID accountId, UUID moderatorAccountId, String reason);
+  Optional<UUID> restrict(UUID accountId, UUID moderatorAccountId, String reason);
+
+  /**
+   * Lifts a restriction this module placed, named by the id {@link #restrict} returned.
+   *
+   * <p>By id, not by account, because a decision does not necessarily own a restriction: {@code
+   * restrict} does nothing when one is already in force, so an appeal that lifted "the account's
+   * active restriction" could end one an entirely different case placed and free somebody nobody
+   * reconsidered.
+   *
+   * <p>A restriction that has already ended is not an error. An administrator may have lifted it by
+   * hand while the appeal was waiting, and the intended outcome already holds — failing here would
+   * punish the author for somebody else's tidying.
+   */
+  void lift(UUID restrictionId, UUID moderatorAccountId);
 }

@@ -22,7 +22,14 @@ public interface ModerationEffectApplier {
    *     content changed underneath them
    * @throws ModerationEffectConflictException if the content changed since {@code expectedVersion}
    */
-  void apply(
+  /**
+   * Applies the decision, returning the restriction it created if it created one.
+   *
+   * <p>Empty for every action that restricts nobody, and also when the account was already
+   * restricted — that restriction belongs to the case that placed it, and this decision must not be
+   * able to lift it later.
+   */
+  java.util.Optional<java.util.UUID> apply(
       ModerationTargetRef target,
       DecisionAction action,
       long expectedVersion,
@@ -36,11 +43,15 @@ public interface ModerationEffectApplier {
    * is restored, a removed one reinstated, and an action that never touched the content is a no-op.
    *
    * @throws ModerationEffectConflictException if the content could not be put back
+   * @param createdRestrictionId the restriction this decision placed, or null if it placed none —
+   *     undone here, because an appeal that leaves somebody restricted has only half reversed the
+   *     decision they won against
    */
   void reverse(
       ModerationTargetRef target,
       DecisionAction action,
       long expectedVersion,
       ModeratorId decidedBy,
-      ReasonCode reasonCode);
+      ReasonCode reasonCode,
+      java.util.UUID createdRestrictionId);
 }

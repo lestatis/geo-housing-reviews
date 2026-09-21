@@ -17,8 +17,14 @@ final class InMemoryModerationEffectApplier implements ModerationEffectApplier {
   boolean refuseAsConflict;
   boolean refuseReverse;
 
+  /** What a restricting decision is told it created; null when it created nothing. */
+  java.util.UUID restrictionToReport;
+
+  /** The restrictions a reversal was asked to lift, which is the link this all exists to carry. */
+  final List<java.util.UUID> liftedRestrictions = new ArrayList<>();
+
   @Override
-  public void apply(
+  public java.util.Optional<java.util.UUID> apply(
       ModerationTargetRef target,
       DecisionAction action,
       long expectedVersion,
@@ -28,6 +34,7 @@ final class InMemoryModerationEffectApplier implements ModerationEffectApplier {
       throw new ModerationEffectConflictException("the content changed under the moderator");
     }
     applied.add(new Applied(target, action, expectedVersion));
+    return java.util.Optional.ofNullable(restrictionToReport);
   }
 
   @Override
@@ -36,10 +43,14 @@ final class InMemoryModerationEffectApplier implements ModerationEffectApplier {
       DecisionAction action,
       long expectedVersion,
       ModeratorId decidedBy,
-      ReasonCode reasonCode) {
+      ReasonCode reasonCode,
+      java.util.UUID createdRestrictionId) {
     if (refuseReverse) {
       throw new ModerationEffectConflictException("the content could not be put back");
     }
     reversed.add(new Applied(target, action, expectedVersion));
+    if (createdRestrictionId != null) {
+      liftedRestrictions.add(createdRestrictionId);
+    }
   }
 }

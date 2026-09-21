@@ -352,3 +352,20 @@ Feature: Moderate and administer without touching the database
     When Mari lifts that restriction through Dato's account
     Then the content is reported as not found
     And Nino is restricted
+
+  Scenario: winning an appeal against a restriction lets the account contribute again
+    # The whole point of the reversal. Recording that the decision was wrong while the account
+    # stays barred is half an outcome: the author wins and still cannot post.
+    Given a resident "Nino"
+    And a resident "Dato"
+    And an administrator "Mari"
+    And an administrator "Tekla"
+    And Nino created the property "Mtatsminda Terraces"
+    And Nino published a review of "Mtatsminda Terraces" saying "მეზობლის ტელეფონი"
+    And Dato reported that review for "HARASSMENT_OR_THREAT"
+    And Mari decided that case as "RESTRICT_ACCOUNT" for "HARASSMENT" explaining "Repeated abuse."
+    And Nino is restricted
+    And Nino appealed saying "I never contacted anyone off the platform."
+    When Tekla overturns that appeal explaining "The messages were not from this account."
+    Then the request succeeds
+    And Nino is not restricted

@@ -25,5 +25,14 @@ public interface AccountRestrictionUseCase {
 
   UserRestriction lift(AccountId moderatorId, AccountId accountId, UUID restrictionId);
 
+  /**
+   * Lifts by the restriction's opaque identifier, resolving the affected account inside identity.
+   *
+   * <p>This is for a cross-module workflow that records the ID it created. The administrator HTTP
+   * endpoint deliberately continues to name both account and restriction, so a stale path cannot
+   * silently end another account's restriction.
+   */
+  UserRestriction liftByRestrictionId(AccountId moderatorId, UUID restrictionId);
+
   List<UserRestriction> history(AccountId accountId);
 }

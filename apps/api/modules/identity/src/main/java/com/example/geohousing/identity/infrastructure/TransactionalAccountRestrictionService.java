@@ -45,6 +45,12 @@ public class TransactionalAccountRestrictionService implements AccountRestrictio
   }
 
   @Override
+  @Transactional
+  public UserRestriction liftByRestrictionId(AccountId moderatorId, UUID restrictionId) {
+    return delegate.liftByRestrictionId(moderatorId, restrictionId);
+  }
+
+  @Override
   @Transactional(readOnly = true)
   public List<UserRestriction> history(AccountId accountId) {
     return delegate.history(accountId);

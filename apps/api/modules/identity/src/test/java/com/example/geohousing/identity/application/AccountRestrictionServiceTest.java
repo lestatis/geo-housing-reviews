@@ -119,6 +119,18 @@ class AccountRestrictionServiceTest {
   }
 
   @Test
+  void aRecordedRestrictionCanBeLiftedWithoutReconstructingTheAccount() {
+    UserRestriction placed =
+        service.restrict(MODERATOR, TARGET, RestrictionScope.ACCOUNT_WIDE, "spam", IN_A_WEEK);
+    audit.events.clear();
+
+    UserRestriction lifted = service.liftByRestrictionId(MODERATOR, placed.id());
+
+    assertThat(lifted.isActiveAt(NOW)).isFalse();
+    assertThat(audit.only().targetAccountId()).contains(TARGET);
+  }
+
+  @Test
   void anAlreadyEndedRestrictionIsNotLiftedTwice() {
     // Lifting again would move the end date forward and rewrite when the account regained access.
     UserRestriction placed =

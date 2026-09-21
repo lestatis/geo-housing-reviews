@@ -253,6 +253,48 @@ class ModerationCaseServiceTest {
   }
 
   @Test
+  void aRestrictionDecisionRecordsOnlyTheRestrictionItCreated() {
+    ModerationTargetRef target = targets.givenReviewBy(UUID.randomUUID(), 1L);
+    ModerationCaseId caseId = reportedCase(target);
+    ModeratorId moderator = moderator();
+    UUID placed = UUID.randomUUID();
+    effects.restrictionToReport = placed;
+    service.assign(caseId, moderator);
+
+    ModerationDecision decision =
+        service.decide(
+            caseId,
+            moderator,
+            DecisionAction.RESTRICT_ACCOUNT,
+            ReasonCode.of("HARASSMENT"),
+            "Your reports targeted another resident.",
+            null);
+
+    assertThat(decision.createdRestrictionId()).contains(placed);
+    assertThat(decisions.appended).containsExactly(decision);
+  }
+
+  @Test
+  void aRestrictionDecisionThatFoundAnExistingRestrictionOwnsNothingToLift() {
+    ModerationTargetRef target = targets.givenReviewBy(UUID.randomUUID(), 1L);
+    ModerationCaseId caseId = reportedCase(target);
+    ModeratorId moderator = moderator();
+    effects.restrictionToReport = null;
+    service.assign(caseId, moderator);
+
+    ModerationDecision decision =
+        service.decide(
+            caseId,
+            moderator,
+            DecisionAction.RESTRICT_ACCOUNT,
+            ReasonCode.of("HARASSMENT"),
+            "Your reports targeted another resident.",
+            null);
+
+    assertThat(decision.createdRestrictionId()).isEmpty();
+  }
+
+  @Test
   void contentThatMovedUnderTheModeratorAbortsTheWholeDecision() {
     ModerationCaseId caseId = reportedCase();
     ModeratorId moderator = moderator();

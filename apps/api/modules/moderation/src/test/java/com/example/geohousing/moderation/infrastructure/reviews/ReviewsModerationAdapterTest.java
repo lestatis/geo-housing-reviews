@@ -25,7 +25,19 @@ import org.junit.jupiter.api.Test;
 class ReviewsModerationAdapterTest {
 
   /** These tests are about content effects; restricting an author has its own coverage. */
-  private static final AccountRestraint NO_RESTRAINT = (accountId, moderatorId, reason) -> {};
+  private static final AccountRestraint NO_RESTRAINT =
+      new AccountRestraint() {
+        @Override
+        public java.util.Optional<UUID> restrict(
+            UUID accountId, UUID moderatorAccountId, String reason) {
+          return java.util.Optional.empty();
+        }
+
+        @Override
+        public void lift(UUID restrictionId, UUID moderatorAccountId) {
+          // Nothing was restricted, so there is nothing to lift.
+        }
+      };
 
   private final FakeReviewModerationGateway gateway = new FakeReviewModerationGateway();
   private final ReviewsModerationTargetLookup lookup = new ReviewsModerationTargetLookup(gateway);
@@ -136,15 +148,61 @@ class ReviewsModerationAdapterTest {
         .isInstanceOf(ModerationEffectConflictException.class);
   }
 
+  @Test
+  void overturningLiftsTheSpecificRestrictionTheDecisionCreated() {
+    RecordingRestraint restraint = new RecordingRestraint();
+    ReviewsModerationEffectApplier applier = new ReviewsModerationEffectApplier(gateway, restraint);
+    UUID reviewId = UUID.randomUUID();
+    UUID author = UUID.randomUUID();
+    gateway.reviews.put(reviewId, new ModeratableReview(reviewId, author, 1L, true));
+    ModeratorId originalModerator = ModeratorId.of(UUID.randomUUID());
+
+    UUID placed =
+        applier
+            .apply(
+                ModerationTargetRef.review(reviewId),
+                DecisionAction.RESTRICT_ACCOUNT,
+                1L,
+                originalModerator,
+                ReasonCode.of("HARASSMENT"))
+            .orElseThrow();
+    // Deleting the review while the appeal waits must not strand the restriction. Identity owns
+    // the restriction's account relationship, so moderation does not need the vanished review.
+    gateway.reviews.remove(reviewId);
+    applier.reverse(
+        ModerationTargetRef.review(reviewId),
+        DecisionAction.RESTRICT_ACCOUNT,
+        1L,
+        ModeratorId.of(UUID.randomUUID()),
+        ReasonCode.of("APPEAL_OVERTURNED"),
+        placed);
+
+    assertThat(restraint.lifted).containsExactly(placed);
+    // A restriction does not withdraw a review, so there is no content effect to reverse.
+    assertThat(gateway.calls).isEmpty();
+  }
+
   private static final class RecordingRestraint implements AccountRestraint {
 
     private final List<UUID> restricted = new java.util.ArrayList<>();
     private final List<String> reasons = new java.util.ArrayList<>();
+    private final List<UUID> lifted = new java.util.ArrayList<>();
+
+    /** The identifier a real identity would mint, so the caller has something to record. */
+    private UUID placed;
 
     @Override
-    public void restrict(UUID accountId, UUID moderatorAccountId, String reason) {
+    public java.util.Optional<UUID> restrict(
+        UUID accountId, UUID moderatorAccountId, String reason) {
       restricted.add(accountId);
       reasons.add(reason);
+      placed = UUID.randomUUID();
+      return java.util.Optional.of(placed);
+    }
+
+    @Override
+    public void lift(UUID restrictionId, UUID moderatorAccountId) {
+      lifted.add(restrictionId);
     }
   }
 

@@ -121,15 +121,24 @@ public final class ModerationCaseService implements ModerationCaseUseCase {
     // its mutation — already carries the action and reason; the case stays IN_REVIEW and is
     // retryable. Recording first would risk an audit trail asserting a review was removed while it
     // is still publicly visible, and an appeal referencing a decision that never took effect.
+    // The effect reports what it created, and the decision carries it, so overturning this decision
+    // later can lift this restriction and no other. Effects run before recording, so the identifier
+    // does not exist when the decision is built.
+    ModerationDecision recorded = decision;
     if (judgedVersion != null) {
-      effectApplier.apply(moderationCase.target(), action, judgedVersion, moderatorId, reasonCode);
+      recorded =
+          effectApplier
+              .apply(moderationCase.target(), action, judgedVersion, moderatorId, reasonCode)
+              .map(decision::withCreatedRestriction)
+              .orElse(decision);
     }
 
     moderationCase.markDecided(clock);
-    decisionRepository.append(decision);
+    decisionRepository.append(recorded);
     caseRepository.save(moderationCase);
     closeOutReports(caseId, action);
-    return decision;
+    // The recorded one, which knows the restriction it created.
+    return recorded;
   }
 
   /**

@@ -13,6 +13,7 @@ import com.example.geohousing.reviews.api.ReviewModerationEffect;
 import com.example.geohousing.reviews.api.ReviewModerationGateway;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -41,7 +42,7 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
   }
 
   @Override
-  public void apply(
+  public Optional<UUID> apply(
       ModerationTargetRef target,
       DecisionAction action,
       long expectedVersion,
@@ -56,17 +57,19 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
     }
 
     if (action == DecisionAction.RESTRICT_ACCOUNT) {
-      restrictAuthorOf(target, decidedBy, reasonCode);
-      return;
+      // The identifier travels back so the decision can record which restriction it created, and
+      // an appeal can lift that one rather than whichever is active at the time.
+      return restrictAuthorOf(target, decidedBy, reasonCode);
     }
 
     Optional<ReviewModerationEffect> effect = contentEffectOf(action, target);
     if (effect.isEmpty()) {
-      return;
+      return Optional.empty();
     }
     try {
       gateway.apply(
           target.id(), effect.get(), expectedVersion, decidedBy.value(), reasonCode.value());
+      return Optional.empty();
     } catch (ReviewModerationConflictException conflict) {
       // Translated into this module's vocabulary: the application layer should not have to know
       // which module refused, only that the content moved under the moderator.
@@ -80,13 +83,20 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
       DecisionAction action,
       long expectedVersion,
       ModeratorId decidedBy,
-      ReasonCode reasonCode) {
+      ReasonCode reasonCode,
+      UUID createdRestrictionId) {
     Objects.requireNonNull(target, "target");
     Objects.requireNonNull(action, "action");
     Objects.requireNonNull(decidedBy, "decidedBy");
     Objects.requireNonNull(reasonCode, "reasonCode");
     if (target.type() != ModerationTargetType.REVIEW) {
       throw new IllegalArgumentException("no effect is wired for target type " + target.type());
+    }
+
+    // A restriction is undone whatever the action was, because the link — not the action — is what
+    // says this decision placed one. Nothing else may lift it.
+    if (createdRestrictionId != null) {
+      liftRestriction(createdRestrictionId, decidedBy);
     }
 
     Optional<ReviewModerationEffect> undo = undoEffectOf(action);
@@ -115,8 +125,8 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
    *
    * <p>A withheld review is restored and a rejected or removed one reinstated — the narrow
    * appeal-only door added for exactly this (DECISION_LOG {@code P-014}). The rest never touched
-   * the content, so there is nothing to put back: an account restriction is identity's to lift, and
-   * a request for changes left the review where it was.
+   * the content, so there is nothing to put back: a request for changes left the review where it
+   * was. A restriction is undone separately, driven by the recorded link rather than by the action.
    */
   private static Optional<ReviewModerationEffect> undoEffectOf(DecisionAction action) {
     return switch (action) {
@@ -162,9 +172,9 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
    * restrict, and that is a conflict rather than a silent no-op — the decision said somebody should
    * be stopped.
    */
-  private void restrictAuthorOf(
+  private Optional<UUID> restrictAuthorOf(
       ModerationTargetRef target, ModeratorId decidedBy, ReasonCode reasonCode) {
-    accountRestraint.restrict(
+    return accountRestraint.restrict(
         gateway
             .find(target.id())
             .orElseThrow(
@@ -178,5 +188,15 @@ public class ReviewsModerationEffectApplier implements ModerationEffectApplier {
 
   private boolean alreadyVisible(ModerationTargetRef target) {
     return gateway.find(target.id()).map(review -> review.published()).orElse(false);
+  }
+
+  /**
+   * Lifts the restriction this decision created.
+   *
+   * <p>Identity resolves the affected account from its own restriction record. Re-reading the
+   * review would make a valid appeal fail after the review was deleted.
+   */
+  private void liftRestriction(UUID restrictionId, ModeratorId decidedBy) {
+    accountRestraint.lift(restrictionId, decidedBy.value());
   }
 }

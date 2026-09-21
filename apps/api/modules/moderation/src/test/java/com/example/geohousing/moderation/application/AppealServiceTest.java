@@ -234,4 +234,51 @@ class AppealServiceTest {
   private AppellantId appellant() {
     return AppellantId.of(author);
   }
+
+  @Test
+  void overturningLiftsTheRestrictionThatDecisionPlaced() {
+    // Winning an appeal and staying barred from contributing is half a reversal. The account was
+    // restricted by this decision, so overturning it must end that restriction.
+    UUID placed = UUID.randomUUID();
+    effects.restrictionToReport = placed;
+    restrictedAuthor();
+    Appeal appeal = appealService.file(appellant(), target, "Nothing identifies anyone.");
+
+    appealService.overturn(appeal.id(), ModeratorId.of(UUID.randomUUID()), "Nobody was named.");
+
+    assertThat(effects.liftedRestrictions)
+        .as("the appeal was won and the account is still restricted")
+        .containsExactly(placed);
+  }
+
+  @Test
+  void overturningLeavesARestrictionThisDecisionDidNotPlace() {
+    // The test the review asked for by name. A decision that restricted nobody — because the
+    // account was already restricted by an unrelated case — owns nothing to lift. Lifting "the
+    // account's active restriction" would free somebody a second moderator never reconsidered.
+    effects.restrictionToReport = null;
+    restrictedAuthor();
+    Appeal appeal = appealService.file(appellant(), target, "Nothing identifies anyone.");
+
+    appealService.overturn(appeal.id(), ModeratorId.of(UUID.randomUUID()), "Nobody was named.");
+
+    assertThat(effects.liftedRestrictions)
+        .as("an unrelated case's restriction was lifted by an appeal against a different decision")
+        .isEmpty();
+  }
+
+  private void restrictedAuthor() {
+    target = targets.givenReviewBy(UUID.randomUUID(), 1L);
+    author = targets.find(target).orElseThrow().authorAccountId();
+    decidedCaseId = reportedCase();
+    original = ModeratorId.of(UUID.randomUUID());
+    caseService.assign(decidedCaseId, original);
+    caseService.decide(
+        decidedCaseId,
+        original,
+        DecisionAction.RESTRICT_ACCOUNT,
+        ReasonCode.of("HARASSMENT"),
+        "Your repeated reports targeted another resident.",
+        null);
+  }
 }

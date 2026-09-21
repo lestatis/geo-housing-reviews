@@ -114,6 +114,24 @@ public final class AccountRestrictionService implements AccountRestrictionUseCas
 
     Optional<UserRestriction> found =
         restrictions.findById(restrictionId).filter(it -> it.accountId().equals(accountId));
+    return liftFound(moderatorId, restrictionId, found);
+  }
+
+  /**
+   * Ends a restriction named by its opaque ID, resolving the target from identity's own record.
+   *
+   * <p>Moderation holds this ID after it created the restriction. It must not recover the account
+   * from the review again: that review may have been deleted while the appeal was pending.
+   */
+  @Override
+  public UserRestriction liftByRestrictionId(AccountId moderatorId, UUID restrictionId) {
+    Objects.requireNonNull(moderatorId, "moderatorId");
+    Objects.requireNonNull(restrictionId, "restrictionId");
+    return liftFound(moderatorId, restrictionId, restrictions.findById(restrictionId));
+  }
+
+  private UserRestriction liftFound(
+      AccountId moderatorId, UUID restrictionId, Optional<UserRestriction> found) {
     if (found.isEmpty()) {
       // No target account to name, so the audit row records the attempt against nothing rather than
       // guessing at whose restriction it might have been.

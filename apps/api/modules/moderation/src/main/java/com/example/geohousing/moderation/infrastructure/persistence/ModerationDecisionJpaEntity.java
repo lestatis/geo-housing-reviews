@@ -26,6 +26,9 @@ class ModerationDecisionJpaEntity {
   @Column(name = "action", nullable = false, length = 30)
   private String action;
 
+  @Column(name = "created_restriction_id")
+  private java.util.UUID createdRestrictionId;
+
   @Column(name = "reason_code", nullable = false, length = 64)
   private String reasonCode;
 
@@ -52,6 +55,7 @@ class ModerationDecisionJpaEntity {
   }
 
   ModerationDecisionJpaEntity(
+      java.util.UUID createdRestrictionId,
       UUID id,
       UUID caseId,
       String action,
@@ -62,6 +66,7 @@ class ModerationDecisionJpaEntity {
       Long affectedTargetVersion,
       UUID decidedByAccountId,
       Instant decidedAt) {
+    this.createdRestrictionId = createdRestrictionId;
     this.id = id;
     this.caseId = caseId;
     this.action = action;
@@ -112,5 +117,9 @@ class ModerationDecisionJpaEntity {
 
   Instant decidedAt() {
     return decidedAt;
+  }
+
+  java.util.UUID createdRestrictionId() {
+    return createdRestrictionId;
   }
 }

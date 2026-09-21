@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * What a moderator decided about a case, and why (docs/DOMAIN_MODEL.md ModerationDecision).
@@ -35,6 +36,7 @@ public final class ModerationDecision {
   private final Long affectedTargetVersion;
   private final ModeratorId decidedBy;
   private final Instant decidedAt;
+  private final UUID createdRestrictionId;
 
   private ModerationDecision(
       ModerationDecisionId id,
@@ -46,7 +48,8 @@ public final class ModerationDecision {
       String internalNote,
       Long affectedTargetVersion,
       ModeratorId decidedBy,
-      Instant decidedAt) {
+      Instant decidedAt,
+      UUID createdRestrictionId) {
     this.id = Objects.requireNonNull(id, "id");
     this.caseId = Objects.requireNonNull(caseId, "caseId");
     this.action = Objects.requireNonNull(action, "action");
@@ -57,6 +60,7 @@ public final class ModerationDecision {
     this.affectedTargetVersion = affectedTargetVersion;
     this.decidedBy = Objects.requireNonNull(decidedBy, "decidedBy");
     this.decidedAt = Objects.requireNonNull(decidedAt, "decidedAt");
+    this.createdRestrictionId = createdRestrictionId;
   }
 
   /**
@@ -88,7 +92,8 @@ public final class ModerationDecision {
         internalNote,
         affectedTargetVersion,
         decidedBy,
-        clock.instant());
+        clock.instant(),
+        null);
   }
 
   /** Rebuilds a decision from persisted state. Intended for persistence adapters only. */
@@ -102,7 +107,8 @@ public final class ModerationDecision {
       String internalNote,
       Long affectedTargetVersion,
       ModeratorId decidedBy,
-      Instant decidedAt) {
+      Instant decidedAt,
+      UUID createdRestrictionId) {
     return new ModerationDecision(
         id,
         caseId,
@@ -113,7 +119,41 @@ public final class ModerationDecision {
         internalNote,
         affectedTargetVersion,
         decidedBy,
-        decidedAt);
+        decidedAt,
+        createdRestrictionId);
+  }
+
+  /**
+   * The same decision, now knowing which restriction it created.
+   *
+   * <p>Effects run before a decision is recorded (DECISION_LOG, 2026-07-29), so the identifier does
+   * not exist when the decision is built. A copy rather than a setter: the decision is still
+   * immutable, and the only thing that may learn this is the code that just caused it.
+   */
+  public ModerationDecision withCreatedRestriction(UUID restrictionId) {
+    return new ModerationDecision(
+        id,
+        caseId,
+        action,
+        reasonCode,
+        policyVersion,
+        publicExplanation,
+        internalNote,
+        affectedTargetVersion,
+        decidedBy,
+        decidedAt,
+        restrictionId);
+  }
+
+  /**
+   * The restriction this decision placed, if it placed one.
+   *
+   * <p>Empty for almost every decision, and also for a {@code RESTRICT_ACCOUNT} that found the
+   * account already restricted — that restriction belongs to whichever case created it, and
+   * overturning this decision must not lift it.
+   */
+  public Optional<UUID> createdRestrictionId() {
+    return Optional.ofNullable(createdRestrictionId);
   }
 
   private static String requireExplanationWhenAdverse(

@@ -97,6 +97,7 @@ final class ModerationJpaMapper {
 
   static ModerationDecisionJpaEntity toEntity(ModerationDecision decision) {
     return new ModerationDecisionJpaEntity(
+        decision.createdRestrictionId().orElse(null),
         decision.id().value(),
         decision.caseId().value(),
         decision.action().name(),
@@ -120,7 +121,8 @@ final class ModerationJpaMapper {
         entity.internalNote(),
         entity.affectedTargetVersion(),
         ModeratorId.of(entity.decidedByAccountId()),
-        entity.decidedAt());
+        entity.decidedAt(),
+        entity.createdRestrictionId());
   }
 
   static AppealJpaEntity toEntity(Appeal appeal) {

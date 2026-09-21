@@ -159,7 +159,10 @@ public final class AppealService implements AppealUseCase {
                     appealed.action(),
                     appealed.affectedTargetVersion().orElse(0L),
                     moderatorId,
-                    APPEAL_OVERTURNED));
+                    APPEAL_OVERTURNED,
+                    // The restriction this decision placed, if it placed one. Without it the author
+                    // wins the appeal and stays barred from contributing.
+                    appealed.createdRestrictionId().orElse(null)));
 
     appeal.overturn(moderatorId, explanation, clock);
     appealRepository.save(appeal);

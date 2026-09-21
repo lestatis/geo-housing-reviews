@@ -114,7 +114,10 @@ Target, trigger, risk flags, assigned moderator, state, SLA timestamps.
 
 ### ModerationDecision
 
-Immutable decision with reason code, free-text internal note, user-visible explanation, affected version and policy version.
+Immutable decision with reason code, free-text internal note, user-visible explanation, affected version
+and policy version. A `RESTRICT_ACCOUNT` decision also keeps the opaque identity restriction ID it
+actually created, if any, so an overturned appeal can lift that restriction without affecting one
+created by another case.
 
 ### Report
 
