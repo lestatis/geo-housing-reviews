@@ -51,3 +51,4 @@ test-results/
 apps/web/src/api/generated/
 
 *.tsbuildinfo
+bin/
