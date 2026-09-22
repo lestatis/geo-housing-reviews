@@ -9,6 +9,8 @@ CLAUDE.local.md
 .claude/settings.local.json
 .claude/agent-memory-local/
 .codex-log/
+.ai/
+__pycache__/
 
 # Environment and secrets
 .env

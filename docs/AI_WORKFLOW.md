@@ -211,7 +211,25 @@ When integrations are available, start with manual triggers:
 - do not allow workflows triggered by untrusted fork content to access write tokens/secrets;
 - prefer read-only review tokens for first-pass review.
 
-A fully automatic Claude ↔ Codex loop is intentionally not enabled. It can waste tokens, loop indefinitely, and create a privilege-boundary problem. Introduce automation only after the manual loop is stable, with max iterations, labels, timeouts, and human escalation.
+A bounded local Claude ↔ DeepSeek loop is available for an explicitly approved implementation chunk:
+`scripts/ai/run-implementation-cycle.sh`. It is deliberately **not** a CI workflow and it never
+itself creates branches, commits, pushes, opens a pull request, or merges. It requires an existing
+feature branch, an explicit locally configured `AI_DEEPSEEK_MODEL`, a plan path and a chunk
+identifier. The worker wrapper records the original branch/HEAD and stops if the worker changed
+either; the reviewer wrapper likewise stops if a review changed tracked Git state.
+
+The script invokes DeepSeek through `codex exec` with a workspace-write sandbox and a strict worker
+result schema. Only `READY_FOR_LEAD_REVIEW` starts a fresh non-persistent Claude Code session using
+the read-only `lead-reviewer` definition, a read-oriented tool allowlist and plan permission mode.
+The reviewer returns a strict JSON decision. Valid
+`FIXES_REQUIRED` findings go back to the worker as a bounded fix packet; at most two review/fix
+cycles are allowed. Timeouts, invalid result contracts, unavailable CLIs, decision-required states,
+and the cycle cap stop the run and retain ignored `.ai/runs/` evidence for the task handoff.
+
+`READY_FOR_HUMAN_MERGE` means the local worker/reviewer loop completed. It does not replace L2 CI,
+independent human judgment, branch protection, or the human merge decision. See
+`scripts/ai/README.md` for prerequisites and invocation. Do not introduce a CI trigger, automatic
+retry, or a higher cycle cap without explicit human approval and a security review.
 
 ## Human-action format
 

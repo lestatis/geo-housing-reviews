@@ -74,4 +74,6 @@ prompts/HANDOFF.md
 prompts/INDEPENDENT_REVIEW.md
 prompts/RECOVER_INTERRUPTED_TASK.md
 scripts/check.sh
+scripts/ai/README.md
+scripts/ai/run-implementation-cycle.sh
 scripts/validate_repo_governance.py
