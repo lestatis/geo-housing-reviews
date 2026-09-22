@@ -49,6 +49,7 @@ test-results/
 # Generated from docs/api/openapi.json by `pnpm generate:api`; regenerated on every build, so
 # committing it would only create a second source of truth that can disagree with the first.
 apps/web/src/api/generated/
+apps/mobile/src/api/generated/
 
 *.tsbuildinfo
 bin/

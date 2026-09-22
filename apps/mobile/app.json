@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Geo Housing Reviews",
+    "slug": "geo-housing-reviews",
+    "version": "0.1.0",
+    "scheme": "geohousing",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ge.geohousing.reviews"
+    },
+    "android": {
+      "package": "ge.geohousing.reviews"
+    }
+  }
+}

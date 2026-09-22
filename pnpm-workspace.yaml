@@ -1,5 +1,6 @@
 packages:
   - "apps/web"
+  - "apps/mobile"
   - "packages/*"
 
 # pnpm refuses to run a dependency's install scripts unless it is named here. Keeping the list
