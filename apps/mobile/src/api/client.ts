@@ -4,7 +4,6 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from "../config";
 import type { paths } from "./generated/schema";
 import type { RuntimeGuard } from "./guards";
 import type { NetworkState, NetworkStatusProbe } from "./network";
-import { unknownNetworkStatus } from "./network";
 
 /**
  * The anonymous public API client.
@@ -91,8 +90,15 @@ export interface MobileApiClient {
 export interface MobileApiClientOptions {
   baseUrl: string;
   timeoutMs?: number;
-  /** Device network evidence. Defaults to "unknown", which can never produce `offline`. */
-  networkStatus?: NetworkStatusProbe;
+  /**
+   * Device network evidence, required rather than defaulted.
+   *
+   * The only path to `offline` is a probe that reads the device, and a default would let a caller
+   * omit it silently: no type error, no test failure, and `offline` unreachable while the copy still
+   * claims to distinguish it. Requiring the field turns that mistake into a compile error at the
+   * call site. Pass `unknownNetworkStatus` only when the caller explicitly has no device evidence.
+   */
+  networkStatus: NetworkStatusProbe;
   /** Injectable fetch, used by tests. */
   fetch?: (input: Request) => Promise<Response>;
 }
@@ -114,7 +120,7 @@ type UntypedGet = (
 
 export function createMobileApiClient(options: MobileApiClientOptions): MobileApiClient {
   const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  const networkStatus = options.networkStatus ?? unknownNetworkStatus;
+  const networkStatus = options.networkStatus;
   const client = createClient<paths>({
     baseUrl: options.baseUrl,
     ...(options.fetch ? { fetch: options.fetch } : {}),

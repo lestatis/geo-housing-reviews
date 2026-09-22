@@ -1,7 +1,18 @@
 import { createMobileApiClient, type MobileApiClientOptions } from "../client";
 import type { components } from "../generated/schema";
 import { hasString, isRecord, type RuntimeGuard } from "../guards";
-import type { NetworkState, NetworkStatusProbe } from "../network";
+import {
+  createExpoNetworkStatusProbe,
+  type NetworkState,
+  type NetworkStatusProbe,
+} from "../network";
+
+// Used by the one test that drives the client through the real device probe; `expo-network` is a
+// native module, so it is stubbed rather than imported.
+const mockGetNetworkStateAsync = jest.fn();
+jest.mock("expo-network", () => ({
+  getNetworkStateAsync: (...args: unknown[]) => mockGetNetworkStateAsync(...args),
+}));
 
 /**
  * The client foundation is exercised against a real path from the committed contract so that the
@@ -153,6 +164,25 @@ describe("mobile API client", () => {
       },
       { networkStatus: probeReporting("offline") },
     );
+
+    const result = await client.get(PROPERTY_PATH, isPropertyResponse, {
+      params: { path: { propertyId: "prop-1" } },
+    });
+
+    expect(result).toEqual({ outcome: "offline" });
+  });
+
+  it("reaches offline through the real device probe, not just an injected stub", async () => {
+    // The client's classification and the probe's mapping are separate units; this is the seam
+    // between them, and the only path by which `offline` can ever reach a user.
+    mockGetNetworkStateAsync.mockResolvedValue({ isConnected: false });
+    const client = createMobileApiClient({
+      baseUrl: BASE_URL,
+      networkStatus: createExpoNetworkStatusProbe(),
+      fetch: async () => {
+        throw new TypeError("Network request failed");
+      },
+    });
 
     const result = await client.get(PROPERTY_PATH, isPropertyResponse, {
       params: { path: { propertyId: "prop-1" } },
