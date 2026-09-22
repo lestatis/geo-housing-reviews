@@ -59,6 +59,14 @@ ready_for_review
   visible string, `1 отзыв · 2 отзыва · 5 отзывов` renders correctly, a Russian date renders as
   `1 сентября 2026 г.`, and no red screen or runtime error appeared. The runtime reported **local
   fallback** for `Intl`.
+- **Independent review completed** (read-only, verdict `FIXES_REQUIRED` for one P2 plus three P3s),
+  and the fix phase is done. Every finding is classified below under "Review phase"; the two
+  findings that were only documentation or comments are corrected, and implementing the requested
+  probe test exposed a fourth, more serious defect in the same file: the probe's `await
+  import("expo-network")` cannot work under Jest, was swallowed by its own `catch`, and therefore
+  made the offline mapping untestable — the classification could have returned `unknown` for every
+  device state while looking correct. The import is now static, the mapping is covered, and a
+  mutation check proves the new tests fail when the mapping is broken.
 
 ## Remaining work
 
@@ -103,13 +111,17 @@ ready_for_review
 ## Files changed
 
 Created: `apps/mobile/package.json`, `app.json`, `babel.config.cjs`, `metro.config.cjs`,
-`jest.config.cjs`, `jest.setup.cjs`, `eslint.config.mjs`, `tsconfig.json`, `expo-env.d.ts`,
+`jest.config.cjs`, `jest.setup.cjs`, `eslint.config.mjs`, `tsconfig.json`,
+`src/expo-types.d.ts`,
 `README.md`, `app/_layout.tsx`, `app/index.tsx`, `src/config.ts`, `src/theme.ts`,
 `src/screens/HomeScreen.tsx`, `src/api/{client,guards,network}.ts`,
 `src/api/__tests__/{client,network}.test.ts`,
 `src/i18n/{locale,en,ru,catalogues,intl,plural,format,localeStore,deviceLocale}.ts`,
 `src/i18n/LocaleProvider.tsx`, `src/i18n/__tests__/{locale,catalogues,plural,format,localeStore,LocaleProvider}.test.*`,
 `src/i18n/__tests__/intlStub.ts`, `src/screens/__tests__/HomeScreen.test.tsx`.
+
+`apps/mobile/expo-env.d.ts` is deliberately **not** here: it is written and deleted by the Expo CLI
+around dev-server runs and is gitignored. See "Review phase", third row.
 
 Modified: `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.gitignore`, `.github/workflows/frontend-check.yml`,
 `docs/ARCHITECTURE.md`, `docs/plans/023-mobile-discovery.md`, `docs/handoffs/current-task.md`;
@@ -131,11 +143,14 @@ cd apps/mobile && corepack pnpm exec expo install --check
 ./scripts/check-scoped.sh frontend                     # L1: pnpm -r lint / test / typecheck
 ```
 
+Re-run after the review fixes: `corepack pnpm exec eslint .`, `tsc --noEmit`, `jest` (9 suites / 74
+tests), `expo export --platform android`, plus the mutation and typing probes described above.
+
 ## Tests and verification
 
 | Check | Result |
 | --- | --- |
-| `apps/mobile` Jest (9 suites, 67 tests) | pass, ~1 s |
+| `apps/mobile` Jest (9 suites, 74 tests) | pass, ~1 s |
 | `apps/web` Vitest (unchanged, via the root gate) | pass, 75 tests |
 | `pnpm -r lint` / `test` / `typecheck` | pass; both commands report "Scope: 2 of 3 workspace projects" and run `apps/mobile` |
 | `expo export --platform android` | 1269 modules bundled to Hermes bytecode |
@@ -143,6 +158,9 @@ cd apps/mobile && corepack pnpm exec expo install --check
 | `expo install --check` | only `typescript@5.9.3` vs expected `~6.0.3` |
 | `pnpm install --frozen-lockfile` | up to date |
 | Android device, manual (human, 2026-09-22) | pass — launch, English render, locale switch, Russian plurals, Russian date, no red screen; `Intl` reported as local fallback |
+| `expo export --platform android`, re-run after the review fixes | bundled, 1269 modules |
+| Mutation check on the probe mapping | `isConnected === false` broken → the two `offline` tests fail; reverted → green |
+| `process.env` typing probe | with `src/expo-types.d.ts`, `const n: number = process.env.EXPO_PUBLIC_API_BASE_URL` is a type error (typed `string \| undefined`); before it, the same line compiled because the value was `any` |
 
 Test coverage: locale switching and persistence, device-locale fallback, typed dictionary
 completeness and placeholder parity, Russian 1/2/5 plurals (and agreement between the fallback and
@@ -152,6 +170,11 @@ bodies, `timeout`, `offline`, `unknown`), timeout-is-never-offline, path-paramet
 missing `Authorization` header, and a smoke render that asserts the visible string changes with the
 locale.
 
+The review round added: the four `expo-network` state mappings behind `offline`, the client driven
+through the real probe, and byte-identical agreement between `formatDate` and `fallbackFormatDate`
+for both locales. All seven error outcomes are now covered end to end from device state, not only
+from an injected stub.
+
 ## Known failures
 
 `pnpm peers check` reports two unmet peers that come from Expo's own dependency graph, not from this
@@ -160,6 +183,23 @@ app: `react-native-worklets@0.13.0` (pulled by `@expo/ui`) against `expo-modules
 `@react-native/community-cli-plugin@0.86.3`'s `0.86.3`. Adding `react-native-worklets`/`reanimated`
 to this app would silence the first only by installing native runtimes this slice does not use.
 Both are recorded rather than hidden.
+
+## Review phase
+
+Independent review, 2026-09-22: `FIXES_REQUIRED` for P2, with three cheap P3 corrections; the
+reviewer's own acceptance table passed every other 023-A criterion. Findings were classified from
+evidence, not from the review text.
+
+| Finding | Classification | Evidence and disposition |
+| --- | --- | --- |
+| **P2** — the only path that can return `offline` is neither wired nor tested | **Accepted** | `MobileApiClientOptions.networkStatus` is now required, so a caller cannot silently omit the probe (the call site no longer compiles without it); `emptyNetworkStatus`-style defaults are gone; `network.test.ts` covers the four mappings (`isConnected: false` → `offline`, `isInternetReachable: false` → `offline`, connected → `online`, rejected/empty state → `unknown`), and `client.test.ts` drives the real `createExpoNetworkStatusProbe()` through the client to prove `offline` is reachable end to end. |
+| **P2 follow-on (found while fixing)** — the probe's dynamic import | **Accepted, escalated** | `await import("expo-network")` inside `read()` fails in Jest with *"A dynamic import callback was invoked without --experimental-vm-modules"*, which the probe's own `catch` reported as `unknown`; all four mapping assertions passed vacuously against the stub because of it. The import is now static (`import { getNetworkStateAsync } from "expo-network"`), which Metro bundles the same way and Jest can mock. Verified by mutation: changing `isConnected === false` to a condition that cannot match makes the two `offline` tests fail, and reverting restores green. |
+| **P3** — the handoff names `apps/mobile/expo-env.d.ts`, which is not in the tree or in any commit | **Accepted, with a corrected cause** | The reviewer's observable claim is right; "never there" is not. The Expo CLI writes `expo-env.d.ts` at the project root and **deletes** it — plus the matching `tsconfig.json` include entries — when the dev server starts with typed routes disabled (this app's configuration). Its own template says the file belongs in `.gitignore`. That is what happened between the file's creation and the commit; the committed `tsconfig.json` is already the CLI-rewritten two-glob version. Fix: the file is gitignored, it is no longer claimed as a changed file, and `src/expo-types.d.ts` (a file we own) keeps Metro's globals typed — `process.env.EXPO_PUBLIC_API_BASE_URL` is `string \| undefined` again instead of `any`. |
+| **P3** — `guards.ts` cites a plan section that does not exist | **Accepted** | `grep "Runtime validation" docs/plans/023-mobile-discovery.md` returns nothing; the phrase came from the implementation packet, not the plan. The comment now cites "Error model", which is where `malformed` is defined. |
+| **P3** — the date fallback is not held to the plural fallback's standard | **Accepted** | `format.test.ts` now asserts `formatDate` and `fallbackFormatDate` are byte-identical for `en` and `ru` on two dates while `Intl` is present. Measured before writing: ICU returns `1 сентября 2026 г.` and `September 1, 2026` with plain spaces, so the two paths agree exactly today. |
+| **P3** — four direct dependencies are imported by no app code | **Accepted** | The README now names `expo-constants`, `expo-linking`, `react-native-screens` and `react-dom` as expo-router prerequisites that pnpm does not hoist, and states that pruning them breaks the bundle. |
+| **Not a code finding** — "app launches on a simulator" is not evidenced | **Recorded, not actionable here** | Only Android was launched, on a physical device. A simulator needs macOS/Xcode or Android SDK/emulator infrastructure, which the packet and the plan's non-goals both forbid installing, and `expo export` for iOS proves the bundle rather than a render. The gap stays open for the lead. |
+| **Reviewer note** — which `Intl` capability the device lacks | **Accepted as a follow-up** | The card reports `PluralRules` and `DateTimeFormat` together; both fallbacks are cross-checked, so this is diagnostics precision, not a defect. Left for 023-B rather than re-cutting the device evidence. |
 
 ## Risks and unresolved questions
 
@@ -172,8 +212,18 @@ Both are recorded rather than hidden.
 - **TypeScript version.** SDK 57 expects `~6.0.3`; this branch keeps the repository's single TS line
   (`^5.9.2`) so the two frontends do not run different compilers. Typecheck is clean and the bundle
   builds; moving both workspaces to TS 6 is a separate decision for the lead.
-- **The app has not been launched on a simulator or device here.** `expo export` proves the bundle
-  and the module graph, not that the native app renders.
+- **iOS is unverified as a running app.** Android was launched on a physical device; iOS has only
+  been bundled. A simulator needs macOS/Xcode or Android SDK/emulator infrastructure, which the
+  packet and the plan's non-goals forbid installing, so this gap cannot be closed from here and is
+  left for the lead to accept or schedule.
+- **The web target is deliberately unconfigured.** `react-native-web` is absent, so `pnpm start` then
+  `w` fails to bundle; the review round found this in the dev-server log from the device session.
+  Documented in the README rather than fixed, because web is not a target of this app; adding it is a
+  product decision, not a defect.
+- **The Expo CLI owns two files in the project root.** Starting the dev server rewrites
+  `tsconfig.json`'s `include` and removes `expo-env.d.ts` whenever typed routes are disabled, which is
+  this app's state. Expect that churn; the committed `include` already reflects it, and
+  `src/expo-types.d.ts` is what keeps the Metro globals typed.
 - **`pnpm-lock.yaml` reshuffles `apps/web`'s peer suffixes** (`supports-color` 7.2.0 → 10.2.2, and
   vitest now listing jsdom/lightningcss/terser peers) without changing any resolved version. Web's
   lint, tests and typecheck still pass; the cause is the shared store, not a dependency change.

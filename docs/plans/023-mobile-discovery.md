@@ -450,6 +450,16 @@ Recorded so they are not lost, and deliberately outside this slice:
   runtime reported **local fallback** for `Intl`, so the local en/ru helpers are the production path
   on Android, not a theoretical one; that is the risk this plan flagged, resolved by the fallback
   rather than by a runtime upgrade. 023-A is ready for review; 023-B and 023-C are not started.
+- 2026-09-22: 023-A review round. Independent read-only review returned `FIXES_REQUIRED` for one P2
+  (the only path that can return `offline` had no production caller, no default worth trusting and no
+  test) plus three P3 corrections (a stale handoff file entry, a comment citing a plan section that
+  does not exist, and the date fallback not being pinned to `Intl` the way the plural fallback is).
+  All are fixed: `networkStatus` is now a required option, the `expo-network` state mapping and the
+  client's use of it are covered, and the review's own requested test exposed a further defect — the
+  probe used `await import()`, which cannot work under Jest, was swallowed as `unknown`, and made the
+  mapping untestable. The import is static now. Two environment gaps remain for the lead: no iOS
+  simulator run (Xcode/SDK installation is out of bounds) and the web target is deliberately
+  unconfigured.
 
 ## Final outcome
 
