@@ -2,122 +2,101 @@
 
 ## Objective
 
-Complete Plan 019: when an appeal overturns a `RESTRICT_ACCOUNT` moderation decision, lift the
-specific identity restriction that decision created, while preserving restrictions created by other
-cases.
+Plan 022: protect `main` so nothing reaches it without a pull request whose required checks passed
+on the merged commit — making the review loop `CONTRIBUTING.md` describes a gate instead of a
+post-mortem.
 
 ## Active branch
 
-`feat/019-appeal-lifts-restriction`, with uncommitted implementation already present when this
-handoff was recovered. The branch tip is `7946363`; the worktree is the source of truth for this
-task.
+`chore/022-branch-protection`, branched from `main` at `5f9bb95`.
 
 ## Related issue or plan
 
-`docs/plans/019-appeal-lifts-restriction.md`; this is the second P1 in Group C of
-`docs/plans/017-unreviewed-module-debt.md`.
+`docs/plans/022-branch-protection.md`, the named non-goal of plan 021.
 
 ## Current status
 
-ready_for_review — implementation, verification and the end-to-end scenario are complete and
-committed. The branch needs an independent review in a separate session before a human decides
-whether to merge.
+ready_for_review — the in-repository half is complete and verified; the GitHub half is an
+administrator action that no agent may perform. Both are below.
 
 ## Completed work
 
-The recovered worktree implements the intended vertical slice:
-
-- `AccountRestraint` returns the ID of a restriction it newly creates and adds an ID-based lift.
-- The moderation decision stores the optional ID immutably, with JPA mapping and a nullable V6.2
-  migration.
-- `ModerationCaseService` carries the created ID into the persisted decision.
-- `AppealService` passes the stored ID into the reviews adapter, which lifts it through identity.
-- Identity resolves the affected account from its own restriction row, so a deleted review cannot
-  strand a restriction after its decision is overturned; the administrator endpoint keeps its
-  account-plus-ID guard.
-- Unit tests cover the linked lift, isolation from an unrelated restriction, mapper round-tripping,
-  and a deleted-review reversal. The app migration test confirms V6.2 and its nullable opaque link.
-- **An acceptance scenario now covers the journey end to end** — restricted by a decision, appeal
-  overturned, and the account can contribute again. It was missing when this handoff was recovered,
-  and it is the only test that proves the user-visible outcome rather than the mechanism. Severing
-  the link in `AppealService` fails exactly that scenario and nothing else.
-- `docs/DOMAIN_MODEL.md` records the optional restriction reference in the conceptual model.
-
-The complete diff has been inspected and the checks below passed. It has not been independently
-reviewed in this implementation session.
+- **The three workflows always report.** `pull_request.paths` filters are gone; each job diffs the
+  pull request against its base and skips its expensive steps when nothing relevant changed. This
+  closes the trap that would otherwise block every docs-only pull request forever ("Expected —
+  waiting for status"). The regexes were exercised against real history: a backend fix fires
+  backend only, a docs commit fires neither, the OpenAPI contract fires both, and editing a workflow
+  file fires its own check.
+- **Explicit job names** (`governance`, `backend`, `frontend`) — the strings the ruleset references.
+- **`.github/rulesets/main.json`**: pull request required, zero approvals, strict up-to-date checks,
+  conversation resolution, no force-push, no deletion, **empty bypass list**.
+- **`CODEOWNERS` corrected** — owner handle from the remote, `apps/admin/` → `apps/web/`. Code-owner
+  review is *not* required by the ruleset; the file is fixed so it stops being wrong, not because it
+  is enforced.
 
 ## Remaining work
 
-An independent review from the complete branch diff, then a human merge decision. No agent merges.
+The administrator action, then the verification that proves both traps are closed.
+
+```text
+HUMAN_ACTION_REQUIRED
+Command: GitHub → lestatis/geo-housing-reviews → Settings → Rules → Rulesets → New ruleset
+         → "Import a ruleset" → select .github/rulesets/main.json → Create
+Reason: branch protection is a repository setting only an administrator can change; no agent may
+        alter it, and the GitHub CLI is not installed or permitted here.
+Expected result: a ruleset named "main", enforcement Active, with four rules and no bypass actors.
+Verification command: git push origin main   (from any branch; must be refused as a protected
+        branch)  — then open a docs-only pull request and confirm all three checks report green,
+        none reading "Expected".
+```
+
+**Merge this branch first, then import.** The ruleset requires the three job names this branch
+introduces; importing it against the old workflows would block every pull request until this one
+merges — and this one could not merge either.
 
 ## Decisions made
 
-- The decision records an optional opaque restriction ID, not an account-wide "active restriction"
-  lookup; only the decision that created a restriction can reverse it.
-- The nullable moderation link has no foreign key into identity, preserving module-owned schemas.
-- The identity application contract resolves the account from a restriction ID only for this
-  cross-module workflow. The administrator HTTP endpoint still requires both account and ID.
+- Zero required approvals: one maintainer, and GitHub does not count self-approval. The rule
+  enforces process, not a second reviewer. One-line change when a second maintainer exists.
+- Inline `git diff` for change detection rather than a marketplace action — twelve lines, no
+  dependency.
+- Governance runs in full every time (seconds); it is the check that notices a pull request editing
+  the rules themselves.
+- The `codex review` CI gate is deferred, with its cost and secret requirement noted in the plan.
 
-## Assumptions
+## Changed files
 
-- Historical decisions did not record an ownership link and therefore must not lift any restriction
-  when overturned.
-- A restriction manually lifted while its appeal is pending remains a successful no-op on reversal;
-  identity retains the audit record of that attempted lift.
-
-## Files changed
-
-- Identity: `AccountRestraint`, `AccountRestrictionUseCase`, its service and transactional adapter,
-  plus restriction tests.
-- Moderation: decision/effect/appeal flow, JPA mapping, reviews adapter, V6.2 migration, and unit
-  tests.
-- App migration integration test and the Plan 019/domain-model/handoff documentation.
+`.github/workflows/{backend,frontend,governance}-check.yml`, `.github/CODEOWNERS`,
+`.github/rulesets/main.json`, `.github/rulesets/README.md`, `docs/plans/022-branch-protection.md`,
+this handoff.
 
 ## Commands and tests
 
 ```bash
-cd apps/api && ./gradlew :modules:moderation:test -PskipMutation  # passed
-cd apps/api && ./gradlew :app:test --tests \
-  'com.example.geohousing.app.moderation.ModerationMigrationIntegrationTest' -PskipMutation
-  # passed
-cd apps/api && ./gradlew :modules:moderation:check -PskipMutation  # passed after one
-  Spotless-only failure in the new mapper test was corrected
-./scripts/check.sh  # passed: governance, Gradle checks/mutation, web lint/test/typecheck
+./scripts/check-scoped.sh governance          # passed
+python3 -c "import yaml,glob; [yaml.safe_load(open(f)) for f in glob.glob('.github/workflows/*.yml')]"
 ```
 
-Final additional verification:
-
-```bash
-cd apps/api && ./gradlew :modules:identity:test :modules:moderation:test -PskipMutation
-# passed
-cd apps/api && ./gradlew :app:test --tests \
-  'com.example.geohousing.app.moderation.ModerationMigrationIntegrationTest' \
-  -PskipMutation --rerun-tasks  # passed
-cd apps/api && ./gradlew :modules:identity:check :modules:moderation:check -PskipMutation
-# passed
-./scripts/check.sh  # passed in 5m 33s; identity mutation 90%, moderation mutation 86%
-```
+The workflows themselves are exercised by CI on this pull request — which is the first pull request
+to run under the always-report shape, and therefore the real test of it.
 
 ## Failures and blockers
 
-None.
+None. Pushing needs credentials this session does not have (HTTPS remote, no helper).
 
 ## Unresolved risks
 
-- Cross-module orchestration cannot make identity and moderation atomic without a larger design;
-  the existing effect-first decision protocol remains unchanged and is documented in the service.
-- Historical decisions have no restriction link and therefore do not lift anything when overturned.
-  This is intentional: guessing could end a restriction owned by another case.
+- The ruleset JSON is written to GitHub's export schema from documentation, not round-tripped from
+  a real export. If the import rejects it, apply the four settings by hand from the plan's Decisions
+  and replace the file with a genuine export.
+- `fetch-depth: 0` slows checkout; the diff needs history.
+- Once enforcement is on, the next agent to try `git push origin main` gets refused — which is the
+  point, and also the first thing that will look like a bug to whoever has not read this.
 
 ## Next action
 
-Perform an independent read-only review from the complete branch diff.
-
-## Verified in this session
-
-`./scripts/check.sh` → `EXIT=0`, re-run after the scenario was added rather than trusting an
-up-to-date result. 41 acceptance scenarios, no failures.
+Push, open the pull request, merge it, import the ruleset, run the verification push.
 
 ## Last updated
 
-2026-08-17
+2026-09-22

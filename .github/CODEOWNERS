@@ -1,13 +1,20 @@
-# Replace placeholders with real GitHub usernames before enabling required reviews.
-/AGENTS.md @OWNER_VOVA
-/CLAUDE.md @OWNER_VOVA
-/.claude/ @OWNER_VOVA
-/.agents/ @OWNER_VOVA
-/docs/ARCHITECTURE.md @OWNER_VOVA
-/docs/SECURITY_PRIVACY.md @OWNER_VOVA
-/docs/TRUST_VERIFICATION.md @OWNER_VOVA @OWNER_DASHA
-/docs/MODERATION.md @OWNER_VOVA @OWNER_DASHA
+# Code ownership. Not enforced by the main ruleset (plan 022): there is one maintainer, and GitHub
+# does not count self-approval, so requiring owner review would block every merge. The file still
+# has to be true — a wrong path here is a review that never gets requested once enforcement is on.
+#
+# @lestatis is the repository owner (the remote is github.com/lestatis/...). The second owner's
+# handle is not known to the agent that corrected this file; replace @OWNER_DASHA before enabling
+# required code-owner review, or GitHub will silently treat those paths as unowned.
+/AGENTS.md @lestatis
+/CLAUDE.md @lestatis
+/.claude/ @lestatis
+/.agents/ @lestatis
+/.github/ @lestatis
+/docs/ARCHITECTURE.md @lestatis
+/docs/SECURITY_PRIVACY.md @lestatis
+/docs/TRUST_VERIFICATION.md @lestatis @OWNER_DASHA
+/docs/MODERATION.md @lestatis @OWNER_DASHA
 /docs/DESIGN_HANDOFF.md @OWNER_DASHA
-/apps/mobile/ @OWNER_DASHA @OWNER_VOVA
-/apps/admin/ @OWNER_VOVA
-/apps/api/ @OWNER_VOVA
+/apps/mobile/ @OWNER_DASHA @lestatis
+/apps/web/ @lestatis
+/apps/api/ @lestatis
