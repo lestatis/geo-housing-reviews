@@ -24,6 +24,9 @@ target/
 dist/
 node_modules/
 .expo/
+# Written and deleted by the Expo dev server (typed-route type generation); its own template says it
+# belongs in .gitignore. apps/mobile keeps a file it owns instead: src/expo-types.d.ts.
+expo-env.d.ts
 .next/
 coverage/
 
@@ -49,6 +52,7 @@ test-results/
 # Generated from docs/api/openapi.json by `pnpm generate:api`; regenerated on every build, so
 # committing it would only create a second source of truth that can disagree with the first.
 apps/web/src/api/generated/
+apps/mobile/src/api/generated/
 
 *.tsbuildinfo
 bin/

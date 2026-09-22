@@ -24,7 +24,7 @@ No microservices in MVP.
 
 ### Clients
 
-- React Native + Expo for iOS/Android;
+- React Native + Expo for iOS/Android (`apps/mobile`, expo-router — see its README);
 - Next.js for the admin web app (`apps/web`, App Router — see its README);
 - generated API client from OpenAPI;
 - shared design tokens, not shared UI components across incompatible platforms unless value is proven.
