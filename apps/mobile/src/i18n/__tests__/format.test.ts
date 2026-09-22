@@ -42,4 +42,20 @@ describe("date formatting", () => {
   it("uses the Russian genitive month even without Intl", () => {
     expect(fallbackFormatDate("ru", new Date(2026, 0, 31))).toBe("31 января 2026 г.");
   });
+
+  it("keeps the fallback identical to the runtime's formatting for both locales", () => {
+    // The Android device reported the fallback, so the fallback is what users actually see. This is
+    // the date equivalent of pinning the plural fallback to Intl.PluralRules: if CLDR changes shape
+    // or the fallback drifts, one of these fails instead of a silent wording difference.
+    for (const locale of ["en", "ru"] as const) {
+      expect({ locale, rendered: formatDate(locale, firstOfSeptember) }).toEqual({
+        locale,
+        rendered: fallbackFormatDate(locale, firstOfSeptember),
+      });
+      expect({ locale, rendered: formatDate(locale, new Date(2026, 0, 31)) }).toEqual({
+        locale,
+        rendered: fallbackFormatDate(locale, new Date(2026, 0, 31)),
+      });
+    }
+  });
 });
