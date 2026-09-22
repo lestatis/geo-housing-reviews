@@ -1,9 +1,9 @@
 # Plan 021 — repair the clean-runner CI baseline
 
-Status: Active
+Status: Completed
 Owner: Codex
 Related issue: None
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 ## Objective
 
@@ -13,12 +13,12 @@ weakening the L0/L1/L2 model, mutation thresholds, or real S3-compatible integra
 ## Acceptance criteria
 
 - [x] Frontend CI installs the locked dependencies on Node 22 before lint, test, and typecheck.
-- [ ] Frontend CI enables the pnpm shim so its root lifecycle scripts can run on a clean runner.
+- [x] Frontend CI enables the pnpm shim so its root lifecycle scripts can run on a clean runner.
 - [x] PITest selects only domain/application tests for modules whose mutation targets are those
   layers; infrastructure integration tests remain in ordinary Gradle test execution.
-- [ ] All three MinIO-backed integration classes start the approved, reproducible official image on
+- [x] All three MinIO-backed integration classes start the approved, reproducible official image on
   a clean GitHub runner.
-- [ ] Governance, backend, and frontend CI pass on this branch.
+- [x] Governance, backend, and frontend CI pass on this branch.
 
 ## Non-goals
 
@@ -50,10 +50,10 @@ entire module and therefore started the MinIO infrastructure test during PITest.
 
 1. Make the frontend job install from `pnpm-lock.yaml` before its commands. **Completed**
 2. Restrict the default PITest test glob to domain/application packages. **Completed**
-3. Update all three tests to the approved public official Quay MinIO image and verify startup on a clean
-   runner. **Local integration evidence completed; CI pending.**
+3. Update all three tests to the approved public official Quay MinIO image and verify startup on a
+   clean runner. **Completed.**
 4. Enable the Corepack pnpm shim in frontend CI, then require green governance, backend, and
-   frontend CI before review. **In progress.**
+   frontend CI before review. **Completed.**
 
 ## Verification
 
@@ -87,7 +87,15 @@ as a fallback, because it is unavailable on a clean runner.
 - 2026-09-21: GitHub Actions installed frontend dependencies successfully but `corepack pnpm lint`
   failed because the root lifecycle script invokes `pnpm` without a Corepack shim on `PATH`. Added
   `corepack enable` before using normal `pnpm` commands; clean-runner CI evidence remains pending.
+- 2026-09-22: Clean GitHub Actions runners confirmed the Corepack frontend repair. Governance and
+  frontend passed on `654148a`; backend passed on `0d5b457`, the last commit affecting backend
+  paths. The backend code is unchanged at `654148a`.
 
 ## Final outcome
 
-Pending local integration and clean-runner CI evidence for the approved image.
+Completed.
+
+Clean GitHub Actions runners confirmed governance validation; frontend dependency installation,
+lint, tests, and typecheck; and the backend Gradle check. The pinned public Quay MinIO image works
+in the integration suite, while infrastructure integration tests no longer participate in PITest
+discovery. The CI baseline is green without weakening the L0/L1/L2 quality model.

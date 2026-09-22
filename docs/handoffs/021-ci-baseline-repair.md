@@ -15,7 +15,7 @@ real S3-compatible integration coverage.
 
 ## Current status
 
-in_progress
+completed
 
 ## Completed work
 
@@ -34,8 +34,7 @@ in_progress
 
 ## Remaining work
 
-Collect green governance/backend/frontend CI evidence for the Corepack shim repair, then request an
-independent read-only review.
+None for Plan 021.
 
 ## Decisions made
 
@@ -92,16 +91,17 @@ independent read-only review.
 - `cd apps/api && ./gradlew :modules:verification:spotlessCheck :app:spotlessCheck` — passed after
   the image-reference edits.
 - `./scripts/check-scoped.sh governance` and shell syntax checks — passed.
+- GitHub Actions: Governance — PASS and Frontend — PASS on `654148a`; Backend — PASS on
+  `0d5b457`, the last commit changing backend paths. Backend source is unchanged on `654148a`.
 
 ## Known failures
 
-The prior clean CI run failed after dependency installation because `pnpm` was absent from `PATH`
-inside the root lifecycle script. The Corepack shim repair needs a new CI run.
+None.
 
 ## Risks and unresolved questions
 
-The current main branch needs a green GitHub Actions run for the Corepack shim repair; all three
-affected backend integration suites already provide local compatibility evidence.
+Plan 021 is complete. Branch protection and a required aggregate merge gate remain a separate
+follow-up; path-filtered workflows alone are not suitable as three independently required checks.
 
 ## Human actions required
 
@@ -109,9 +109,9 @@ None. The lead approved the official Quay AIStor image and pinned release.
 
 ## Recommended next action
 
-Push the Corepack shim repair, inspect all three CI checks, then request independent read-only
-review.
+Close Plan 021 and proceed to the next product or engineering chunk. Plan a protected merge workflow
+before configuring required status checks.
 
 ## Last updated
 
-2026-09-21
+2026-09-22
