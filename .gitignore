@@ -24,6 +24,9 @@ target/
 dist/
 node_modules/
 .expo/
+# Written and deleted by the Expo dev server (typed-route type generation); its own template says it
+# belongs in .gitignore. apps/mobile keeps a file it owns instead: src/expo-types.d.ts.
+expo-env.d.ts
 .next/
 coverage/
 

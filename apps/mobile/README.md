@@ -27,6 +27,19 @@ generated output and is not committed.
 There is no end-to-end suite: plan 023 deliberately excludes device E2E infrastructure. Device
 checks are manual and recorded in the chunk's pull request.
 
+This app targets iOS and Android. The web target is deliberately not configured: `react-native-web`
+is not a dependency, so pressing `w` in the dev server fails to bundle. That is the intended state,
+not a broken build.
+
+### Dependencies that exist for expo-router
+
+`expo-constants`, `expo-linking`, `react-native-screens` and `react-dom` are not imported by any file
+under `app/` or `src/`; they are expo-router's required peers, declared directly because pnpm's
+isolated `node_modules` does not hoist them (the same reason `metro.config.cjs` points Metro at the
+workspace root). `react-dom` is pinned to the SDK's own version so pnpm's peer resolution stays
+consistent — it is a peer of expo-router, not a statement that the app runs on the web. Pruning them
+breaks the bundle.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -45,6 +58,7 @@ src/
   api/                   anonymous API client, runtime guards, generated schema
   i18n/                  en/ru catalogues, plural rules, date formatting, locale provider
   screens/               screen components, with their tests alongside
+  expo-types.d.ts        typed Metro globals; replaces the CLI's generated expo-env.d.ts
 ```
 
 Tests live under `src/**/__tests__/` and run in Node only: mobile joins the shared `pnpm -r` gate, so
@@ -52,6 +66,12 @@ a slow or flaky React Native test setup would slow `apps/web` pull requests too.
 
 ## Rules that are easy to break
 
+- **`src/expo-types.d.ts` is ours; `expo-env.d.ts` is not.** The Expo CLI writes `expo-env.d.ts` when
+  the dev server starts and deletes it again when typed routes are disabled — which is this app's
+  configuration — taking the matching `tsconfig.json` include entries with it. That is why the file
+  is gitignored and why `include` lists only `**/*.ts` and `**/*.tsx`. The reference that types
+  Metro's globals lives in `src/expo-types.d.ts`, so `process.env.EXPO_PUBLIC_API_BASE_URL` is
+  `string | undefined` in CI instead of `any`.
 - **No `Authorization` header, ever.** There is no login, token or session in this app, and
   `src/api/__tests__/client.test.ts` asserts the header is absent. Authentication is a future plan.
   Do not add a token abstraction in anticipation of it.
