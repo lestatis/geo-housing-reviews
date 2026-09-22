@@ -1,7 +1,7 @@
 # Plan 023 — mobile discovery: find a property, understand the experience
 
-Status: Proposed — not started
-Owner: Claude Code (lead) · implementation suitable for a worker model
+Status: Approved, ready for implementation — not started
+Owner: Claude Code (lead) · implementation by a worker model
 Related issue: None
 Last updated: 2026-09-22
 
@@ -11,28 +11,51 @@ A person in Batumi opens the mobile app, does not sign in, searches for a buildi
 complex, opens it, and reads its published reviews. MVP loop 1: **find property → understand
 experience**.
 
-## Can this be built on the current API?
+The slice includes **two small backend contract changes** (an address summary on search hits, and
+the removal of `authorAccountId` from public review responses). Both are accepted scope. Neither
+requires a database migration, and neither changes module boundaries.
 
-**Yes.** Every screen below is served by three endpoints that already exist and are already
-anonymous (`SecurityConfiguration` permits `GET /api/properties/**` without a token). No backend
-change is required to ship the slice.
+## Current system
 
-The contract was read rather than assumed, and it has four gaps worth knowing before design starts.
-None blocks the slice; each forces a wording or scope decision, and two of them contradict
-`docs/DESIGN_HANDOFF.md`. They are listed under **Decisions needed** with a recommendation each.
+Read before starting. These are facts verified against the code on 2026-09-22, not assumptions.
+
+- **The three endpoints exist and are anonymous.** `SecurityConfiguration` permits
+  `GET /api/properties/**` and `GET /api/reviews/**` without a token (P-011).
+  - `GET /api/properties/search` — `q`, `lat`, `lng`, `radiusMeters`, `limit`. Returns
+    `PropertySearchResponse { items }`. **No cursor and no total**: one page only.
+  - `GET /api/properties/{propertyId}` — returns `PropertyResponse` with `address` (`AddressView`),
+    `aliases`, `type`, `status`, coordinates, timestamps, `version`.
+  - `GET /api/properties/{propertyId}/reviews` — `cursor`, `limit`. Returns
+    `ReviewListResponse { items, nextCursor }`. Cursor pagination works.
+- **The search query already joins the address table.** `SpringDataPropertyRepository` runs native
+  SQL with `LEFT JOIN properties.address addr ON addr.id = p.address_id`, because it matches
+  trigrams against `addr.street` and `addr.city`. Address columns are therefore available to the
+  projection at **no extra query cost and with no N+1**.
+- **Search deliberately includes `DRAFT`.** Only `HIDDEN` and `MERGED` are excluded; the repository
+  javadoc explains why (a resident who adds a property must be able to find it again).
+- **`ReviewResponse` is shared by the public and admin controllers.** `ReviewController` (public
+  `GET /api/reviews/{reviewId}`, plus authenticated submit/edit) and `AdminReviewController` both
+  return it. This is why removing a field is not a one-line deletion — see the contract change below.
+- **No hand-written frontend code reads `authorAccountId`.** It appears in `apps/web` only inside the
+  generated `src/api/generated/schema.d.ts`.
+- **`apps/mobile` does not exist.** `pnpm-workspace.yaml` lists `apps/web` and `packages/*`.
+  `ARCHITECTURE.md:27` already mandates React Native + Expo, so no ADR is needed to create it.
+- **The root scripts are `pnpm -r lint|test|typecheck`**, so a new workspace member joins the L2 gate
+  automatically — but `frontend-check.yml` decides whether to run from a regex listing `apps/web/`
+  only. See 023-A.
 
 ## User journey
 
-1. Opens the app. No account, no prompt to make one. A search field and an explanation of what this
-   app is for.
-2. Types "Abashidze" or "ვაკე" or "Vake Heights".
-3. Gets a list of matching buildings, newest-first by relevance score.
+1. Opens the app. No account, no prompt to make one. A search field and a short statement of what
+   the app is for.
+2. Types "Abashidze", "Orbi", or a complex name.
+3. Gets a ranked list of matching buildings, each showing its name and address.
 4. Taps one.
-5. Sees its name, aliases, address, type, and how established the record is.
-6. Scrolls into the published reviews: relationship, period lived there, recommendation, category
-   ratings, pros, cons, body.
+5. Sees its name, aliases, address, type, and — when the record is thin — an honest notice saying so.
+6. Reads the published reviews: relationship, period lived there, recommendation, category ratings,
+   pros, cons, body.
 7. Loads more reviews until there are none.
-8. Loses signal mid-scroll, sees what failed, retries, continues.
+8. Loses signal mid-scroll, sees what failed, retries, continues from where they were.
 
 At no point is an account required, offered as a gate, or implied.
 
@@ -40,329 +63,379 @@ At no point is an account required, offered as a gate, or implied.
 
 | # | Screen | Route | Purpose |
 | --- | --- | --- | --- |
-| 1 | Home / search | `/` | Search entry, plain-language explanation of the app, recent searches (device-local) |
-| 2 | Results | `/search?q=` | Ranked matches, or a truthful empty state |
-| 3 | Property detail | `/property/[id]` | Identity, address, aliases, data-sufficiency, then the review feed |
-| 4 | Review detail (optional, chunk 6) | `/property/[id]/review/[reviewId]` | A single long review, readable and shareable |
+| 1 | Home / search | `/` | Search entry and a plain-language statement of what the app is for |
+| 2 | Results | `/search?q=` | Ranked matches with name + address, or a truthful empty state |
+| 3 | Property detail | `/property/[id]` | Identity, address, data-sufficiency notice, then the review feed |
 
-Four screens. No tab bar in this slice: `DESIGN_HANDOFF.md` lists five primary tabs (Search/Map,
-Saved, Add review, Notifications, Profile), and four of the five are non-goals here. Shipping a tab
-bar with one live tab and four dead ones teaches the wrong thing about the product. A stack is
-honest about what exists.
+Three screens. Review detail and recent searches are follow-ups, not part of the slice.
 
-## Navigation structure
+## Navigation
 
-`expo-router`, file-based, chosen because the team already reasons in Next.js App Router routes and
-the mapping is one-to-one.
+`expo-router`, file-based stack. **No tab bar.** `DESIGN_HANDOFF.md` lists five primary tabs, four of
+which are non-goals here; shipping dead or disabled tabs teaches the wrong thing about the product.
 
 ```
 app/
-  _layout.tsx           Stack + i18n provider + query client + error boundary
+  _layout.tsx           Stack + i18n provider + error boundary
   index.tsx             Home / search
-  search.tsx            Results (q as a search param, so the screen is linkable and restorable)
+  search.tsx            Results
   property/[id].tsx     Detail + review feed
 ```
 
-Deep-linkable from the start (`q` and `id` in the URL, not in component state): it costs nothing now
-and is the difference between a shareable property link later and a rewrite.
+`q` and `id` live in the route, not in component state, so screens are linkable and restorable. That
+costs nothing now and is the difference between a shareable property link later and a rewrite.
 
 ## API operations per screen
 
 | Screen | Operation | Parameters | Notes |
 | --- | --- | --- | --- |
 | Home | none | — | No network on launch. The first request is the user's. |
-| Results | `GET /api/properties/search` | `q`, `limit=20` | `lat`/`lng`/`radiusMeters` exist and are **not** used: geolocation and maps are non-goals. |
+| Results | `GET /api/properties/search` | `q`, `limit=20` | `lat`/`lng`/`radiusMeters` exist and are **not** used — geolocation is a non-goal. |
 | Detail (header) | `GET /api/properties/{propertyId}` | path id | |
-| Detail (feed) | `GET /api/properties/{propertyId}/reviews` | path id, `limit=20`, `cursor` | Cursor pagination; `nextCursor` null ends the feed. |
+| Detail (feed) | `GET /api/properties/{propertyId}/reviews` | path id, `limit=20`, `cursor` | `nextCursor` null ends the feed. |
 
-Both detail requests fire in parallel; the header renders as soon as it lands rather than waiting for
-the feed.
+The two detail requests fire in parallel; the header renders as soon as it lands rather than waiting
+for the feed.
+
+## Accepted backend contract changes
+
+Both are contract-only. **Neither adds or alters a database table, so neither needs a Flyway
+migration.** Both update `docs/api/openapi.json` in the same commit, regenerated with:
+
+```bash
+cd apps/api && ./gradlew :app:test --tests '*OpenApiContractIntegrationTest' -DupdateOpenApiSpec=true
+```
+
+### C1 — public address summary on search hits (in 023-B)
+
+`PropertySearchHitResponse` currently carries `propertyId`, `canonicalName`, `score`,
+`distanceMeters`. That cannot distinguish two similarly-named buildings, which is common in Batumi.
+
+Add to the hit:
+
+- `address` — a new `AddressSummaryView(city, district, street, building)`;
+- `type` — the property type, as `PropertyResponse` already exposes it.
+
+**Why a summary rather than reusing `AddressView`:** `originalText` is user-entered free text and is
+the likeliest place an apartment number is hiding, and a result row does not need it; `country` is
+effectively constant (`GE`). The summary is therefore *strictly less* than the public detail endpoint
+already exposes, which satisfies the "nothing beyond public detail" rule by construction rather than
+by review. `type` costs nothing extra — it is another column on the row already being read.
+
+Carry the fields through the existing seam: `PropertySearchProjection` → `PropertyMatch` →
+`PropertySearchHitResponse`. The SQL already joins `properties.address`; add the columns to the
+`SELECT` list. **Do not add a join, a second query, or a per-hit detail fetch.**
+
+`score` stays in the contract (an existing client concern) but the mobile app **must never render
+it**.
+
+### C2 — remove `authorAccountId` from public review responses (in 023-C)
+
+The public feed hands every anonymous client a stable account UUID, which can be correlated across
+properties into one person's review history. That conflicts with P-003 (pseudonym by default for
+reviewers) and is unnecessary for any public screen.
+
+`ReviewResponse` is shared by `ReviewController` (public) and `AdminReviewController`, so this is a
+**split, not a field deletion**:
+
+- public `ReviewResponse` — drop `authorAccountId`, add no replacement identifier;
+- new `AdminReviewResponse` — same shape **plus** `authorAccountId`, returned by
+  `AdminReviewController` only. This follows the existing `AdminAppealResponse` /
+  `AdminAppealQueueResponse` precedent, so it is a convention already in the codebase.
+
+Everything else stays: the `author_account_id` column, `ReviewJpaEntity`, `AuthorId`,
+`ModeratableReview`/`ModeratableTarget`, and moderation's appeal and report ownership checks all use
+internal ports, not this DTO. **Do not touch them.**
+
+Known test to update: `ReviewEndpointIntegrationTest` asserts `$.authorAccountId` on the public
+response; it becomes an assertion that the field is *absent*, and the admin coverage moves to the
+admin DTO.
+
+**Compatibility note.** `API_GUIDELINES.md` §Compatibility asks for migration planning and a
+compatibility window on field removal. The window is satisfied here rather than skipped: the only
+consumer is `apps/web`, where the field appears solely in the generated schema and no hand-written
+code reads it, and the mobile app is unreleased. Record this reasoning in the pull request.
+
+Both changes are founder decisions — add an entry for each to `docs/DECISION_LOG.md` using the next
+free `P-0xx` numbers.
 
 ## Data mapping
 
 Only these fields are read. Anything else the API returns is deliberately not rendered.
 
-**Search hit** → result row
-`canonicalName` → title · `propertyId` → route param · `score`, `distanceMeters` → **not shown**
-(score is an internal relevance number; distance is always null without a location, which is a
-non-goal).
+**Search hit → result row**
+`canonicalName` → title · `address` → one line, "street building, district, city", blanks omitted ·
+`type` → translated label · `propertyId` → route param · `score`, `distanceMeters` → **never
+rendered**.
 
-**Property** → detail header
-`canonicalName` → title · `address.{street, district, city}` → subtitle, joined by the locale's list
-separator, omitting blanks · `address.originalText` → fallback when the structured parts are empty ·
-`aliases[].name` → "also known as", de-duplicated against the title, `locale` used to prefer the
-user's language · `type` → translated label (`BUILDING` → "Building" / "Дом") · `status` → drives the
-data-sufficiency notice (see below) · `latitude`/`longitude`/`version`/`mergedIntoPropertyId`/
-`parentPropertyId`/timestamps → **not shown**.
+**Property → detail header**
+`canonicalName` → title · `address.{street, building, district, city}` → address line;
+`address.originalText` → fallback only when the structured parts are all empty · `aliases[].name` →
+"also known as", de-duplicated against the title, preferring the user's `locale` · `type` →
+translated label · `status` → drives the data-sufficiency notice · coordinates, `version`,
+`parentPropertyId`, `mergedIntoPropertyId`, timestamps → not shown.
 
-**Review** → feed card
-`relationshipType` → translated label ("Current resident") · `residenceFrom`/`residenceTo` →
-"2023–2024", the year only, because a month plus a building is a step towards identifying a person ·
-`verificationTier` → badge with the wording from `TRUST_VERIFICATION.md`: checked *relationship*, not
-verified *claims* · `recommendation` → translated label, never a bare colour · `content.ratings[]` →
-category chips using `category`, `value`, skipping `notApplicable`; `note` shown if present ·
-`content.pros`, `content.cons`, `content.body` → text blocks · `content.locale` → language tag when
-it differs from the UI locale · `helpfulCount` → count only, never who · `publishedAt` → relative
-date · `authorAccountId` → **never rendered** (see Decisions needed #3) · `status`, `version`,
-`updatedAt`, `content.versionNumber`, `categorySetVersion` → not shown.
+**Review → feed card**
+`relationshipType` → translated label · `residenceFrom`/`residenceTo` → **years only** ("2023–2024"),
+because a month plus a building narrows towards a person · `verificationTier` → badge worded per
+`TRUST_VERIFICATION.md`: a checked *relationship*, never certified *claims* · `recommendation` →
+translated label, never a bare colour · `content.ratings[]` → category chips from `category` and
+`value`, skipping `notApplicable`, showing `note` when present · `content.pros`, `content.cons`,
+`content.body` → text blocks · `content.locale` → language tag shown only when it differs from the UI
+locale · `helpfulCount` → the count alone, never who voted · `publishedAt` → relative date ·
+`status`, `version`, `updatedAt`, `content.versionNumber`, `categorySetVersion` → not shown.
 
 ## UI states
 
-Every networked screen implements four states. A state that is only "spinner or content" is
-incomplete and should fail review.
+Every networked screen implements loading, empty, error and loaded. A screen that is only "spinner or
+content" is incomplete and should fail review.
 
 **Results**
-- *Loading*: three skeleton rows, no spinner-on-blank. Announced to screen readers as "Searching".
-- *Empty*: "No building found for «Abashidze»." Plus what to do: check spelling, try the street
-  instead of the building, try the district. **No "add this property" call to action** — creating a
-  property requires an account, which is a non-goal, and offering it would dead-end the user.
-- *Error*: what failed, in one sentence, plus Retry. Distinguish offline ("No connection") from
-  server ("Search is unavailable right now") because the user's next action differs.
-- *Loaded*: rows; a note when exactly `limit` came back, since search cannot page (gap #4).
+- *Loading*: skeleton rows, announced to screen readers as "Searching".
+- *Empty*: "No building found for «…»", plus what to try: spelling, the street instead of the
+  building, the district. **No "add this property" call to action** — creating a property needs an
+  account, so offering it would dead-end the user.
+- *Error*: one sentence plus Retry, per the error model below.
+- *Loaded*: rows. When exactly `limit` results come back, say "Showing the first 20" — search cannot
+  page, and silence would imply the list is complete.
 
 **Detail**
 - *Loading*: header skeleton, then feed skeleton.
 - *Header error*: the whole screen fails with Retry — without identity there is nothing to show.
-- *Feed error after a successful header*: the header stays, the feed area carries its own Retry. A
-  failed second page must never discard the pages already read.
-- *Empty feed*: "No published reviews yet." For a `DRAFT` property, say why that is unsurprising.
-- *Paging*: inline footer spinner; "load more" is also a button, not scroll-only, because
-  scroll-triggered loading is unreachable for some assistive technologies.
+- *Feed error after a successful header*: the header stays and the feed area carries its own Retry.
+  **A failed next page must never discard the pages already loaded.**
+- *Empty feed*: "No published reviews yet."
+- *Paging*: an inline footer indicator **and** a "load more" button — scroll-triggered loading alone
+  is unreachable for some assistive technologies.
 
-## Data-sufficiency notice
+## Error model
 
-`DESIGN_HANDOFF.md` requires a warning when a property has little data, and the trust model depends
-on it. Search returns `DRAFT` properties to anonymous users on purpose (only `HIDDEN` and `MERGED`
-are excluded), so the app will show buildings that nobody has verified and nobody has reviewed.
+Timeout is not evidence of being offline, and the internal classification must not pretend otherwise.
 
-For this slice, with no counts available from the API (gap #2), the notice is driven by what the
-client can honestly know:
+| Outcome | Raised when |
+| --- | --- |
+| `notFound` | 404 |
+| `offline` | **only** when the device reports no network (`expo-network` / NetInfo) |
+| `timeout` | the 10 s request deadline elapsed |
+| `server` | 5xx, or any other non-2xx |
+| `malformed` | 2xx whose body does not match the generated type |
+| `unknown` | anything else, treated as recoverable |
 
-- `status == DRAFT` → "This building was added by a resident and has not been reviewed by our team."
-- zero reviews in the first page → "No published reviews yet."
-- a full page plus `nextCursor` → "Showing the first 20 reviews", never a total.
+User-facing copy may fold `timeout`, `server` and `unknown` into one temporary-availability message;
+only a genuine `offline` may say "No connection". `notFound` on a property reads "This building is no
+longer listed" — a merged or hidden property is a normal outcome, not a crash.
 
-The app must not print a review count it has not counted.
+Retry is manual and idempotent. **No automatic retry loops** on a metered mobile connection. No
+message exposes a URL, a status code, a stack, or a raw server string.
+
+## DRAFT and data sufficiency
+
+`DRAFT` properties stay visible — the backend's catalogue visibility rules are preserved and the
+client adds no filter. Because the app will therefore show buildings nobody has vetted, it must say
+so:
+
+- `status == DRAFT` → a low-confidence notice, in the spirit of "This property was added by a user
+  and has not yet been reviewed by our team." Exact wording is a design/localization detail.
+- zero reviews on the first page → "No published reviews yet."
+- a full page plus a `nextCursor` → "Showing the first 20 reviews".
+
+**The app must never print a review count it did not itself count**, and must not compute or display
+any aggregate rating. No totals are available from the API, and none are to be inferred.
 
 ## Localization
 
-Structural from the first commit, two locales shipped (`en`, `ru`), and a third anticipated.
-
-- `expo-localization` reads the device locale; a manual override is persisted locally. No account, so
-  no server-side preference.
-- Messages live in `src/i18n/<locale>.ts` as a typed dictionary, with `en` as the source of truth and
+- `en` and `ru` ship, matching P-002 (Russian and English active at launch). Georgian content is not
+  solicited or published until a Georgian-reading moderator exists, so `ka` is a later UI question,
+  not a gap in this slice.
+- `expo-localization` reads the device locale; a manual override persists on the device. There is no
+  account, so no server-side preference.
+- Messages live in `src/i18n/<locale>.ts` as typed dictionaries with `en` as the source of truth and
   the type derived from it, so a missing Russian key is a compile error rather than a blank label.
-- **UI locale and content locale are independent, and this matters here more than usual.** The market
-  writes reviews in Georgian (`ka`) — the seeded fixtures are Georgian — while this slice ships `en`
-  and `ru`. A Russian-speaking user will read Georgian review bodies inside a Russian interface. So:
-  never assume `content.locale` matches the UI, label a review's language when it differs, and do not
-  build machine translation (a Could-have).
-- **Russian plurals are a real constraint, not a formatting detail.** "1 отзыв / 2 отзыва / 5
-  отзывов" needs three forms. `Intl.PluralRules` is the correct tool and is **not reliably present in
-  React Native's default Hermes build without full ICU**. Chunk 1 must verify this on a device and,
-  if absent, either enable the ICU variant or add the smallest pluralisation helper that covers `en`
-  and `ru`. Discovering this in chunk 5 would mean rewriting every count string.
-- Dates and relative times through `Intl.DateTimeFormat`/`RelativeTimeFormat` with the same ICU
-  caveat, and the same check in chunk 1.
-- No string concatenation for sentences; every message is a whole phrase with named placeholders.
+- **Russian plurals need three forms** ("1 отзыв / 2 отзыва / 5 отзывов"). Verify in 023-A that the
+  runtime provides `Intl.PluralRules` and `Intl.DateTimeFormat` for `ru`; if it does not, add the
+  smallest helper covering `en` and `ru` and move on. This is a fifteen-minute check, not a project —
+  it is in 023-A only because discovering it later means rewriting every count string.
+- UI locale and content locale are independent: show a language tag when `content.locale` differs
+  from the UI. No machine translation.
+- No sentence is assembled by concatenation; every message is a whole phrase with named placeholders.
 
 ## Accessibility
 
-Mobile-first and treated as acceptance criteria, not polish.
+Semantic requirements, not visual style. Treated as acceptance criteria.
 
-- Every touch target ≥ 44×44 pt, including the locale switch and "load more".
-- `accessibilityRole` and `accessibilityLabel` on every control; result rows are `button`s that read
-  as "Vake Heights, building, opens details".
-- **Text scales.** No `allowFontScaling={false}` anywhere. Cards must survive the largest OS text
-  size without clipping — the review card, with badge plus chips plus three text blocks, is where
-  this will break, so it is tested at 200%.
-- Verification and recommendation never communicate by colour alone: icon plus text in every case.
-  A red "not recommended" chip that is only red is invisible to a colour-blind reader and to a
-  screen reader both.
-- Loading and error states announce themselves (`accessibilityLiveRegion` / `AccessibilityInfo`), so
-  a blind user learns the search finished.
-- Contrast ≥ 4.5:1 for body text; this constrains Dasha's palette and belongs in the design decision
-  list rather than being discovered in review.
-- `prefers-reduced-motion` respected for skeleton shimmer.
-- Screen-reader reading order follows visual order; the badge is read after the name, not before it.
+- Touch targets ≥ 44×44 pt, including the locale switch and "load more".
+- `accessibilityRole` and `accessibilityLabel` on every control; a result row reads as its name,
+  address and type, and announces that it opens details.
+- **Text scales**: no `allowFontScaling={false}` anywhere. The review card — badge, chips and three
+  text blocks — is where this breaks, so it is checked at 200%.
+- Verification and recommendation never rely on colour alone: icon plus text in every case.
+- Loading and error states announce themselves, so a blind user learns the search finished.
+- Body-text contrast ≥ 4.5:1 — a constraint on the palette Dasha chooses, stated here so it is not
+  discovered in review.
+- Reading order follows visual order; the badge is read after the name, not before it.
+- Reduced-motion respected for any skeleton shimmer.
 
-## Error handling
+## Decisions
 
-- One typed API client wrapping `openapi-fetch`, mapping every outcome to `ok | notFound | offline |
-  server | malformed`. Screens branch on that union, never on a raw status code.
-- 404 on a property → "This building is no longer listed", not a crash and not a generic error: a
-  merged or hidden property is a normal outcome, and `mergedIntoPropertyId` exists precisely because
-  records get merged.
-- Timeouts: 10 s, then the offline copy. A hung request with a spinner forever is the worst of the
-  available failures.
-- Retry is manual and idempotent. No automatic retry loops on a metered mobile connection.
-- No error message exposes a URL, a status code, a stack, or a raw server string.
+Accepted by the founder on 2026-09-22 and no longer open:
 
-## Test strategy
+1. Search hits carry a public address summary (C1). Accepted scope change.
+2. **No review counts or aggregate ratings** in this slice — not `reviewCount`, not
+   `verifiedReviewCount`, not category aggregates. Only data the system truthfully has. Deferred to a
+   follow-up, which must honour P-007's data-sufficiency threshold.
+3. `authorAccountId` is removed from public review responses (C2). Accepted scope change. No public
+   author name in this slice; attribution is relationship + verification.
+4. `DRAFT` properties remain visible, with a low-confidence notice.
+5. Stack navigation only; no tab bar, no dead tabs.
+6. The slice stays anonymous: no login, no auth prompt, no `Authorization` header, no account or
+   property creation, no review submission.
+7. Timeout is classified separately from offline.
 
-- **Unit** (Jest + React Native Testing Library): every state of every screen — loading, empty,
-  error, loaded, paging — driven by a stubbed client. These are the tests that make the four-state
-  rule real rather than aspirational.
-- **Mapping** tests: an API fixture in, rendered text out. One per mapping rule above, including the
-  ones that assert a field is *absent*: `authorAccountId` must not appear in the rendered tree, and
-  neither must `score`. Written as "no internal identifier reaches the screen", so they keep meaning
-  if the field is renamed.
-- **Contract**: types come from `docs/api/openapi.json` via `openapi-typescript`, so a contract drift
-  is a typecheck failure. `pnpm generate:api` runs before `typecheck` and `test`, exactly as
-  `apps/web` does — a stale client cannot pass.
-- **Accessibility**: assertions on role and label in the component tests; the text-scaling and
-  contrast checks are manual, on one device each, recorded in the chunk's evidence.
-- **Localization**: a test that every key in `en` exists in `ru`, and a Russian plural test with
-  1/2/5 reviews.
-- **No device e2e** (Detox/Maestro) in this slice. It needs an emulator in CI, which is the
-  infrastructure work this plan is explicitly not starting. Recorded as a follow-up.
-- **Mobile lands in CI automatically, and the trap is worth stating precisely.** The root scripts
-  are `pnpm -r lint|test|typecheck`, so the moment `apps/mobile` is a workspace member with those
-  scripts, the frontend job and the L2 gate run them — no wiring needed. But `frontend-check.yml`
-  decides whether to run at all from a regex listing `apps/web/` and not `apps/mobile/`. So a
-  **mobile-only pull request skips the frontend job and reports green having tested nothing**, while
-  a pull request that also touches `apps/web` does run mobile's tests. A required check that passes
-  without executing is worse than no check. Chunk 1 adds `apps/mobile/` to that regex and to the
-  push `paths` — two lines, in the chunk that creates the app, not a follow-up.
+Lead decisions taken while writing this plan: the address summary omits `originalText` and `country`
+(rationale under C1); `type` joins the hit in the same change; and `ReviewResponse` splits rather than
+loses a field, following the `AdminAppealResponse` precedent (rationale under C2).
 
-## Implementation chunks
+## Implementation steps
 
-Sized for a worker model: each is independently verifiable, names its acceptance, and does not need
-the next one to be reviewable. No chunk mixes scaffolding with product behaviour.
+Three chunks. Each is a pull request, independently reviewable, and does not need the next one to be
+useful.
 
-**Chunk 1 — the app exists and speaks two languages**
-Expo + TypeScript + expo-router skeleton under `apps/mobile`; `apps/mobile` added to
-`pnpm-workspace.yaml`; `generate:api` script copied from `apps/web`; i18n provider, `en`/`ru`
-dictionaries, locale override; `apps/mobile/` added to `frontend-check.yml`'s relevance regex and
-push paths; **the ICU/plural check on a device, resolved before the chunk closes**.
-*Acceptance*: app launches on a device and a simulator; switching locale changes a visible string;
-`1/2/5 отзывов` renders correctly; `pnpm --filter mobile typecheck` and `test` pass; **`pnpm -r test`
-from the root includes mobile** — confirmed by reading the output, not assumed.
+### 023-A — mobile foundation
 
-**Chunk 2 — the typed client and its failure union**
-`openapi-fetch` client, base URL from config, the `ok | notFound | offline | server | malformed`
-mapping, 10 s timeout. No screens.
-*Acceptance*: unit tests for each branch including a malformed body and a timeout; no hand-written
-request or response type anywhere (grep for the schema names proves it).
+- Create `apps/mobile`: Expo + TypeScript + `expo-router` stack.
+- Add `apps/mobile` to `pnpm-workspace.yaml`; add any Expo native postinstall to `allowBuilds` as a
+  deliberate, reviewable line.
+- Copy the `generate:api` script pattern from `apps/web` so types come from `docs/api/openapi.json`,
+  and wire it ahead of `typecheck` and `test`.
+- Public API client over `openapi-fetch`: base URL from config, 10 s timeout, the error union above,
+  and **no `Authorization` header**.
+- `en`/`ru` dictionaries, locale override persisted on the device, and the `Intl` check.
+- Add `apps/mobile/` to `frontend-check.yml`'s relevance regex and push `paths`. Without this a
+  mobile-only pull request skips the frontend job and **reports green having tested nothing**, while
+  the root `pnpm -r` scripts would still run mobile's tests on any `apps/web` pull request. Two lines.
+- Add the `apps/mobile` path to `ARCHITECTURE.md:27`, where Expo is already mandated.
+- A smoke screen proving the app launches.
 
-**Chunk 3 — home and results**
-Screens 1 and 2 with all four states.
-*Acceptance*: each state test-covered; a search for nonsense shows the empty state with no
-"add property" offer; result rows are accessible buttons; nothing renders `score`.
+*Acceptance*: app launches on a simulator and a device; switching locale changes a visible string;
+Russian 1/2/5 plural forms render correctly; the client is built from generated types with no
+hand-written request/response type; each error-union branch is unit-tested, including a malformed
+body and a timeout; a test asserts no `Authorization` header is ever attached; `pnpm -r test` from the
+root visibly includes mobile; lint, typecheck and tests pass; a mobile-only branch triggers the
+frontend check.
 
-**Chunk 4 — property detail header**
-Screen 3's header, parallel fetch, the data-sufficiency notice, the 404 copy.
-*Acceptance*: header renders from a fixture; `DRAFT` shows its notice; a 404 shows the "no longer
-listed" copy; aliases de-duplicate against the title.
+### 023-B — discovery
 
-**Chunk 5 — the review feed**
-Cursor paging, feed-level error that preserves loaded pages, empty feed, the review card.
-*Acceptance*: paging test walks two pages and stops on a null cursor; a failed second page keeps the
-first; `authorAccountId` absent from the tree; the card survives 200% text scaling on one device.
+- Backend C1: address summary and `type` on the search hit, through the existing projection seam,
+  plus the OpenAPI regeneration and a `DECISION_LOG.md` entry.
+- Home/search screen and results screen, with loading, empty, recoverable error and loaded states.
+- Result rows render name, address and translated type.
 
-**Chunk 6 — optional, only if chunks 1–5 land clean**
-Review detail screen and device-local recent searches.
+*Acceptance*: an anonymous search works end to end from the app; two properties with the same or
+similar `canonicalName` are distinguishable by their address; the search issues **one** request per
+query, verified by asserting no per-hit detail fetch; `score` appears nowhere in the rendered tree;
+every state is test-covered; backend tests cover a hit with a full address, a hit with a partial
+address, and a property with no address at all; `OpenApiContractIntegrationTest` passes against the
+committed spec.
 
-## Acceptance criteria (the slice)
+### 023-C — property experience
 
-- [ ] A person with no account can search, open a property, and read its reviews on iOS and Android.
-- [ ] No screen requires, prompts for, or implies an account.
-- [ ] No request carries an `Authorization` header — asserted by a test, because "anonymous" silently
-      becoming "authenticated later" is exactly the kind of thing that happens by accident.
-- [ ] Every networked screen has loading, empty, error and loaded states, each test-covered.
-- [ ] An error is always recoverable without restarting the app.
-- [ ] `en` and `ru` complete, with correct Russian plurals; a missing key fails the typecheck.
-- [ ] No hand-written API request/response type; all generated from `docs/api/openapi.json`.
-- [ ] No internal identifier (`authorAccountId`, `score`, `version`) is rendered.
-- [ ] Touch targets ≥ 44 pt; roles and labels on all controls; readable at 200% text size.
-- [ ] No review count is displayed that the client did not count.
-- [ ] `apps/api` is unchanged by this plan.
-- [ ] A mobile-only pull request actually runs the frontend check, confirmed on a real pull request.
+- Backend C2: split `ReviewResponse` / `AdminReviewResponse`, update the affected tests, regenerate
+  OpenAPI, add a `DECISION_LOG.md` entry.
+- Property detail header: name, aliases, address, type, DRAFT/data-sufficiency notice, the "no longer
+  listed" 404 copy.
+- Review feed: cursor paging, empty feed, a feed-level error that preserves loaded pages.
+- Review card: relationship, residence years, verification badge, recommendation, category ratings,
+  pros, cons, body, helpful count, and a language tag when the content locale differs.
+
+*Acceptance*: anonymous property read and anonymous review feed both work from the app; **no stable
+internal author identifier appears in any public response** — asserted on the API and again on the
+rendered tree, worded as "no internal account identifier is exposed" so it survives a rename; admin
+responses still carry `authorAccountId`; moderation's appeal and report ownership tests are untouched
+and still pass; paging walks at least two pages and stops on a null `nextCursor`; a failed second page
+leaves the first page on screen; the DRAFT notice appears for a DRAFT property; no total review count
+or aggregate is displayed anywhere; the review card is checked at 200% text scaling on one device and
+the evidence recorded in the pull request.
+
+## Verification
+
+- **Unit** (Jest + React Native Testing Library): every state of every screen, driven by a stubbed
+  client. This is what makes the four-state rule real rather than aspirational.
+- **Mapping**: fixture in, rendered text out — one per rule above, including the rules that assert a
+  field is *absent*.
+- **Contract**: types are generated from `docs/api/openapi.json`, so drift is a typecheck failure;
+  `generate:api` runs before `typecheck` and `test`, so a stale client cannot pass.
+- **Backend**: the two contract changes follow the repository's test-first rule and are covered by
+  the module's own tests plus the endpoint tests named in each chunk's acceptance.
+- **Localization**: every `en` key exists in `ru`; a Russian plural test with 1, 2 and 5.
+- **Accessibility**: role and label assertions in component tests; text scaling and contrast checked
+  manually on one device and recorded as chunk evidence.
+- **No device e2e** in this slice.
+- Use the repository's L0/L1/L2 levels. Do not run the full gate in the edit loop.
 
 ## Non-goals
 
-Authentication and login · review submission or editing · helpful voting · verification flows ·
-reports and appeals · evidence · maps, geocoding, and location-based search · notifications ·
-representative features · saved/compare · photos · backend redesign · new infrastructure · new CI
-jobs or emulator infrastructure · device e2e automation · machine translation of review content · a
-tab bar for features that do not exist.
+Authentication and login · account or profile · review submission or editing · helpful voting
+actions · verification flows · reports · appeals · evidence upload · maps · geolocation and
+location-based search UI · saved properties · compare · notifications · representative features and
+replies · property creation · review photos or media · machine translation · device E2E
+infrastructure · new CI jobs · CI optimization · Testcontainers optimization · Terraform · Redis ·
+OpenSearch · role management · backend redesign · unrelated backend cleanup · a tab bar for features
+that do not exist.
 
-The two-line path addition in chunk 1 is not an exception to "no CI changes" — it is the minimum
+The two-line CI path addition in 023-A is not an exception to "no CI changes": it is the minimum
 needed for the existing gate to keep telling the truth once a second frontend app exists.
 
-## Decisions needed before or during design
+## Design decisions owned by Dasha
 
-Each is a real fork, not a rhetorical question. The first four come from reading the contract.
+The plan defines semantics and states; it does not invent a visual style. Engineering is not blocked
+waiting for polish, but these remain design's call:
 
-**1. Search results have no address.** `PropertySearchHitResponse` carries only `canonicalName`,
-`propertyId`, `score`, `distanceMeters`. Two buildings with the same or similar name are
-indistinguishable in a result list, which is common in a city.
-*Options*: (a) name-only rows, disambiguated by opening one — ship this now; (b) the client fetches
-`/api/properties/{id}` per hit — N+1 on mobile data, rejected; (c) add `address` to the search hit —
-a small additive backend change, and the one I would ask for after this slice proves the need with
-real queries.
-*Recommendation*: (a) now, (c) as a follow-up with evidence. **Needs: human.**
+verification badge treatment and its explanatory sheet · review-card visual hierarchy · category chip
+and icon system · how prominent the DRAFT/data-sufficiency notice should be (noticeable without making
+every new building look disreputable) · empty state with or without illustration · palette, meeting
+the 4.5:1 body-contrast constraint · typography · spacing · the tone of a critical review, which
+`DESIGN_HANDOFF.md` requires to read as information rather than sensation · whether a Georgian UI is
+added later.
 
-**2. No review count or aggregate rating exists anywhere in the API.** `PropertyResponse` has no
-counts; `DESIGN_HANDOFF.md`'s property card asks for review count, verified-review count, a summary
-with data-sufficiency, and a low-data warning. The card as specified cannot be built.
-*Options*: (a) this slice shows only what it counted ("first 20 reviews") and no aggregates; (b) add
-`reviewCount` and `verifiedReviewCount` to `PropertyResponse`.
-*Recommendation*: (a) for the slice, and (b) is the strongest candidate for the next backend change
-because the trust model — "warn when there is little data" — depends on a count.
-**Needs: Dasha (card without aggregates) + human (backend follow-up).**
+## Follow-ups
 
-**3. The public review feed returns `authorAccountId`, and no pseudonym.** Any anonymous client gets a
-stable identifier that can be correlated across properties to assemble one person's review history;
-meanwhile the pseudonym that `PRD_MVP.md` §5.7 says is the public identity is not exposed at all, so
-there is nothing to display as an author.
-*Options*: (a) the app shows no author identity and attributes by relationship and verification
-instead ("Current resident · Relationship verified") — privacy-preserving, and arguably the better
-product; (b) the API exposes `authorPseudonym` and stops sending `authorAccountId`.
-*Recommendation*: (a) for the slice regardless of (b). Whether the API should keep handing out
-`authorAccountId` anonymously is a **privacy question that deserves an answer independently of this
-plan**. **Needs: human.**
+Recorded so they are not lost, and deliberately outside this slice:
 
-**4. Search cannot page.** It takes `limit` but returns no cursor and no total, so there is no second
-page and no "12 results".
-*Recommendation*: `limit=20`, and say "showing the first 20" when exactly 20 return. Add a cursor
-only if real use shows people hitting the ceiling. **Needs: nobody — recorded so the wording is not
-mistaken for a bug.**
+1. **Public pseudonym projection** for review authors, replacing today's absence of any author
+   identity (P-003).
+2. **Review counts and aggregates** — `reviewCount`, `verifiedReviewCount` and a category summary,
+   honouring P-007's minimum-review-count threshold before any single overall number is shown. This
+   is what the `DESIGN_HANDOFF.md` property card needs and cannot have yet.
+3. **Search pagination** — a cursor and a total on `/api/properties/search`, if real usage shows
+   people hitting the 20-result ceiling.
+4. **Review detail screen** and device-local recent searches.
+5. **Device E2E** (Detox or Maestro) once there is a reason to pay for emulator infrastructure.
 
-**5. Visual and tone decisions that are Dasha's, not mine.** Verification badge form and its
-explanatory sheet; how a critical review is presented so it reads as information rather than
-sensation (`DESIGN_HANDOFF.md` "Product tone"); category chip vocabulary and iconography; the
-data-sufficiency notice's visual weight — it must be noticeable without making every new building
-look disreputable; empty-state illustration or none; palette meeting 4.5:1 body contrast; whether
-`ka` ships as a third UI locale in this slice or the next. **Needs: Dasha.**
+## Risks and rollback/forward-fix
 
-**6. Product question.** The app shows `DRAFT` properties, which are resident-added and unreviewed.
-Is that the intended first impression for a stranger in Batumi, or should the mobile client filter to
-`ACTIVE` until a property has some corroboration? Filtering is a client decision that needs no
-backend change, but it changes what the app appears to know. **Needs: human.**
-
-## Risks
-
-- **`Intl` in Hermes** is the highest-probability technical surprise and the one with the widest
-  blast radius; chunk 1 exists partly to find out early.
-- **Expo adds native postinstall scripts**, and `pnpm-workspace.yaml` names allowed builds
-  explicitly. Chunk 1 will need additions there, and each should be a reviewed line rather than a
-  blanket allow.
-- **The generated client is Next-shaped in `apps/web`**; the generator is reusable but the fetch
-  layer is not, and copying `serverApi()` wholesale would drag in cookie and server-component
-  assumptions that do not exist on a device.
-- **Mobile enters the shared `pnpm -r` gate the moment it joins the workspace.** A slow or flaky
-  React Native Jest setup then slows or breaks `apps/web`'s pull requests too. Keep mobile's tests
-  node-only (RNTL, no native modules under test) so they stay in the seconds range.
-- **Reading the seeded data honestly**: the fixtures are Georgian text with an `en`/`ru` UI. If that
-  looks broken during review, it is the product's real shape, not a bug in the app.
+- **`Intl` support in the React Native runtime** is the likeliest technical surprise; 023-A finds out
+  early and the fallback is a small helper, not a redesign.
+- **Expo native postinstalls** must be added to `allowBuilds` deliberately, one reviewed line each,
+  not by a blanket allow.
+- **Mobile joins the shared `pnpm -r` gate** the moment it is a workspace member, so a slow or flaky
+  React Native test setup would slow `apps/web`'s pull requests too. Keep mobile's tests node-only.
+- **`apps/web`'s client is Next-shaped**: the generator is reusable, the fetch layer is not. Copying
+  `serverApi()` would drag in cookie and server-component assumptions that do not exist on a device.
+- **Rollback**: both backend changes are contract-only with no schema change, so reverting the commit
+  is a complete rollback. C1 is additive and safe to revert at any time. C2 removes a field, so a
+  revert would re-expose `authorAccountId` — forward-fix is preferred, and the compatibility reasoning
+  is recorded in its pull request.
 
 ## Progress log
 
-- 2026-09-22: plan written. Contract inspected — the slice needs no backend change; four contract
-  gaps and two product questions recorded above. Also found that the root `pnpm -r` scripts pull any
-  new workspace member into the L2 gate automatically, while `frontend-check.yml`'s relevance regex
-  would not fire for a mobile-only change — folded into chunk 1. Not implemented.
+- 2026-09-22: plan written from a contract inspection; four gaps and two product questions raised.
+- 2026-09-22: revised after founder decisions. Address on search hits and removal of public
+  `authorAccountId` are now accepted scope; counts/aggregates, pseudonym, search paging, review detail
+  and recent searches moved to follow-ups; five chunks reduced to three; the error model now separates
+  timeout from offline. Two errors in the first draft were corrected against the code and the decision
+  log: removing `authorAccountId` is a DTO split rather than a field deletion, because
+  `AdminReviewController` shares the record; and the claim that users would read Georgian review
+  bodies contradicted P-002, under which Georgian content is not published at launch. Not implemented.
 
 ## Final outcome
 
