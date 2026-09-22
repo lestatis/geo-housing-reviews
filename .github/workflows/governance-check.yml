@@ -1,21 +1,9 @@
 name: Governance
 
+# No `paths:` on pull_request — see backend-check.yml. This one runs in full every time: it takes
+# seconds, and it is the check that would catch a pull request editing the ruleset or the rules.
 on:
   pull_request:
-    paths:
-      - AGENTS.md
-      - CLAUDE.md
-      - PLANS.md
-      - CONTRIBUTING.md
-      - SECURITY.md
-      - docs/**
-      - prompts/**
-      - .claude/**
-      - .agents/**
-      - scripts/check.sh
-      - scripts/check-scoped.sh
-      - scripts/validate_repo_governance.py
-      - .github/workflows/governance-check.yml
   push:
     branches: [main]
     paths:
@@ -42,6 +30,8 @@ concurrency:
 
 jobs:
   governance:
+    # The ruleset references this string.
+    name: governance
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
