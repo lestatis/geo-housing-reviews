@@ -7,7 +7,7 @@ real S3-compatible integration coverage.
 
 ## Active branch
 
-`fix/ci-baseline`
+`main` (the baseline-repair commits were pushed directly to main)
 
 ## Related issue or plan
 
@@ -15,12 +15,15 @@ real S3-compatible integration coverage.
 
 ## Current status
 
-ready_for_review
+in_progress
 
 ## Completed work
 
 - Removed `cache: pnpm` from the frontend job, which failed before pnpm was available on a clean
   GitHub runner, and added a lockfile-enforced install before each frontend check.
+- Diagnosed the next frontend CI failure: `corepack pnpm lint` starts a root lifecycle script whose
+  nested `pnpm -r lint` cannot resolve pnpm without a Corepack shim on `PATH`. Added `corepack
+  enable` and switched the job to normal `pnpm` commands.
 - Restricted the default PITest test-selection glob to domain and application packages. Mutation
   targets were already limited to those layers, so infrastructure tests such as
   `S3EvidenceStoreIntegrationTest` now remain in normal Gradle test execution rather than running
@@ -31,12 +34,15 @@ ready_for_review
 
 ## Remaining work
 
-Push the branch and collect green governance/backend/frontend CI evidence.
+Collect green governance/backend/frontend CI evidence for the Corepack shim repair, then request an
+independent read-only review.
 
 ## Decisions made
 
 - The frontend job favors deterministic installation over pnpm cache optimization until a clean run
   is green.
+- Enable Corepack once in CI rather than wrapping each command, so nested package scripts can
+  resolve pnpm normally.
 - PITest infrastructure-test exclusion is achieved by positive test selection, not by disabling the
   normal integration test.
 - The lead approved an official Quay MinIO/AIStor image. The implementation uses the public
@@ -50,7 +56,6 @@ Push the branch and collect green governance/backend/frontend CI evidence.
 
 ## Files changed
 
-- `.gitignore`
 - `.github/workflows/frontend-check.yml`
 - `apps/api/buildSrc/src/main/kotlin/geohousing.mutation-testing.gradle.kts`
 - `apps/api/buildSrc/src/main/kotlin/MutationTestingExtension.kt`
@@ -68,7 +73,7 @@ Push the branch and collect green governance/backend/frontend CI evidence.
 
 ## Tests and verification
 
-- `corepack pnpm install --frozen-lockfile` — passed.
+- `corepack pnpm install --frozen-lockfile` — passed on the prior clean CI run.
 - `./scripts/check-scoped.sh frontend` — passed: ESLint, 75 Vitest tests, and TypeScript.
 - `cd apps/api && ./gradlew :modules:verification:test --tests
   'com.example.geohousing.verification.application.*' --tests
@@ -90,12 +95,13 @@ Push the branch and collect green governance/backend/frontend CI evidence.
 
 ## Known failures
 
-No known local failures. Clean-runner GitHub Actions evidence is pending a push.
+The prior clean CI run failed after dependency installation because `pnpm` was absent from `PATH`
+inside the root lifecycle script. The Corepack shim repair needs a new CI run.
 
 ## Risks and unresolved questions
 
-The branch needs the GitHub Actions clean-runner result before merge; all three affected local
-integration suites provide initial compatibility evidence.
+The current main branch needs a green GitHub Actions run for the Corepack shim repair; all three
+affected backend integration suites already provide local compatibility evidence.
 
 ## Human actions required
 
@@ -103,7 +109,8 @@ None. The lead approved the official Quay AIStor image and pinned release.
 
 ## Recommended next action
 
-Push `fix/ci-baseline`, inspect all three CI checks, then request independent read-only review.
+Push the Corepack shim repair, inspect all three CI checks, then request independent read-only
+review.
 
 ## Last updated
 

@@ -13,6 +13,7 @@ weakening the L0/L1/L2 model, mutation thresholds, or real S3-compatible integra
 ## Acceptance criteria
 
 - [x] Frontend CI installs the locked dependencies on Node 22 before lint, test, and typecheck.
+- [ ] Frontend CI enables the pnpm shim so its root lifecycle scripts can run on a clean runner.
 - [x] PITest selects only domain/application tests for modules whose mutation targets are those
   layers; infrastructure integration tests remain in ordinary Gradle test execution.
 - [ ] All three MinIO-backed integration classes start the approved, reproducible official image on
@@ -51,7 +52,8 @@ entire module and therefore started the MinIO infrastructure test during PITest.
 2. Restrict the default PITest test glob to domain/application packages. **Completed**
 3. Update all three tests to the approved public official Quay MinIO image and verify startup on a clean
    runner. **Local integration evidence completed; CI pending.**
-4. Push this branch and require green governance, backend, and frontend CI before review.
+4. Enable the Corepack pnpm shim in frontend CI, then require green governance, backend, and
+   frontend CI before review. **In progress.**
 
 ## Verification
 
@@ -82,6 +84,9 @@ as a fallback, because it is unavailable on a clean runner.
 - 2026-09-21: The pinned public Quay image passed `S3EvidenceStoreIntegrationTest`,
   `EvidenceEndpointIntegrationTest`, and `EvidencePersistenceIntegrationTest` locally. The branch
   now awaits the corresponding clean GitHub Actions evidence.
+- 2026-09-21: GitHub Actions installed frontend dependencies successfully but `corepack pnpm lint`
+  failed because the root lifecycle script invokes `pnpm` without a Corepack shim on `PATH`. Added
+  `corepack enable` before using normal `pnpm` commands; clean-runner CI evidence remains pending.
 
 ## Final outcome
 

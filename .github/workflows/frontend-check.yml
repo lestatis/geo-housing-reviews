@@ -34,11 +34,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Enable Corepack
+        run: corepack enable
       - name: Install frontend dependencies
-        run: corepack pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
       - name: Lint
-        run: corepack pnpm lint
+        run: pnpm lint
       - name: Test
-        run: corepack pnpm test
+        run: pnpm test
       - name: Typecheck
-        run: corepack pnpm typecheck
+        run: pnpm typecheck
