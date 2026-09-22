@@ -35,9 +35,8 @@ export const unknownNetworkStatus: NetworkStatusProbe = {
 /**
  * Reads the platform network state through `expo-network`.
  *
- * The module import is lazy so that node-side tests, which inject their own probe, never load a
- * native module. An unreadable state is `unknown`: guessing "offline" would put a false "no
- * connection" message in front of a user whose device is online.
+ * An unreadable state is `unknown`: guessing "offline" would put a false "no connection" message in
+ * front of a user whose device is online.
  */
 export function createExpoNetworkStatusProbe(): NetworkStatusProbe {
   return {
@@ -52,7 +51,7 @@ export function createExpoNetworkStatusProbe(): NetworkStatusProbe {
         }
         return "unknown";
       } catch {
-        // The native module is unavailable in this runtime; that is not evidence of being offline.
+        // The platform call failed; that is not evidence of being offline.
         return "unknown";
       }
     },

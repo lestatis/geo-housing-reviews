@@ -145,6 +145,7 @@ cd apps/mobile && corepack pnpm exec expo install --check
 
 Re-run after the review fixes: `corepack pnpm exec eslint .`, `tsc --noEmit`, `jest` (9 suites / 74
 tests), `expo export --platform android`, plus the mutation and typing probes described above.
+Re-run once more after the comment-only amendment: `eslint .`, `tsc --noEmit`, `jest` — all pass.
 
 ## Tests and verification
 
@@ -193,13 +194,21 @@ evidence, not from the review text.
 | Finding | Classification | Evidence and disposition |
 | --- | --- | --- |
 | **P2** — the only path that can return `offline` is neither wired nor tested | **Accepted** | `MobileApiClientOptions.networkStatus` is now required, so a caller cannot silently omit the probe (the call site no longer compiles without it); `emptyNetworkStatus`-style defaults are gone; `network.test.ts` covers the four mappings (`isConnected: false` → `offline`, `isInternetReachable: false` → `offline`, connected → `online`, rejected/empty state → `unknown`), and `client.test.ts` drives the real `createExpoNetworkStatusProbe()` through the client to prove `offline` is reachable end to end. |
-| **P2 follow-on (found while fixing)** — the probe's dynamic import | **Accepted, escalated** | `await import("expo-network")` inside `read()` fails in Jest with *"A dynamic import callback was invoked without --experimental-vm-modules"*, which the probe's own `catch` reported as `unknown`; all four mapping assertions passed vacuously against the stub because of it. The import is now static (`import { getNetworkStateAsync } from "expo-network"`), which Metro bundles the same way and Jest can mock. Verified by mutation: changing `isConnected === false` to a condition that cannot match makes the two `offline` tests fail, and reverting restores green. |
+| **P2 follow-on (found while fixing)** — the probe's dynamic import | **Accepted, escalated** | `await import("expo-network")` inside `read()` fails in Jest with *"A dynamic import callback was invoked without --experimental-vm-modules"*, which the probe's own `catch` reported as `unknown`. The mapping therefore could not be observed at all: the probe answered `unknown` for every state, so an assertion expecting `offline` would have **failed**, not passed. The import is now static (`import { getNetworkStateAsync } from "expo-network"`), which Metro bundles the same way and Jest can mock. Verified by mutation: changing `isConnected === false` to a condition that cannot match makes the two `offline` tests fail, and reverting restores green. |
 | **P3** — the handoff names `apps/mobile/expo-env.d.ts`, which is not in the tree or in any commit | **Accepted, with a corrected cause** | The reviewer's observable claim is right; "never there" is not. The Expo CLI writes `expo-env.d.ts` at the project root and **deletes** it — plus the matching `tsconfig.json` include entries — when the dev server starts with typed routes disabled (this app's configuration). Its own template says the file belongs in `.gitignore`. That is what happened between the file's creation and the commit; the committed `tsconfig.json` is already the CLI-rewritten two-glob version. Fix: the file is gitignored, it is no longer claimed as a changed file, and `src/expo-types.d.ts` (a file we own) keeps Metro's globals typed — `process.env.EXPO_PUBLIC_API_BASE_URL` is `string \| undefined` again instead of `any`. |
 | **P3** — `guards.ts` cites a plan section that does not exist | **Accepted** | `grep "Runtime validation" docs/plans/023-mobile-discovery.md` returns nothing; the phrase came from the implementation packet, not the plan. The comment now cites "Error model", which is where `malformed` is defined. |
 | **P3** — the date fallback is not held to the plural fallback's standard | **Accepted** | `format.test.ts` now asserts `formatDate` and `fallbackFormatDate` are byte-identical for `en` and `ru` on two dates while `Intl` is present. Measured before writing: ICU returns `1 сентября 2026 г.` and `September 1, 2026` with plain spaces, so the two paths agree exactly today. |
 | **P3** — four direct dependencies are imported by no app code | **Accepted** | The README now names `expo-constants`, `expo-linking`, `react-native-screens` and `react-dom` as expo-router prerequisites that pnpm does not hoist, and states that pruning them breaks the bundle. |
 | **Not a code finding** — "app launches on a simulator" is not evidenced | **Recorded, not actionable here** | Only Android was launched, on a physical device. A simulator needs macOS/Xcode or Android SDK/emulator infrastructure, which the packet and the plan's non-goals both forbid installing, and `expo export` for iOS proves the bundle rather than a render. The gap stays open for the lead. |
 | **Reviewer note** — which `Intl` capability the device lacks | **Accepted as a follow-up** | The card reports `PluralRules` and `DateTimeFormat` together; both fallbacks are cross-checked, so this is diagnostics precision, not a defect. Left for 023-B rather than re-cutting the device evidence. |
+
+Re-review, 2026-09-22: **READY_TO_MERGE**. Every P2/P3 above verified fixed from committed
+artifacts, the suite grew to 9 suites / 74 tests, and `git diff 5b776f6..HEAD` over `.github`,
+`apps/api` and `docs/api` is empty, so the fix phase stayed inside 023-A. The reviewer raised one
+new comment-only P3: the javadoc on `createExpoNetworkStatusProbe` still called the module import
+"lazy" and the `catch` still blamed an unavailable native module, both stale since the import
+became static. Both comments were corrected in `docs(mobile): correct the network probe comments`
+and need no further review.
 
 ## Risks and unresolved questions
 
