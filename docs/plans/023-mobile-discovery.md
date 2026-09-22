@@ -1,6 +1,7 @@
 # Plan 023 — mobile discovery: find a property, understand the experience
 
-Status: Approved, ready for implementation — not started
+Status: Approved — 023-A implemented on `feat/023-a-mobile-foundation` and awaiting review; 023-B
+and 023-C not started
 Owner: Claude Code (lead) · implementation by a worker model
 Related issue: None
 Last updated: 2026-09-22
@@ -436,6 +437,19 @@ Recorded so they are not lost, and deliberately outside this slice:
   log: removing `authorAccountId` is a DTO split rather than a field deletion, because
   `AdminReviewController` shares the record; and the claim that users would read Georgian review
   bodies contradicted P-002, under which Georgian content is not published at launch. Not implemented.
+- 2026-09-22: 023-A implemented on `feat/023-a-mobile-foundation`: `apps/mobile` (Expo SDK 57,
+  React Native, expo-router stack), generated types wired ahead of typecheck and test, an anonymous
+  `openapi-fetch` client with the accepted error union and no `Authorization` header, typed en/ru
+  catalogues with a device-persisted locale override, a smoke screen proving routing/localization/
+  styling, and the two-line `apps/mobile` addition to the frontend CI relevance check. Malformed
+  detection uses small runtime guards rather than a validation framework. Simulator/device checks
+  are outstanding; 023-B and 023-C are not started.
+- 2026-09-22: 023-A device verification completed on a real Android device — the app launches, the
+  locale switch changes the visible UI, and the Russian forms render correctly
+  (`1 отзыв · 2 отзыва · 5 отзывов`, `1 сентября 2026 г.`), with screenshots of both states. The
+  runtime reported **local fallback** for `Intl`, so the local en/ru helpers are the production path
+  on Android, not a theoretical one; that is the risk this plan flagged, resolved by the fallback
+  rather than by a runtime upgrade. 023-A is ready for review; 023-B and 023-C are not started.
 
 ## Final outcome
 
