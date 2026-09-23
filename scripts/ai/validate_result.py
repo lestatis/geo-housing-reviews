@@ -113,13 +113,14 @@ def validate_review(result: Any) -> dict[str, Any]:
     require_string_list(value["risks"], "risks")
     require(type(value["human_action_required"]) is bool, "human_action_required must be boolean")
     require_string(value["summary"], "summary")
+    has_blocking_finding = any(finding["blocks_merge"] for finding in value["findings"])
     require(
-        value["decision"] != "READY_TO_MERGE" or not value["findings"],
-        "ready review result cannot contain findings",
+        value["decision"] != "READY_TO_MERGE" or not has_blocking_finding,
+        "ready review result cannot contain a merge-blocking finding",
     )
     require(
-        value["decision"] != "FIXES_REQUIRED" or bool(value["findings"]),
-        "fixes-required review result must contain findings",
+        value["decision"] != "FIXES_REQUIRED" or has_blocking_finding,
+        "fixes-required review result requires a merge-blocking finding",
     )
     require(
         value["decision"] != "READY_TO_MERGE" or not value["human_action_required"],

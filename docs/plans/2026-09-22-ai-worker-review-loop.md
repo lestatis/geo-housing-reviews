@@ -47,7 +47,8 @@ does not modify CI, and stores only ignored run evidence under `.ai/`.
 | Decision | Choice | Reason | Revisit when |
 |---|---|---|---|
 | Orchestration | Local, manually invoked shell wrappers | Keeps credentials, authority and execution on the developer machine; CI stays deterministic | a human explicitly approves CI rollout |
-| Worker identity | `AI_DEEPSEEK_MODEL` must be set per invocation/environment | Prevents the automation from silently using the model last selected in a UI | a checked-in non-secret provider profile becomes accepted |
+| Worker identity | Require `AI_CODEX_PROFILE` plus an explicit `model_provider = "deepseek"` override and `AI_DEEPSEEK_MODEL` | Prevents fallback to the interactive OpenAI provider while retaining machine-local credentials | provider configuration semantics change |
+| Reviewer identity | Require `AI_CLAUDE_REVIEW_MODEL` | A final review must not silently downgrade to an agent-file default | a human accepts a pinned default |
 | Branch authority | Require an existing non-`main` branch | The loop must not choose branch names or alter Git history | a human approves a branch-management workflow |
 | Result contract | Strict JSON schemas plus local standard-library validation | Downstream routing must not parse prose or need a new dependency | the contracts need versioned interoperability |
 | Review isolation | New `claude -p --no-session-persistence` session, read tools and plan mode | It cannot reuse the worker context or write a fix itself | CLI permissions offer a stronger documented read-only mode |
@@ -93,8 +94,16 @@ git diff --check
   verified one fix/review round, malformed worker output, the main-branch guard, and detection of a
   worker commit. An entry-point smoke check found missing `--help` handling in the reviewer and
   orchestrator; both were corrected and now have regression coverage.
+- 2026-09-23: Independent review found that the reviewer inspected only committed changes. Fix in
+  progress: require working-tree and untracked-file review, pin the DeepSeek provider profile,
+  distinguish merge-blocking findings, anchor CLI commands at the repository root, and require an
+  explicit Claude reviewer model.
+- 2026-09-23: Implemented the accepted fixes. Fake-CLI tests now prove the reviewer sees a worker
+  modification to a tracked plan plus an untracked file, profile/provider and explicit-model flags
+  reach the correct CLI, scripts invoke both CLIs from the repository root, and a non-blocking review
+  finding completes without a third worker run.
 
 ## Final outcome
 
-Implementation is ready for independent review. Real provider/authentication calls intentionally
+The accepted review fixes are ready for re-review. Real provider/authentication calls intentionally
 remain untested because credentials are not part of the repository or this change.

@@ -56,7 +56,9 @@ class LocalAiAutomationTest(unittest.TestCase):
             {
                 "AI_CODEX_BIN": str(self.bin_dir / "codex"),
                 "AI_CLAUDE_BIN": str(self.bin_dir / "claude"),
+                "AI_CODEX_PROFILE": "deepseek-test-profile",
                 "AI_DEEPSEEK_MODEL": "deepseek-test-model",
+                "AI_CLAUDE_REVIEW_MODEL": "claude-review-test-model",
                 "FAKE_STATE": str(self.state_dir),
                 "AI_COMMAND_TIMEOUT_SECONDS": "30",
             }
@@ -78,6 +80,7 @@ while [[ $# -gt 0 ]]; do
   fi
 done
 printf '%s\\n' "$arguments" >> "$FAKE_STATE/codex-arguments.log"
+pwd >> "$FAKE_STATE/codex-working-directories.log"
 count_file="$FAKE_STATE/codex-count"
 count=0
 [[ -f "$count_file" ]] && count="$(<"$count_file")"
@@ -90,6 +93,10 @@ fi
 if [[ "${FAKE_CODEX_COMMIT:-}" == "1" ]]; then
   git commit --allow-empty -qm 'forbidden worker commit'
 fi
+if [[ "${FAKE_WORKER_EDITS:-}" == "1" ]]; then
+  printf 'worker working-tree change\\n' >> docs/plans/test.md
+  printf 'worker untracked change\\n' > worker-untracked.txt
+fi
 cat >/dev/null
 """,
             encoding="utf-8",
@@ -98,6 +105,13 @@ cat >/dev/null
             """#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$*" >> "$FAKE_STATE/claude-arguments.log"
+pwd >> "$FAKE_STATE/claude-working-directories.log"
+if [[ "${FAKE_EXPECT_WORKER_EDITS:-}" == "1" ]]; then
+  [[ -f worker-untracked.txt ]] && grep -q 'worker working-tree change' docs/plans/test.md || {
+    echo 'worker changes are not visible to reviewer' >&2
+    exit 9
+  }
+fi
 count_file="$FAKE_STATE/claude-count"
 count=0
 [[ -f "$count_file" ]] && count="$(<"$count_file")"
@@ -105,7 +119,7 @@ printf '%s' "$((count + 1))" > "$count_file"
 if [[ "$count" == "0" ]]; then
   printf '%s\\n' '{"structured_output":{"decision":"FIXES_REQUIRED","findings":[{"severity":"medium","path":"example.txt","line":1,"risk":"test risk","correction":"fix it","blocks_merge":true}],"risks":[],"human_action_required":false,"summary":"fix needed"}}'
 else
-  printf '%s\\n' '{"structured_output":{"decision":"READY_TO_MERGE","findings":[],"risks":[],"human_action_required":false,"summary":"review complete"}}'
+  printf '%s\\n' '{"structured_output":{"decision":"READY_TO_MERGE","findings":[{"severity":"low","path":"worker-untracked.txt","line":1,"risk":"optional cleanup","correction":"consider cleanup later","blocks_merge":false}],"risks":[],"human_action_required":false,"summary":"review complete with non-blocking note"}}'
 fi
 """,
             encoding="utf-8",
@@ -114,15 +128,17 @@ fi
             executable.chmod(0o755)
 
     def test_routes_fix_findings_once_then_stops_for_human_merge(self) -> None:
+        environment = self._environment()
+        environment.update({"FAKE_WORKER_EDITS": "1", "FAKE_EXPECT_WORKER_EDITS": "1"})
         result = subprocess.run(
             [
-                "scripts/ai/run-implementation-cycle.sh",
+                str(self.root / "scripts" / "ai" / "run-implementation-cycle.sh"),
                 "main",
                 "docs/plans/test.md",
                 "TEST-1",
             ],
-            cwd=self.root,
-            env=self._environment(),
+            cwd=self.root / "scripts",
+            env=environment,
             capture_output=True,
             text=True,
         )
@@ -133,19 +149,35 @@ fi
         self.assertEqual((self.state_dir / "claude-count").read_text(encoding="utf-8"), "2")
         codex_arguments = (self.state_dir / "codex-arguments.log").read_text(encoding="utf-8")
         self.assertIn("--model deepseek-test-model", codex_arguments)
+        self.assertIn("--profile deepseek-test-profile", codex_arguments)
+        self.assertIn('--config model_provider="deepseek"', codex_arguments)
         self.assertIn("--sandbox workspace-write", codex_arguments)
         self.assertIn("--output-schema", codex_arguments)
         claude_arguments = (self.state_dir / "claude-arguments.log").read_text(encoding="utf-8")
         self.assertIn("--no-session-persistence", claude_arguments)
         self.assertIn("--agent lead-reviewer", claude_arguments)
         self.assertIn("--permission-mode plan", claude_arguments)
+        self.assertIn("--model claude-review-test-model", claude_arguments)
+        self.assertIn("git diff --no-ext-diff main", claude_arguments)
+        self.assertIn("git ls-files --others --exclude-standard", claude_arguments)
+        expected_working_directory = f"{self.root}\n"
+        self.assertEqual(
+            (self.state_dir / "codex-working-directories.log").read_text(encoding="utf-8"),
+            expected_working_directory * 2,
+        )
+        self.assertEqual(
+            (self.state_dir / "claude-working-directories.log").read_text(encoding="utf-8"),
+            expected_working_directory * 2,
+        )
         review_results = sorted(
             path
             for path in (self.root / ".ai" / "runs").glob("*/review-*.json")
             if not path.name.endswith(".raw.json")
         )
         self.assertEqual(len(review_results), 2)
-        self.assertEqual(json.loads(review_results[-1].read_text(encoding="utf-8"))["decision"], "READY_TO_MERGE")
+        final_review = json.loads(review_results[-1].read_text(encoding="utf-8"))
+        self.assertEqual(final_review["decision"], "READY_TO_MERGE")
+        self.assertFalse(final_review["findings"][0]["blocks_merge"])
 
     def test_rejects_malformed_worker_result_before_review(self) -> None:
         environment = self._environment()
@@ -189,6 +221,40 @@ fi
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("worker changed the branch or HEAD", result.stderr)
+
+    def test_rejects_fixes_required_without_a_merge_blocker(self) -> None:
+        invalid_result = self.root / ".ai" / "invalid-review.json"
+        invalid_result.parent.mkdir()
+        invalid_result.write_text(
+            json.dumps(
+                {
+                    "decision": "FIXES_REQUIRED",
+                    "findings": [
+                        {
+                            "severity": "low",
+                            "path": "example.txt",
+                            "line": 1,
+                            "risk": "non-blocking",
+                            "correction": "optional",
+                            "blocks_merge": False,
+                        }
+                    ],
+                    "risks": [],
+                    "human_action_required": False,
+                    "summary": "not a blocking fix",
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            ["python3", "scripts/ai/validate_result.py", "review", str(invalid_result)],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("merge-blocking finding", result.stderr)
 
     def test_all_entrypoints_support_help_without_configuration(self) -> None:
         for script in (

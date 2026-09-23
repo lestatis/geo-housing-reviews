@@ -12,7 +12,8 @@ Usage: scripts/ai/deepseek-worker.sh [--result .ai/path.json] [--review-findings
   <plan-path> <chunk-id>
 
 Runs one bounded implementation or fix packet through the explicitly configured DeepSeek Codex
-model. AI_DEEPSEEK_MODEL is required. The current branch must already be a non-main feature branch.
+profile and model. AI_CODEX_PROFILE and AI_DEEPSEEK_MODEL are required. The current branch must
+already be a non-main feature branch.
 EOF
 }
 
@@ -52,6 +53,8 @@ ai_require_feature_branch
 ai_validate_plan_path "$plan_path"
 ai_validate_result_path "$result_path"
 [[ "$chunk_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || ai_die "chunk id contains unsupported characters"
+[[ -n "${AI_CODEX_PROFILE:-}" ]] || ai_die "AI_CODEX_PROFILE must name the configured DeepSeek profile"
+[[ "$AI_CODEX_PROFILE" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || ai_die "AI_CODEX_PROFILE contains unsupported characters"
 [[ -n "${AI_DEEPSEEK_MODEL:-}" ]] || ai_die "AI_DEEPSEEK_MODEL must name the configured DeepSeek model"
 if [[ -n "$review_findings" ]]; then
   ai_validate_result_path "$review_findings"
@@ -61,6 +64,7 @@ fi
 codex_bin="${AI_CODEX_BIN:-codex}"
 ai_require_command "$codex_bin"
 ai_require_command timeout
+cd "$AI_ROOT"
 timeout_seconds="$(ai_timeout_seconds)"
 schema="$SCRIPT_DIR/schemas/worker-result.schema.json"
 absolute_result="$AI_ROOT/$result_path"
@@ -81,6 +85,8 @@ initial_head="$(git -C "$AI_ROOT" rev-parse HEAD)"
     printf '\n%s\n' 'Assess every finding against the current diff. Implement only valid corrections, add focused regression tests where appropriate, and record rejected or unresolved findings in `risks`.'
   fi
 } | timeout --foreground "${timeout_seconds}s" "$codex_bin" exec \
+  --profile "$AI_CODEX_PROFILE" \
+  --config 'model_provider="deepseek"' \
   --model "$AI_DEEPSEEK_MODEL" \
   --sandbox workspace-write \
   --output-schema "$schema" \

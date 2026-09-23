@@ -11,12 +11,14 @@ merge.
 
 1. Read `AGENTS.md`, the named plan, current handoff and `docs/AI_WORKFLOW.md`. Inspect the branch,
    status and diff before invoking anything.
-2. Require an existing non-`main` feature branch, a valid base ref and `AI_DEEPSEEK_MODEL` configured
+2. Require an existing non-`main` feature branch, a valid base ref, `AI_CODEX_PROFILE` configured
+   for `model_provider = "deepseek"`, `AI_DEEPSEEK_MODEL`, and `AI_CLAUDE_REVIEW_MODEL` configured
    outside the repository. Do not inspect or print credential values.
 3. Invoke exactly one bounded run:
 
    ```bash
-   AI_DEEPSEEK_MODEL=<configured-model> \
+   AI_CODEX_PROFILE=deepseek AI_DEEPSEEK_MODEL=<configured-model> \
+   AI_CLAUDE_REVIEW_MODEL=<configured-reviewer-model> \
      scripts/ai/run-implementation-cycle.sh main docs/plans/<plan>.md <chunk-id>
    ```
 

@@ -40,6 +40,8 @@ python3 "$SCRIPT_DIR/validate_result.py" worker "$AI_ROOT/$worker_result"
 claude_bin="${AI_CLAUDE_BIN:-claude}"
 ai_require_command "$claude_bin"
 ai_require_command timeout
+[[ -n "${AI_CLAUDE_REVIEW_MODEL:-}" ]] || ai_die "AI_CLAUDE_REVIEW_MODEL must name the explicit reviewer model"
+cd "$AI_ROOT"
 timeout_seconds="$(ai_timeout_seconds)"
 schema_path="$SCRIPT_DIR/schemas/review-result.schema.json"
 schema_json="$(tr -d '\n' < "$schema_path")"
@@ -59,22 +61,23 @@ claude_args=(
   --tools "Read,Grep,Glob,Bash"
   --disallowed-tools "Edit,Write,NotebookEdit"
   --permission-mode plan
+  --model "$AI_CLAUDE_REVIEW_MODEL"
 )
-if [[ -n "${AI_CLAUDE_REVIEW_MODEL:-}" ]]; then
-  claude_args+=(--model "$AI_CLAUDE_REVIEW_MODEL")
-fi
 
 review_prompt=$(cat <<EOF
 Review task for the current branch against \`${base_ref}\` in a fresh independent context.
 
 Read AGENTS.md, \`${plan_path}\`, \`${worker_result}\`, and only the relevant accepted
-documentation. Inspect the complete diff with \`git diff ${base_ref}...HEAD\` and the affected
-code/tests. Treat the worker result only as claimed evidence; verify it yourself.
+documentation. Inspect the complete current working-tree change with \`git diff --no-ext-diff ${base_ref}\`,
+then list untracked files with \`git ls-files --others --exclude-standard\` and inspect every relevant
+untracked code, test and documentation file. Start with \`git status --short\`. The worker result is
+only claimed evidence; verify it yourself.
 
 Do not edit, create files, commit, push, open a pull request, approve, or merge. Review only. Your
-JSON result must use FIXES_REQUIRED for actionable findings, READY_TO_MERGE only when there are no
-findings, and a stopping decision when review cannot be completed. This process still requires a
-human merge decision.
+JSON result must use FIXES_REQUIRED only when at least one finding has \`blocks_merge: true\`.
+READY_TO_MERGE may retain non-blocking findings, all with \`blocks_merge: false\`; they are reported
+to the human but must not start another worker cycle. Use a stopping decision when review cannot be
+completed. This process still requires a human merge decision.
 EOF
 )
 
