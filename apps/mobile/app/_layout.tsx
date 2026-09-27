@@ -1,8 +1,11 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { ApiProvider } from "../src/api/ApiProvider";
+import { createDefaultApiClient } from "../src/api/defaultClient";
 import { deviceLocaleTag } from "../src/i18n/deviceLocale";
 import { LocaleProvider } from "../src/i18n/LocaleProvider";
 import { persistentLocaleStore } from "../src/i18n/localeStore";
@@ -16,13 +19,18 @@ import { MIN_TOUCH_TARGET, theme } from "../src/theme";
  * product.
  */
 export default function RootLayout() {
+  // Built once, lazily: the anonymous client reads the device network only when a request fails.
+  const apiClient = useMemo(() => createDefaultApiClient(), []);
+
   return (
-    <SafeAreaProvider>
-      <LocaleProvider store={persistentLocaleStore} deviceLocale={deviceLocaleTag()}>
-        <Stack screenOptions={{ headerShown: false }} />
-      </LocaleProvider>
-      <StatusBar style="auto" />
-    </SafeAreaProvider>
+    <ApiProvider client={apiClient}>
+      <SafeAreaProvider>
+        <LocaleProvider store={persistentLocaleStore} deviceLocale={deviceLocaleTag()}>
+          <Stack screenOptions={{ headerShown: false }} />
+        </LocaleProvider>
+        <StatusBar style="auto" />
+      </SafeAreaProvider>
+    </ApiProvider>
   );
 }
 

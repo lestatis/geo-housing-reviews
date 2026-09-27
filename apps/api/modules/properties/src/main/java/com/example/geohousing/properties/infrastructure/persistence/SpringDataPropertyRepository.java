@@ -75,6 +75,11 @@ interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, 
           """
           SELECT p.id AS id,
                  p.canonical_name AS canonicalName,
+                 p.type AS type,
+                 addr.city AS city,
+                 addr.district AS district,
+                 addr.street AS street,
+                 addr.building AS building,
                  GREATEST(
                    word_similarity(lower(:text), lower(p.canonical_name)),
                    COALESCE((SELECT MAX(word_similarity(lower(:text), lower(a.name)))

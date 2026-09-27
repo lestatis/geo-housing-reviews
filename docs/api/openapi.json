@@ -35,6 +35,23 @@
         },
         "type" : "object"
       },
+      "AddressSummaryView" : {
+        "properties" : {
+          "building" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "district" : {
+            "type" : "string"
+          },
+          "street" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AddressView" : {
         "properties" : {
           "building" : {
@@ -845,6 +862,9 @@
       },
       "PropertySearchHitResponse" : {
         "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/AddressSummaryView"
+          },
           "canonicalName" : {
             "type" : "string"
           },
@@ -858,6 +878,9 @@
           "score" : {
             "format" : "double",
             "type" : "number"
+          },
+          "type" : {
+            "type" : "string"
           }
         },
         "type" : "object"

@@ -1,10 +1,12 @@
 package com.example.geohousing.properties.infrastructure.persistence;
 
+import com.example.geohousing.properties.application.PropertyAddressSummary;
 import com.example.geohousing.properties.application.PropertyMatch;
 import com.example.geohousing.properties.application.PropertyRepository;
 import com.example.geohousing.properties.domain.Coordinates;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
+import com.example.geohousing.properties.domain.PropertyType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
@@ -62,8 +64,29 @@ public class JpaPropertyRepository implements PropertyRepository {
                 new PropertyMatch(
                     PropertyId.of(row.getId()),
                     row.getCanonicalName(),
+                    PropertyType.valueOf(row.getType()),
+                    addressSummary(row),
                     row.getScore(),
                     row.getDistanceMeters()))
         .toList();
+  }
+
+  /**
+   * The address summary, or {@code null} when the row carries no address at all.
+   *
+   * <p>The search query LEFT JOINs the address table because it matches against {@code street} and
+   * {@code city}, so a property with no address arrives as four null columns rather than as a row
+   * that is missing. Treating that as "no address" is what lets a result row stay honest instead of
+   * printing an empty address line.
+   */
+  private static PropertyAddressSummary addressSummary(PropertySearchProjection row) {
+    if (row.getCity() == null
+        && row.getDistrict() == null
+        && row.getStreet() == null
+        && row.getBuilding() == null) {
+      return null;
+    }
+    return new PropertyAddressSummary(
+        row.getCity(), row.getDistrict(), row.getStreet(), row.getBuilding());
   }
 }

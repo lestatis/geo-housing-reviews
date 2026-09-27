@@ -2,257 +2,224 @@
 
 ## Objective
 
-Plan 023-A — the mobile foundation: a small, working Expo + React Native application under
-`apps/mobile` that boots a smoke screen, navigates with an expo-router stack, ships English and
-Russian, consumes generated OpenAPI types, carries an anonymous public API client with the accepted
-error model, and participates truthfully in the existing frontend CI gate.
+Plan 023 chunk **023-B — discovery**: anonymous on-device search for a building or complex, from
+the app to a ranked result list, plus the one small backend contract change (C1: an address summary
+and the property type on a search hit) that makes two similarly-named buildings distinguishable.
 
 ## Active branch
 
-`feat/023-a-mobile-foundation`, branched from `docs/023-mobile-discovery-plan` at `e09aabd`, which is
-`main` at `5833ea6` plus the two plan-023 documentation commits. Nothing has been pushed.
+`feat/023-b-discovery`, branched from `main` (`f51d666`). Nothing created, committed, pushed or
+merged by this worker; all changes are uncommitted in the working tree.
 
 ## Related issue or plan
 
-`docs/plans/023-mobile-discovery.md`, chunk **023-A** only. 023-B (discovery) and 023-C (property
-experience) are explicitly not started, and no backend production code, migration or contract file
-was touched.
+`docs/plans/023-mobile-discovery.md`, chunk **023-B** only. 023-C (property detail, review feed,
+backend C2) is explicitly not started. No migration, no module boundary and no new public API were
+added.
 
 ## Current status
 
-ready_for_review
+ready_for_lead_review — 023-B scope is complete. A fresh independent review returned
+`FIXES_REQUIRED` with one merge-blocking finding (the mobile search guard rejected the JSON nulls the
+backend sends); the lead fixed it directly on 2026-09-27 because the DeepSeek fix worker's bubblewrap
+sandbox failed before executing any command (see "Review fix"). Frontend L1 passes. A re-review of
+the fix is the next step.
 
 ## Completed work
 
-- **Workspace.** `apps/mobile` is a workspace member of `pnpm-workspace.yaml`, so the root
-  `pnpm -r lint|test|typecheck` scripts pick it up without changing a single root script. No new
-  `allowBuilds` entry was required: `pnpm ignored-builds` reports nothing ignored and nothing
-  automatically skipped.
-- **App.** Expo SDK 57 (`expo@57.0.24`, `react-native@0.86.3`, `react@19.2.3`,
-  `expo-router@57.0.22`), TypeScript strict, expo-router file-based **stack** — `app/_layout.tsx`
-  (stack + locale provider + crash boundary) and `app/index.tsx`. No tabs, no placeholder screens.
-- **Generated types.** `pnpm generate:api` copies the `apps/web` pattern
-  (`openapi-typescript ../../docs/api/openapi.json -o src/api/generated/schema.d.ts`) and runs ahead
-  of both `typecheck` and `test`, so a stale client cannot pass. `src/api/generated/` is gitignored
-  exactly as `apps/web`'s copy is.
-- **API client** (`src/api/client.ts`), over `openapi-fetch`: base URL from
-  `EXPO_PUBLIC_API_BASE_URL` (default `http://localhost:8080`), 10 s deadline, typed outcomes
-  `ok | notFound | offline | timeout | server | malformed | unknown`, runtime guards over the fields
-  a caller actually reads, no retry loop, and **no `Authorization` header anywhere** — asserted by a
-  test. No token, session or login abstraction was added.
-- **Localization.** Typed `en`/`ru` catalogues with `en` as the source of truth (a missing Russian
-  key is a compile error), `Intl.PluralRules` with a local en/ru fallback for the 1/2/5 forms,
-  Russian date formatting with a local fallback, device locale as the initial choice, and a manual
-  override persisted on the device through AsyncStorage.
-- **Smoke screen** (`src/screens/HomeScreen.tsx`): app name, tagline, a two-button language switch
-  with accessibility roles/labels/selected state and ≥44 pt targets, and a "Localization check" card
-  that shows the active locale, the 1/2/5 plural forms, a formatted date and whether the runtime
-  provided native `Intl` or the local fallback. That card is the evidence the plan's device checks
-  ask for; it is removed when 023-B replaces this screen with the search entry.
-- **CI.** `frontend-check.yml` gained `apps/mobile/**` in the push `paths` and in the relevance
-  regex — two lines, no new workflow, no caching work, backend CI untouched.
-- **Docs.** `ARCHITECTURE.md` now names `apps/mobile` next to the Expo line it already mandated;
-  `apps/mobile/README.md` documents the build/lint/test commands and the rules that are easy to
-  break; plan 023 gained a progress-log entry.
-- **Device verification completed on a real Android device** (2026-09-22, human-run, screenshots of
-  both language states): the app launches, the English UI renders, the locale switch changes a
-  visible string, `1 отзыв · 2 отзыва · 5 отзывов` renders correctly, a Russian date renders as
-  `1 сентября 2026 г.`, and no red screen or runtime error appeared. The runtime reported **local
-  fallback** for `Intl`.
-- **Independent review completed** (read-only, verdict `FIXES_REQUIRED` for one P2 plus three P3s),
-  and the fix phase is done. Every finding is classified below under "Review phase"; the two
-  findings that were only documentation or comments are corrected, and implementing the requested
-  probe test exposed a fourth, more serious defect in the same file: the probe's `await
-  import("expo-network")` cannot work under Jest, was swallowed by its own `catch`, and therefore
-  made the offline mapping untestable — the classification could have returned `unknown` for every
-  device state while looking correct. The import is now static, the mapping is covered, and a
-  mutation check proves the new tests fail when the mapping is broken.
+- **Backend C1** (`apps/api/modules/properties`): the search hit now carries `type` and an address
+  summary. The new `AddressSummaryView(city, district, street, building)` is nested in
+  `PropertySearchHitResponse` (the same pattern as `PropertyResponse.AddressView`, so springdoc
+  names it `AddressSummaryView`). Fields travel the existing seam
+  `PropertySearchProjection` → `PropertyMatch` → `PropertySearchHitResponse`; the SQL adds columns
+  to the existing `SELECT` and the existing `LEFT JOIN properties.address`, so there is **no new
+  join, no second query and no per-hit fetch**. `PropertyAddressSummary` is a new application value
+  object; `PropertyMatch` gained `type` and `addressSummary` (with an `Optional address()` helper,
+  mirroring `distance()`). A property with no address row yields four null columns and maps to a
+  null summary rather than a blank address.
+- **OpenAPI**: `docs/api/openapi.json` adds the `AddressSummaryView` schema and the `address`/`type`
+  properties on `PropertySearchHitResponse`, in the canonical (sorted, Jackson-pretty) form the
+  contract test compares against. Verified canonical with the test's own `canonical()` logic.
+- **Decision log**: `P-016` records the founder decision (address summary + type on public search
+  hits; summary strictly less than the public detail endpoint).
+- **Mobile** (`apps/mobile`): anonymous `ApiProvider` context + `createDefaultApiClient`; `search.ts`
+  (guard + one bounded `get` on `/api/properties/search`, no `Authorization`, no location params);
+  `src/properties/searchRows.ts` (name / one address line / translated type; `score` and
+  `distanceMeters` are dropped, not rendered). Home screen is now the search entry with the existing
+  language switch and always-on tagline; the smoke screen and its diagnostics keys are gone.
+  `/search?q=` renders all four states (loading skeleton announced as "Searching", truthful empty,
+  offline-vs-temporary error with manual retry, loaded) plus the "Showing the first 20" note when a
+  full page comes back. Navigation lives in the route files (`app/index.tsx`, `app/search.tsx`).
+- **Founder decision applied (2026-09-27)**: result rows are **not pressable** in 023-B.
+  `SearchResultsScreen` takes no `onOpenProperty`; a row is a plain accessible `View` with no
+  `button` role, no `onPress` and no `router.push`. Its label reads name, address and translated
+  type and does not announce that it opens details. The `search.rowLabel` en/ru entries dropped the
+  "opens the property" clause, and `app/search.tsx` no longer imports `useRouter` or pushes
+  `/property/[id]`. 023-C restores the press and the "opens details" semantics.
+- **Tests**: 6 new/updated backend unit tests (53 module tests total, up from 47) and 104 mobile
+  tests across 12 suites, including one-request-per-query, no-score-in-the-tree, same-name
+  distinguishable-by-address, and every screen state.
 
 ## Remaining work
 
-- 023-B and 023-C, which are separate pull requests and were deliberately not started.
+- 023-C: property detail header, review feed, review card, and backend C2 (`AdminReviewResponse`
+  split), with its own `DECISION_LOG` entry.
+- Independent review of this 023-B branch.
 
 ## Decisions made
 
-- **Expo SDK 57**, the current stable SDK, rather than the newest canary. Every dependency matches
-  the SDK's own `bundledNativeModules` pins, verified with `expo install --check` (one deviation,
-  below).
-- **`react-dom@19.2.3` is a direct dependency** even though this slice has no web target: expo-router
-  lists it as a peer, and without the pin pnpm auto-installed `react-dom@19.2.8` against
-  `react@19.2.3` and reported an unmet peer. Pinning it to the SDK's own version removes the warning
-  without changing `apps/web`'s resolution.
-- **Metro keeps hierarchical lookup enabled.** Expo's monorepo guide recommends
-  `disableHierarchicalLookup = true`, but under pnpm's isolated layout that makes
-  `expo-router/entry` unable to resolve `@expo/metro-runtime`, and `expo export` fails. The reasoning
-  is recorded in `metro.config.cjs`; `watchFolders` and `nodeModulesPaths` still cover the workspace.
-- **The client asks openapi-fetch for the body as text and parses JSON itself**, because
-  openapi-fetch's own JSON parsing throws on a truncated or HTML body, which would classify a 200 as
-  `unknown` instead of the `malformed` the plan requires.
-- **One documented cast** forwards openapi-fetch's per-path generics through our generic `path`
-  parameter. The body stays `unknown` until the caller's guard narrows it, and the public signature
-  is derived from `paths` in the generated schema.
-- **TypeScript stays on `^5.9.2`**, matching `apps/web`, although `expo install --check` expects
-  `~6.0.3` for SDK 57. See "Risks".
-- **Tests live under `src/**/__tests__/` and never under `app/`**, because expo-router treats every
-  file in `app/` as a route.
-- **No runtime validation framework was added.** Malformed detection uses `src/api/guards.ts`
-  (object/string/number checks) over the few fields a caller reads, which is what the plan's
-  "smallest reasonable runtime guards" rule asks for and avoids a `LEAD_DECISION_REQUIRED` escalation.
+- **Founder/lead decision (2026-09-27): result rows are not pressable in 023-B.** This is
+  deliberate temporary behaviour, not an omission, and is now **implemented on the branch**. The
+  property-detail route `/property/[id]` is
+  023-C scope, and a tap that lands on expo-router's unmatched route is a dead end. Therefore, in
+  023-B:
+  - a result row has no `onPress`, is not wrapped in a pressable, has no `button`/`link` role and does
+    not call `router.push`; `onOpenProperty` and any navigation to `/property/[id]` are removed;
+  - its accessibility label still reads the name, address and translated type, but does **not**
+    announce that it opens details;
+  - no temporary detail route, placeholder screen or "coming soon" UI is added.
+
+  023-C makes the row pressable, navigates to `/property/[id]`, and adds the final accessibility
+  semantics (role, and a label/hint announcing it opens property details) that the plan's
+  Accessibility section requires. A reviewer should treat the missing "opens details" announcement
+  in 023-B as intended by this decision, not as a defect.
+- **The address summary is a new nested record, not the detail endpoint's `AddressView`.** It omits
+  `originalText` (free text where an apartment number can hide) and `country` (constant), so the hit
+  exposes strictly less than public detail already does.
+- **An all-null address maps to a null summary.** The LEFT JOIN cannot distinguish "no address row"
+  from "address row with every part blank"; both render the same, and "no address" must be honest.
+- **Type and address are optional in the mobile guard**, so an older server without them degrades to
+  "Type not recorded" rather than a `malformed` whole response.
+- **The results loading state is derived from the request identity** (query + attempt), not set
+  synchronously in the effect, because `react-hooks/set-state-in-effect` (correctly) forbids the
+  latter; a retry therefore shows its own loading state without an extra render.
+- **`reviews.count` plural stays**; only the smoke-screen diagnostic keys were removed.
 
 ## Assumptions
 
-- The plan's error-model table is authoritative for `4xx` other than 404: they are `server`, not a
-  separate category.
-- "Device reports no network" means `expo-network`'s `isConnected === false` or
-  `isInternetReachable === false`; an unreadable state is `unknown`, never `offline`.
-- The public endpoints in `docs/api/openapi.json` answering under a wildcard media type are the
-  contract as committed, not a spec defect to fix in this chunk.
+- Springdoc will name the nested `AddressSummaryView` by its simple name, as it already does for
+  `PropertyResponse.AddressView` (spec component names are simple names today). The contract test
+  will confirm this in CI.
+- The committed spec's canonical form matches the running app; only the *content* is unverified
+  locally (see Human actions).
 
 ## Files changed
 
-Created: `apps/mobile/package.json`, `app.json`, `babel.config.cjs`, `metro.config.cjs`,
-`jest.config.cjs`, `jest.setup.cjs`, `eslint.config.mjs`, `tsconfig.json`,
-`src/expo-types.d.ts`,
-`README.md`, `app/_layout.tsx`, `app/index.tsx`, `src/config.ts`, `src/theme.ts`,
-`src/screens/HomeScreen.tsx`, `src/api/{client,guards,network}.ts`,
-`src/api/__tests__/{client,network}.test.ts`,
-`src/i18n/{locale,en,ru,catalogues,intl,plural,format,localeStore,deviceLocale}.ts`,
-`src/i18n/LocaleProvider.tsx`, `src/i18n/__tests__/{locale,catalogues,plural,format,localeStore,LocaleProvider}.test.*`,
-`src/i18n/__tests__/intlStub.ts`, `src/screens/__tests__/HomeScreen.test.tsx`.
-
-`apps/mobile/expo-env.d.ts` is deliberately **not** here: it is written and deleted by the Expo CLI
-around dev-server runs and is gitignored. See "Review phase", third row.
-
-Modified: `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.gitignore`, `.github/workflows/frontend-check.yml`,
-`docs/ARCHITECTURE.md`, `docs/plans/023-mobile-discovery.md`, `docs/handoffs/current-task.md`;
-`docs/handoffs/current-task.md` (022's record) was renamed to `docs/handoffs/022-branch-protection.md`.
+- `apps/api/modules/properties/src/main/java/.../application/PropertyAddressSummary.java` (new)
+- `apps/api/modules/properties/src/main/java/.../application/PropertyMatch.java`
+- `apps/api/modules/properties/src/main/java/.../infrastructure/persistence/PropertySearchProjection.java`
+- `apps/api/modules/properties/src/main/java/.../infrastructure/persistence/SpringDataPropertyRepository.java`
+- `apps/api/modules/properties/src/main/java/.../infrastructure/persistence/JpaPropertyRepository.java`
+- `apps/api/modules/properties/src/main/java/.../infrastructure/web/PropertySearchHitResponse.java`
+- `apps/api/modules/properties/src/test/java/.../application/PropertyMatchTest.java`
+- `apps/api/modules/properties/src/test/java/.../infrastructure/web/PropertySearchHitResponseTest.java` (new)
+- `apps/api/app/src/test/java/.../properties/PropertySearchIntegrationTest.java`
+- `docs/api/openapi.json`, `docs/DECISION_LOG.md`, `docs/plans/023-mobile-discovery.md`
+- `apps/mobile/app/_layout.tsx`, `app/index.tsx`, `app/search.tsx` (new)
+- `apps/mobile/src/api/ApiProvider.tsx` (new), `src/api/defaultClient.ts` (new), `src/api/search.ts` (new),
+  `src/api/__tests__/search.test.ts` (new)
+- `apps/mobile/src/properties/searchRows.ts` (new), `src/properties/__tests__/searchRows.test.ts` (new)
+- `apps/mobile/src/screens/HomeScreen.tsx`, `src/screens/__tests__/HomeScreen.test.tsx`
+- `apps/mobile/src/screens/SearchResultsScreen.tsx` (new), `src/screens/__tests__/SearchResultsScreen.test.tsx` (new)
+- `apps/mobile/src/i18n/en.ts`, `src/i18n/ru.ts`, `src/i18n/__tests__/format.test.ts`
 
 ## Commands run
 
-```bash
-CI=true corepack pnpm install --no-frozen-lockfile     # added 1089 packages; no build scripts ignored
-CI=true corepack pnpm install --frozen-lockfile        # "Already up to date" — CI will install cleanly
-CI=true corepack pnpm peers check                      # two upstream Expo/RN peer warnings, below
-cd apps/mobile && corepack pnpm generate:api           # openapi-typescript → src/api/generated/schema.d.ts
-cd apps/mobile && corepack pnpm exec tsc --noEmit
-cd apps/mobile && corepack pnpm exec jest
-cd apps/mobile && corepack pnpm exec eslint .
-cd apps/mobile && corepack pnpm exec expo export --platform android --output-dir /tmp/expo-export-check
-cd apps/mobile && corepack pnpm exec expo export --platform ios --output-dir /tmp/expo-export-check-ios
-cd apps/mobile && corepack pnpm exec expo install --check
-./scripts/check-scoped.sh frontend                     # L1: pnpm -r lint / test / typecheck
-```
-
-Re-run after the review fixes: `corepack pnpm exec eslint .`, `tsc --noEmit`, `jest` (9 suites / 74
-tests), `expo export --platform android`, plus the mutation and typing probes described above.
-Re-run once more after the comment-only amendment: `eslint .`, `tsc --noEmit`, `jest` — all pass.
+- `./scripts/check-scoped.sh governance` → passed (24 required files, 7 shared skills).
+- `./scripts/check-scoped.sh frontend` → passed: `pnpm -r lint`, `pnpm -r test`, `pnpm -r typecheck`
+  over `apps/web` and `apps/mobile`.
+- `apps/mobile`: `pnpm run lint`, `pnpm run test` (104 passed), `pnpm run typecheck`.
+- Worker takeover (2026-09-27), after applying the founder decision: `apps/mobile`
+  `pnpm run lint`, `pnpm run test` (104 passed, 12 suites), `pnpm run typecheck`, and the root
+  `./scripts/check-scoped.sh frontend` (`pnpm -r lint|test|typecheck` over `apps/web` and
+  `apps/mobile`) all pass.
+- Backend substitute (Gradle cannot start — see below): `javac` + JUnit Platform launcher over the
+  `properties` module, 53 tests passed; `com.google.googlejavaformat.java.Main --dry-run
+  --set-exit-if-changed` and `com.puppycrawl.tools.checkstyle.Main -c config/checkstyle/checkstyle.xml`
+  over the nine changed Java files, both clean.
 
 ## Tests and verification
 
-| Check | Result |
-| --- | --- |
-| `apps/mobile` Jest (9 suites, 74 tests) | pass, ~1 s |
-| `apps/web` Vitest (unchanged, via the root gate) | pass, 75 tests |
-| `pnpm -r lint` / `test` / `typecheck` | pass; both commands report "Scope: 2 of 3 workspace projects" and run `apps/mobile` |
-| `expo export --platform android` | 1269 modules bundled to Hermes bytecode |
-| `expo export --platform ios` | bundled |
-| `expo install --check` | only `typescript@5.9.3` vs expected `~6.0.3` |
-| `pnpm install --frozen-lockfile` | up to date |
-| Android device, manual (human, 2026-09-22) | pass — launch, English render, locale switch, Russian plurals, Russian date, no red screen; `Intl` reported as local fallback |
-| `expo export --platform android`, re-run after the review fixes | bundled, 1269 modules |
-| Mutation check on the probe mapping | `isConnected === false` broken → the two `offline` tests fail; reverted → green |
-| `process.env` typing probe | with `src/expo-types.d.ts`, `const n: number = process.env.EXPO_PUBLIC_API_BASE_URL` is a type error (typed `string \| undefined`); before it, the same line compiled because the value was `any` |
+| Command | Result | Notes |
+| --- | --- | --- |
+| `cd apps/mobile && pnpm run lint` (review fix, lead, 2026-09-27) | passed | |
+| `cd apps/mobile && pnpm run typecheck` (review fix, lead) | passed | |
+| `cd apps/mobile && pnpm run test` (review fix, lead) | passed | 12 suites, 109 tests (was 104) |
+| `./scripts/check-scoped.sh frontend` (review fix, lead) | passed | web 10 files; mobile 12 suites / 109 tests; lint + typecheck |
+| `./scripts/check-scoped.sh governance` (review fix, lead) | failed locally on ignored files only | the validator `rglob`s every `*.json`, including gitignored `.ai/` run evidence; it rejected `.ai/review-result.json.raw.json` and `.ai/runs/implementation-loop.D2dZo6/worker-0.json` (the known malformed automation outputs). The same validator over a copy of `git ls-files -co --exclude-standard` passed: 24 required files, 7 shared skills. Evidence files were kept, not deleted. |
+| `./scripts/check-scoped.sh governance` | passed | |
+| `./scripts/check-scoped.sh frontend` | passed | lint + test + typecheck, web and mobile |
+| `./scripts/check-scoped.sh frontend` | **passed (worker, 2026-09-27)** | rerun after the non-pressable-rows change; `pnpm -r lint|test|typecheck`, mobile 104/104 |
+| `javac` all `properties` main+test sources, then JUnit Platform over the module | passed | 53/53 tests; substitutes the un-runnable Gradle module check |
+| `javac` `PropertySearchIntegrationTest` against the new signatures | passed | compile check only; the test itself needs Docker |
+| google-java-format 1.28.0 `--dry-run --set-exit-if-changed` on changed Java | passed | Spotless' default version |
+| checkstyle 10.24.0 with `config/checkstyle/checkstyle.xml` on changed Java | passed | |
+| `cd apps/api && ./gradlew :modules:properties:check -PskipMutation` | **passed (lead, 2026-09-27)** | run outside the worker sandbox: compile, tests, spotless, checkstyle |
+| `cd apps/api && ./gradlew :app:test --tests '*PropertySearchIntegrationTest' --tests '*OpenApiContractIntegrationTest' -PskipMutation` | **passed (lead, 2026-09-27)** | run outside the worker sandbox against Testcontainers PostGIS: search 16/16, contract 1/1, 0 skipped; run without `-DupdateOpenApiSpec`, so the committed `docs/api/openapi.json` matches the generated contract and was not regenerated |
 
-Test coverage: locale switching and persistence, device-locale fallback, typed dictionary
-completeness and placeholder parity, Russian 1/2/5 plurals (and agreement between the fallback and
-`Intl.PluralRules` for 0–200 plus fractions), date formatting with and without `Intl`, every branch
-of the error union (`ok`, `notFound`, `server`, `malformed` for non-JSON / wrong-shape / empty
-bodies, `timeout`, `offline`, `unknown`), timeout-is-never-offline, path-parameter interpolation, a
-missing `Authorization` header, and a smoke render that asserts the visible string changes with the
-locale.
+The worker sandbox still cannot start Gradle or reach Docker. The two backend rows above are the
+L1 evidence for the current backend diff; a worker should not raise `HUMAN_ACTION_REQUIRED` for them
+again unless it changes backend code, in which case the lead reruns them.
 
-The review round added: the four `expo-network` state mappings behind `offline`, the client driven
-through the real probe, and byte-identical agreement between `formatDate` and `fallbackFormatDate`
-for both locales. All seven error outcomes are now covered end to end from device state, not only
-from an injected stub.
+## Review fix (2026-09-27, lead)
+
+Finding (high, `blocks_merge: true`, evidence `.ai/023-b-review.blocking.json`): Spring serializes
+absent values as JSON `null` (no `spring.jackson` null exclusion, no `@JsonInclude`), so a hit with no
+address arrives as `"address": null` and a missing part as `"district": null`. `isPropertySearchResponse`
+accepted only a *missing* key, so any result set containing a partial or absent address became
+`malformed` and the screen showed the temporary-availability error. The existing tests built partial
+addresses by omitting keys, so they passed.
+
+The DeepSeek fix worker could not run: its bubblewrap sandbox failed before executing any shell
+command (evidence `.ai/023-b-worker-fix-1.json`). Sandbox/kernel/system settings were not changed.
+The lead applied only the blocker fix:
+
+- `apps/mobile/src/api/search.ts`: the guard accepts `null` as well as a missing key for `address`
+  and for `city`/`district`/`street`/`building`, matching what the backend DTO can produce.
+  `type` stays non-nullable — `PropertySearchHitResponse.from` always sets it from the enum and the
+  contract does not mark it nullable — so a `null` type is still `malformed`. `distanceMeters` is not
+  read by any row, so the guard does not check it; a `null` there is accepted (regression-tested).
+- `apps/mobile/src/properties/searchRows.ts`: `AddressSummary` is the wire shape (each part
+  `string | null`, optional), and `formatAddressSummary`/`trimmed` accept `null`, treating it as
+  missing. Runtime mapping behaviour was already null-safe; the types now say so.
+- Regression tests use real `JSON.parse`d bodies: `search.test.ts` (null address, null parts, all-null
+  parts, null `distanceMeters` accepted; null `type` rejected), `searchRows.test.ts` (null parts and
+  null address format as missing; the null-bearing response maps to rows), and
+  `SearchResultsScreen.test.tsx` (the null-bearing body goes through the **real** client and guard
+  via an injected `fetch` — the stubbed-`get` tests never ran the guard — and renders rows, including
+  "Address not recorded", with no error state).
+- The regressions were confirmed to fail against the old guard (2 failed: the guard test and the
+  screen test; the null-`type` test passed) before the fix was restored.
+
+No backend code was touched, so backend tests were not rerun.
 
 ## Known failures
 
-`pnpm peers check` reports two unmet peers that come from Expo's own dependency graph, not from this
-app: `react-native-worklets@0.13.0` (pulled by `@expo/ui`) against `expo-modules-core`'s
-`^0.7.4 || … || ^0.10.0`, and `@react-native/metro-config@0.87.1` against
-`@react-native/community-cli-plugin@0.86.3`'s `0.86.3`. Adding `react-native-worklets`/`reanimated`
-to this app would silence the first only by installing native runtimes this slice does not use.
-Both are recorded rather than hidden.
-
-## Review phase
-
-Independent review, 2026-09-22: `FIXES_REQUIRED` for P2, with three cheap P3 corrections; the
-reviewer's own acceptance table passed every other 023-A criterion. Findings were classified from
-evidence, not from the review text.
-
-| Finding | Classification | Evidence and disposition |
-| --- | --- | --- |
-| **P2** — the only path that can return `offline` is neither wired nor tested | **Accepted** | `MobileApiClientOptions.networkStatus` is now required, so a caller cannot silently omit the probe (the call site no longer compiles without it); `emptyNetworkStatus`-style defaults are gone; `network.test.ts` covers the four mappings (`isConnected: false` → `offline`, `isInternetReachable: false` → `offline`, connected → `online`, rejected/empty state → `unknown`), and `client.test.ts` drives the real `createExpoNetworkStatusProbe()` through the client to prove `offline` is reachable end to end. |
-| **P2 follow-on (found while fixing)** — the probe's dynamic import | **Accepted, escalated** | `await import("expo-network")` inside `read()` fails in Jest with *"A dynamic import callback was invoked without --experimental-vm-modules"*, which the probe's own `catch` reported as `unknown`. The mapping therefore could not be observed at all: the probe answered `unknown` for every state, so an assertion expecting `offline` would have **failed**, not passed. The import is now static (`import { getNetworkStateAsync } from "expo-network"`), which Metro bundles the same way and Jest can mock. Verified by mutation: changing `isConnected === false` to a condition that cannot match makes the two `offline` tests fail, and reverting restores green. |
-| **P3** — the handoff names `apps/mobile/expo-env.d.ts`, which is not in the tree or in any commit | **Accepted, with a corrected cause** | The reviewer's observable claim is right; "never there" is not. The Expo CLI writes `expo-env.d.ts` at the project root and **deletes** it — plus the matching `tsconfig.json` include entries — when the dev server starts with typed routes disabled (this app's configuration). Its own template says the file belongs in `.gitignore`. That is what happened between the file's creation and the commit; the committed `tsconfig.json` is already the CLI-rewritten two-glob version. Fix: the file is gitignored, it is no longer claimed as a changed file, and `src/expo-types.d.ts` (a file we own) keeps Metro's globals typed — `process.env.EXPO_PUBLIC_API_BASE_URL` is `string \| undefined` again instead of `any`. |
-| **P3** — `guards.ts` cites a plan section that does not exist | **Accepted** | `grep "Runtime validation" docs/plans/023-mobile-discovery.md` returns nothing; the phrase came from the implementation packet, not the plan. The comment now cites "Error model", which is where `malformed` is defined. |
-| **P3** — the date fallback is not held to the plural fallback's standard | **Accepted** | `format.test.ts` now asserts `formatDate` and `fallbackFormatDate` are byte-identical for `en` and `ru` on two dates while `Intl` is present. Measured before writing: ICU returns `1 сентября 2026 г.` and `September 1, 2026` with plain spaces, so the two paths agree exactly today. |
-| **P3** — four direct dependencies are imported by no app code | **Accepted** | The README now names `expo-constants`, `expo-linking`, `react-native-screens` and `react-dom` as expo-router prerequisites that pnpm does not hoist, and states that pruning them breaks the bundle. |
-| **Not a code finding** — "app launches on a simulator" is not evidenced | **Recorded, not actionable here** | Only Android was launched, on a physical device. A simulator needs macOS/Xcode or Android SDK/emulator infrastructure, which the packet and the plan's non-goals both forbid installing, and `expo export` for iOS proves the bundle rather than a render. The gap stays open for the lead. |
-| **Reviewer note** — which `Intl` capability the device lacks | **Accepted as a follow-up** | The card reports `PluralRules` and `DateTimeFormat` together; both fallbacks are cross-checked, so this is diagnostics precision, not a defect. Left for 023-B rather than re-cutting the device evidence. |
-
-Re-review, 2026-09-22: **READY_TO_MERGE**. Every P2/P3 above verified fixed from committed
-artifacts, the suite grew to 9 suites / 74 tests, and `git diff 5b776f6..HEAD` over `.github`,
-`apps/api` and `docs/api` is empty, so the fix phase stayed inside 023-A. The reviewer raised one
-new comment-only P3: the javadoc on `createExpoNetworkStatusProbe` still called the module import
-"lazy" and the `catch` still blamed an unavailable native module, both stale since the import
-became static. Both comments were corrected in `docs(mobile): correct the network probe comments`
-and need no further review.
+- None.
 
 ## Risks and unresolved questions
 
-- **`Intl` on the device is resolved, and it took the fallback path.** The Android runtime reported
-  local fallback, so `src/i18n/plural.ts` and `src/i18n/format.ts` are the production path on
-  Android, not a rare one. Russian plurals and dates were confirmed correct there, so this is a
-  verified outcome rather than an open risk; what stays open is *which* capability is missing, since
-  the card reports the two together. Splitting the diagnostics per capability is a small 023-B
-  follow-up, not a 023-A defect.
-- **TypeScript version.** SDK 57 expects `~6.0.3`; this branch keeps the repository's single TS line
-  (`^5.9.2`) so the two frontends do not run different compilers. Typecheck is clean and the bundle
-  builds; moving both workspaces to TS 6 is a separate decision for the lead.
-- **iOS is unverified as a running app.** Android was launched on a physical device; iOS has only
-  been bundled. A simulator needs macOS/Xcode or Android SDK/emulator infrastructure, which the
-  packet and the plan's non-goals forbid installing, so this gap cannot be closed from here and is
-  left for the lead to accept or schedule.
-- **The web target is deliberately unconfigured.** `react-native-web` is absent, so `pnpm start` then
-  `w` fails to bundle; the review round found this in the dev-server log from the device session.
-  Documented in the README rather than fixed, because web is not a target of this app; adding it is a
-  product decision, not a defect.
-- **The Expo CLI owns two files in the project root.** Starting the dev server rewrites
-  `tsconfig.json`'s `include` and removes `expo-env.d.ts` whenever typed routes are disabled, which is
-  this app's state. Expect that churn; the committed `include` already reflects it, and
-  `src/expo-types.d.ts` is what keeps the Metro globals typed.
-- **`pnpm-lock.yaml` reshuffles `apps/web`'s peer suffixes** (`supports-color` 7.2.0 → 10.2.2, and
-  vitest now listing jsdom/lightningcss/terser peers) without changing any resolved version. Web's
-  lint, tests and typecheck still pass; the cause is the shared store, not a dependency change.
+- **`/property/[id]` seam resolved** by the founder decision above: rows are non-pressable in 023-B.
+- **No device run.** The results screen was exercised in Jest (node) only; the plan's acceptance has
+  no device E2E in this slice, but the 200% text-scaling/contrast manual check the plan lists for the
+  review card belongs to 023-C.
+- **Mutation score (ADR-0009, threshold 77) is unmeasured** — pitest is an L2 CI concern and the
+  Gradle run is unavailable here.
 
 ## Human actions required
 
-None. The three device checks were completed on 2026-09-22 by a human on a real Android device
-(screenshots of the English and Russian states captured); the handoff's earlier
-`HUMAN_ACTION_REQUIRED` block is therefore satisfied and removed. Two things remain for the human:
-attach those screenshots to the pull request, as `CONTRIBUTING.md` requires for UI changes, and
-decide the TypeScript 5.9-vs-6.0 question recorded under "Risks". No emulator, Android Studio, Xcode
-component or system package was installed, per AGENTS.md §4.
+- Resolved 2026-09-27: both backend Gradle commands were run by the lead outside the sandbox and
+  passed (see "Tests and verification").
+- Still for the human: attach the results-screen screenshots a UI pull request needs, once the app is
+  run on a device.
 
 ## Recommended next action
 
-Lead review of `git diff main...feat/023-a-mobile-foundation`; the device evidence is in hand, so
-nothing blocks that review. 023-B (backend address summary on search hits, then the search and
-results screens) starts on its own branch afterwards, with the per-capability Intl diagnostics and
-the TypeScript question as its first small decisions.
+Fresh independent re-review of the review fix (the original blocker in
+`.ai/023-b-review.blocking.json`), counting against the two-cycle cap. Then human PR/merge
+decision. 023-C is not started. Separately (not 023-B scope): `scripts/ai` rejects DeepSeek results
+wrapped in a code fence, and `validate_repo_governance.py` scans gitignored `.ai/` files.
 
 ## Last updated
 
-2026-09-22
+2026-09-27
