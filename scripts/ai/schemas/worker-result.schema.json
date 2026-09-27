@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "branch",
+    "changed_files",
+    "tests",
+    "risks",
+    "human_action_required",
+    "summary"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "READY_FOR_LEAD_REVIEW",
+        "LEAD_DECISION_REQUIRED",
+        "HUMAN_ACTION_REQUIRED",
+        "BLOCKED"
+      ]
+    },
+    "branch": { "type": "string", "minLength": 1 },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "result"],
+        "properties": {
+          "command": { "type": "string", "minLength": 1 },
+          "result": { "type": "string", "enum": ["passed", "failed", "skipped"] }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "human_action_required": { "type": "boolean" },
+    "summary": { "type": "string", "minLength": 1 }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "findings", "risks", "human_action_required", "summary"],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["READY_TO_MERGE", "FIXES_REQUIRED", "HUMAN_ACTION_REQUIRED", "BLOCKED"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "path", "line", "risk", "correction", "blocks_merge"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["blocker", "high", "medium", "low"] },
+          "path": { "type": "string", "minLength": 1 },
+          "line": { "type": ["integer", "null"], "minimum": 1 },
+          "risk": { "type": "string", "minLength": 1 },
+          "correction": { "type": "string", "minLength": 1 },
+          "blocks_merge": { "type": "boolean" }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "human_action_required": { "type": "boolean" },
+    "summary": { "type": "string", "minLength": 1 }
+  }
+}
