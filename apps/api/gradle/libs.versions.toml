@@ -21,6 +21,8 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 pitest-command-line = { module = "org.pitest:pitest-command-line", version.ref = "pitest" }
 pitest-junit5-plugin = { module = "org.pitest:pitest-junit5-plugin", version.ref = "pitestJunit5" }
 springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+# The version springdoc resolves at runtime; modules only compile against the annotations.
+swagger-annotations = { module = "io.swagger.core.v3:swagger-annotations-jakarta", version = "2.2.47" }
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
 
 [plugins]
