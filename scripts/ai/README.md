@@ -49,8 +49,9 @@ workflow completed, not that CI is green or a merge is authorized.
 - Claude runs in a new non-persistent session with the repository's `lead-reviewer` definition,
   a read-oriented tool allowlist and `plan` permission mode. It reviews the current working-tree
   diff and relevant untracked files; it does not fix.
-- Only findings marked `blocks_merge: true` return to DeepSeek. Non-blocking findings are retained
-  in the final review evidence and reported to the human without spending another worker cycle.
+- Only findings marked `blocks_merge: true` are copied into the next DeepSeek fix packet.
+  Non-blocking findings remain in the complete review evidence for the human; they are neither sent
+  to the worker nor allowed to consume the bounded fix cycle.
 - A non-ready worker result, malformed output, timeout, unavailable command, human/lead decision,
   reviewer stop, or exhausted cycle cap exits non-zero and leaves local evidence for the handoff.
 - The loop does not run L2. Follow `CONTRIBUTING.md`: worker evidence is L0/L1 only, the L2 full gate

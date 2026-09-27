@@ -3,7 +3,7 @@
 Status: Active
 Owner: Codex
 Related issue: None
-Last updated: 2026-09-22
+Last updated: 2026-09-27
 
 ## Objective
 
@@ -102,6 +102,10 @@ git diff --check
   modification to a tracked plan plus an untracked file, profile/provider and explicit-model flags
   reach the correct CLI, scripts invoke both CLIs from the repository root, and a non-blocking review
   finding completes without a third worker run.
+- 2026-09-27: Narrowed the fix packet itself: after a mixed `FIXES_REQUIRED` review, the runner
+  writes a derived ignored review result containing only `blocks_merge: true` findings. The worker
+  never receives non-blocking notes; fake-CLI coverage proves a blocking P1 reaches the second
+  worker invocation while a non-blocking P3 does not.
 
 ## Final outcome
 

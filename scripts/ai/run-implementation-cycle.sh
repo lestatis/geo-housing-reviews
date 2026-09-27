@@ -11,8 +11,8 @@ usage() {
 Usage: scripts/ai/run-implementation-cycle.sh [--max-cycles 1|2] <base-ref> <plan-path> <chunk-id>
 
 Runs one DeepSeek worker packet and, only after READY_FOR_LEAD_REVIEW, a fresh read-only Claude
-review. FIXES_REQUIRED findings are returned to the worker. The loop stops after at most two review
-rounds and never creates branches, commits, pushes, opens PRs, or merges.
+  review. Only merge-blocking FIXES_REQUIRED findings are returned to the worker. The loop stops
+  after at most two review rounds and never creates branches, commits, pushes, opens PRs, or merges.
 EOF
 }
 
@@ -84,7 +84,9 @@ while true; do
           "$max_cycles" "$review_result" >&2
         exit 5
       fi
-      review_findings="$review_result"
+      review_findings="$relative_run_dir/blocking-findings-${review_round}.json"
+      python3 "$SCRIPT_DIR/filter-blocking-findings.py" \
+        "$AI_ROOT/$review_result" "$AI_ROOT/$review_findings"
       worker_result="$relative_run_dir/worker-${review_round}.json"
       ;;
     *)

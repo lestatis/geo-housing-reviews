@@ -82,7 +82,7 @@ initial_head="$(git -C "$AI_ROOT" rev-parse HEAD)"
   if [[ -n "$review_findings" ]]; then
     printf '\n## Independent review findings to assess\n\n'
     sed -n '1,260p' "$AI_ROOT/$review_findings"
-    printf '\n%s\n' 'Assess every finding against the current diff. Implement only valid corrections, add focused regression tests where appropriate, and record rejected or unresolved findings in `risks`.'
+    printf '\n%s\n' 'This fix packet contains only findings with `blocks_merge: true`. Assess each finding against the current diff. Implement only valid corrections, add focused regression tests where appropriate, and record rejected or unresolved findings in `risks`. Non-blocking review notes remain for the human and are not part of this fix packet.'
   fi
 } | timeout --foreground "${timeout_seconds}s" "$codex_bin" exec \
   --profile "$AI_CODEX_PROFILE" \

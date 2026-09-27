@@ -97,7 +97,7 @@ if [[ "${FAKE_WORKER_EDITS:-}" == "1" ]]; then
   printf 'worker working-tree change\\n' >> docs/plans/test.md
   printf 'worker untracked change\\n' > worker-untracked.txt
 fi
-cat >/dev/null
+cat > "$FAKE_STATE/codex-prompt-$((count + 1)).txt"
 """,
             encoding="utf-8",
         )
@@ -117,7 +117,7 @@ count=0
 [[ -f "$count_file" ]] && count="$(<"$count_file")"
 printf '%s' "$((count + 1))" > "$count_file"
 if [[ "$count" == "0" ]]; then
-  printf '%s\\n' '{"structured_output":{"decision":"FIXES_REQUIRED","findings":[{"severity":"medium","path":"example.txt","line":1,"risk":"test risk","correction":"fix it","blocks_merge":true}],"risks":[],"human_action_required":false,"summary":"fix needed"}}'
+  printf '%s\\n' '{"structured_output":{"decision":"FIXES_REQUIRED","findings":[{"severity":"high","path":"blocking.txt","line":1,"risk":"P1 blocking","correction":"fix required issue","blocks_merge":true},{"severity":"low","path":"nonblocking.txt","line":1,"risk":"P3 non-blocking","correction":"optional cleanup","blocks_merge":false}],"risks":[],"human_action_required":false,"summary":"fix needed"}}'
 else
   printf '%s\\n' '{"structured_output":{"decision":"READY_TO_MERGE","findings":[{"severity":"low","path":"worker-untracked.txt","line":1,"risk":"optional cleanup","correction":"consider cleanup later","blocks_merge":false}],"risks":[],"human_action_required":false,"summary":"review complete with non-blocking note"}}'
 fi
@@ -153,6 +153,9 @@ fi
         self.assertIn('--config model_provider="deepseek"', codex_arguments)
         self.assertIn("--sandbox workspace-write", codex_arguments)
         self.assertIn("--output-schema", codex_arguments)
+        fix_packet = (self.state_dir / "codex-prompt-2.txt").read_text(encoding="utf-8")
+        self.assertIn("P1 blocking", fix_packet)
+        self.assertNotIn("P3 non-blocking", fix_packet)
         claude_arguments = (self.state_dir / "claude-arguments.log").read_text(encoding="utf-8")
         self.assertIn("--no-session-persistence", claude_arguments)
         self.assertIn("--agent lead-reviewer", claude_arguments)

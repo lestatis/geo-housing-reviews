@@ -54,6 +54,11 @@ ready_for_review
   profile/provider/model arguments, root working directory, non-blocking final findings and invalid
   `FIXES_REQUIRED` without a merge blocker.
 - Committed the accepted review fixes at the current `HEAD` after `git diff --cached --check` passed.
+- A follow-up review found that a mixed `FIXES_REQUIRED` result still passed its complete JSON to the
+  fix worker. The loop now writes an ignored derived packet containing only `blocks_merge: true`
+  findings before the second worker invocation. The worker prompt names that boundary explicitly.
+- Extended the fake-CLI integration test with a mixed P1/P3 review and captured the second worker
+  prompt. It proves the blocking P1 is present and the non-blocking P3 is absent.
 
 ## Remaining work
 
@@ -65,7 +70,7 @@ ready_for_review
 - DeepSeek model selection will be explicit through a non-committed environment variable.
 - The loop will require an existing feature branch and cap itself at two review/fix cycles.
 - Worker review must cover the current working tree and relevant untracked files; only merge-blocking
-  findings receive another worker cycle.
+  findings receive another worker cycle and only those findings are included in its fix packet.
 - DeepSeek selection is an explicit local profile plus `model_provider = "deepseek"`; the reviewer
   model is always explicit rather than inherited from agent metadata.
 
@@ -82,8 +87,8 @@ ready_for_review
 - `.claude/agents/lead-reviewer.md`, `.claude/skills/delegate-implementation/SKILL.md`,
   `.agents/skills/delegate-implementation/SKILL.md`
 - `scripts/ai/README.md`, `lib.sh`, `deepseek-worker.sh`, `claude-reviewer.sh`,
-  `run-implementation-cycle.sh`, `validate_result.py`, `extract_claude_result.py`, both schemas and
-  `tests/test_ai_automation.py`
+  `run-implementation-cycle.sh`, `filter-blocking-findings.py`, `validate_result.py`,
+  `extract_claude_result.py`, both schemas and `tests/test_ai_automation.py`
 
 ## Commands run
 
@@ -107,6 +112,14 @@ ready_for_review
   passed: 6 tests after review fixes.
 - `PYTHONDONTWRITEBYTECODE=1 ./scripts/check-scoped.sh governance` — passed after review fixes.
 - `git diff --check` — passed after review fixes.
+- `PYTHONDONTWRITEBYTECODE=1 bash -n scripts/ai/*.sh` — passed after fix-packet filtering.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m py_compile scripts/ai/*.py` — passed after fix-packet
+  filtering.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/ai/tests -p 'test_*.py'` —
+  passed: 6 tests; mixed-finding packet test included.
+- `PYTHONDONTWRITEBYTECODE=1 ./scripts/check-scoped.sh governance` — passed after fix-packet
+  filtering.
+- `git diff --check` — passed after fix-packet filtering.
 
 ## Known failures
 
@@ -131,9 +144,9 @@ None at this checkpoint.
 
 ## Recommended next action
 
-Request re-review focused on the working-tree scope and provider/model routing changes, then let CI
+Request re-review focused on the filtering of mixed blocking/non-blocking fix packets, then let CI
 produce the L2 result before any merge decision.
 
 ## Last updated
 
-2026-09-23
+2026-09-27
