@@ -15,11 +15,10 @@ export const SEARCH_LIMIT = 20;
 export type PropertySearchResponse = GetSuccessBody<"/api/properties/search">;
 
 /**
- * The backend serializes an absent value as JSON `null` (Spring's default; there is no null
- * exclusion), which the generated types do not express: a hit with no address arrives as
- * `"address": null`, a missing part as `"district": null`. Both mean "not recorded", so the guard
- * accepts `null` wherever the backend DTO can produce it. `type` is not among them — the backend
- * always sets it from the property's enum — so a `null` type is still `malformed`.
+ * The contract declares `address` and each of its parts nullable: a hit with no address arrives as
+ * `"address": null`, a missing part as `"district": null`, and both mean "not recorded". The guard
+ * accepts `null` exactly there. `type` is not nullable in the contract — the backend always sets it
+ * from the property's enum — so a `null` type is still `malformed`.
  */
 function isAbsent(value: unknown): value is null | undefined {
   return value === undefined || value === null;

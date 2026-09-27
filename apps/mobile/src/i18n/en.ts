@@ -19,6 +19,8 @@ export const en = {
   "home.languageEnglish": "English",
   "home.languageRussian": "Русский",
   "home.languageSwitchLabel": "Switch the interface language to {language}",
+  "search.title": "Search",
+  "search.back": "Back",
   "search.heading": "Results for «{query}»",
   "search.loading": "Searching",
   "search.emptyTitle": "No building found for «{query}»",

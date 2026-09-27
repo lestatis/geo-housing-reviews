@@ -19,11 +19,10 @@ added.
 
 ## Current status
 
-ready_for_lead_review — 023-B scope is complete. A fresh independent review returned
-`FIXES_REQUIRED` with one merge-blocking finding (the mobile search guard rejected the JSON nulls the
-backend sends); the lead fixed it directly on 2026-09-27 because the DeepSeek fix worker's bubblewrap
-sandbox failed before executing any command (see "Review fix"). Frontend L1 passes. A re-review of
-the fix is the next step.
+ready_for_lead_review — 023-B scope is complete and committed/pushed as PR #4. PR #4 review raised
+two further merge-blockers (no accessible Back from `/search`; OpenAPI declared the address fields
+non-null although the backend sends null); both are fixed in the working tree (see "PR #4 review
+follow-up"), uncommitted. Backend contract tests and frontend L1 pass.
 
 ## Completed work
 
@@ -193,6 +192,44 @@ The lead applied only the blocker fix:
 
 No backend code was touched, so backend tests were not rerun.
 
+## PR #4 review follow-up (2026-09-27, lead)
+
+1. **Search navigation.** The root stack hides headers, so `/search` had no explicit accessible way
+   back. `app/search.tsx` now turns the native stack header on for that route only
+   (`headerShown: true`, localized title "Search"/"Поиск" and back title "Back"/"Назад"); home keeps
+   its header hidden. `app/_layout.tsx` sets `unstable_settings.initialRouteName = "index"`, so a deep
+   link straight to `/search` still has home beneath it to go back to. `SearchResultsScreen` no
+   longer pads the top safe-area edge, which the native header now owns. No tabs, no redesign.
+   Test: `src/navigation/__tests__/searchNavigation.test.tsx` renders the real route files with
+   `expo-router/testing-library` and asserts home's header is hidden, `/search`'s header is shown
+   with its back button, and `router.back()` from a deep-linked `/search` lands on `/`. Both tests
+   were confirmed to fail against the previous routes.
+2. **OpenAPI nullability.** `PropertySearchHitResponse.address` and the four `AddressSummaryView`
+   parts carry `@Schema(nullable = true)` (the repository rule in `.claude/rules/backend-java.md`).
+   The properties module compiles against `swagger-annotations-jakarta` 2.2.47 as **compileOnly**
+   (new version-catalog entry `swagger-annotations`); springdoc already ships that exact version at
+   runtime, so nothing new reaches the app's runtime classpath. swagger-core renders `nullable` on a
+   `$ref` property as `{"$ref": ..., "type": "null"}`, which under OpenAPI 3.1 admits only `null`;
+   a new `OpenApiCustomizer` (`OpenApiConfiguration.nullableReferences`) rewrites exactly that shape
+   to `oneOf: [{"$ref": ...}, {"type": "null"}]` and leaves every other property alone (unit-tested
+   in `OpenApiConfigurationTest`). The regenerated spec diff is confined to those five properties:
+   the parts become `["string", "null"]` and `address` becomes `oneOf [AddressSummaryView, null]`.
+   The regenerated mobile types now read `address?: AddressSummaryView | null` and
+   `city?: string | null` etc., so the handwritten nullable `AddressSummary` wire type was removed;
+   `searchRows.ts` uses the generated type again. The runtime guard and all null-shape regression
+   tests remain. `distanceMeters` (already nullable in the DTO, pre-existing in the contract) was
+   deliberately left unchanged as out of scope.
+
+Commands (lead, 2026-09-27):
+
+| Command | Result |
+| --- | --- |
+| `cd apps/api && ./gradlew :app:test --tests '*OpenApiContractIntegrationTest' -DupdateOpenApiSpec=true -PskipMutation` | regenerated `docs/api/openapi.json` |
+| `cd apps/api && ./gradlew :modules:properties:check :app:spotlessCheck :app:checkstyleMain :app:checkstyleTest :app:test --tests '*OpenApiContractIntegrationTest' --tests '*OpenApiConfigurationTest' --tests '*PropertySearchIntegrationTest' --tests '*ModuleBoundaryArchitectureTest' --tests '*SwaggerEndpointIntegrationTest' -PskipMutation` | passed: contract 1/1 (no update flag), customizer 3/3, search 16/16, ArchUnit 4/4, Swagger 4/4 |
+| `cd apps/mobile && pnpm run lint` / `typecheck` / `test` | passed; 0 warnings; 13 suites, 111 tests |
+| `./scripts/check-scoped.sh frontend` | passed (web 10 files, mobile 111 tests) |
+| governance validator over `git ls-files -co --exclude-standard` | passed (24 required files, 7 shared skills); the in-place run still trips on the known malformed ignored `.ai/` files |
+
 ## Known failures
 
 - None.
@@ -215,9 +252,8 @@ No backend code was touched, so backend tests were not rerun.
 
 ## Recommended next action
 
-Fresh independent re-review of the review fix (the original blocker in
-`.ai/023-b-review.blocking.json`), counting against the two-cycle cap. Then human PR/merge
-decision. 023-C is not started. Separately (not 023-B scope): `scripts/ai` rejects DeepSeek results
+Human: commit and push the PR #4 follow-up, then re-review the two fixed findings on the PR and
+decide on merge. 023-C is not started. Separately (not 023-B scope): `scripts/ai` rejects DeepSeek results
 wrapped in a code fence, and `validate_repo_governance.py` scans gitignored `.ai/` files.
 
 ## Last updated

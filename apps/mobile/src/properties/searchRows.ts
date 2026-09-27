@@ -10,13 +10,7 @@ import type { MessageKey } from "../i18n/en";
  * UI by accident — the row simply has no field for it.
  */
 
-/**
- * The address summary as it arrives on the wire: the backend sends JSON `null` for an unrecorded
- * part, which the generated type does not express (see the search guard).
- */
-export type AddressSummary = {
-  [K in keyof components["schemas"]["AddressSummaryView"]]?: string | null;
-};
+export type AddressSummary = components["schemas"]["AddressSummaryView"];
 
 export interface PropertySearchRow {
   propertyId: string;

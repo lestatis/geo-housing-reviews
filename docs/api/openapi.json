@@ -38,16 +38,16 @@
       "AddressSummaryView" : {
         "properties" : {
           "building" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "city" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "district" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "street" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           }
         },
         "type" : "object"
@@ -863,7 +863,11 @@
       "PropertySearchHitResponse" : {
         "properties" : {
           "address" : {
-            "$ref" : "#/components/schemas/AddressSummaryView"
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/AddressSummaryView"
+            }, {
+              "type" : "null"
+            } ]
           },
           "canonicalName" : {
             "type" : "string"

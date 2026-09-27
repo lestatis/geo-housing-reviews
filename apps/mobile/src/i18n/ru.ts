@@ -14,6 +14,8 @@ export const ru: MessageDictionary = {
   "home.languageEnglish": "English",
   "home.languageRussian": "Русский",
   "home.languageSwitchLabel": "Переключить язык интерфейса на {language}",
+  "search.title": "Поиск",
+  "search.back": "Назад",
   "search.heading": "Результаты по запросу «{query}»",
   "search.loading": "Идёт поиск",
   "search.emptyTitle": "Ничего не найдено по запросу «{query}»",

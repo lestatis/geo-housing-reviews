@@ -1,6 +1,7 @@
 package com.example.geohousing.properties.infrastructure.web;
 
 import com.example.geohousing.properties.application.PropertyMatch;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * One search hit.
@@ -13,17 +14,25 @@ import com.example.geohousing.properties.application.PropertyMatch;
  * <p>The address is a summary rather than the detail endpoint's {@link
  * PropertyResponse.AddressView}: {@code originalText} is free text a result row does not need, so
  * the hit exposes strictly less than the public detail endpoint already does.
+ *
+ * <p>{@code address} is null when the property has no address, and each part of it is null when
+ * that part is not recorded; the backend serializes those as JSON {@code null}, so the contract
+ * says so.
  */
 public record PropertySearchHitResponse(
     String propertyId,
     String canonicalName,
     String type,
-    AddressSummaryView address,
+    @Schema(nullable = true) AddressSummaryView address,
     double score,
     Double distanceMeters) {
 
   /** The publicly safe address parts of a search hit; every part may be blank. */
-  public record AddressSummaryView(String city, String district, String street, String building) {}
+  public record AddressSummaryView(
+      @Schema(nullable = true) String city,
+      @Schema(nullable = true) String district,
+      @Schema(nullable = true) String street,
+      @Schema(nullable = true) String building) {}
 
   static PropertySearchHitResponse from(PropertyMatch match) {
     return new PropertySearchHitResponse(

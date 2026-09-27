@@ -70,7 +70,8 @@ export default function SearchResultsScreen({ query }: SearchResultsScreenProps)
         : { query: trimmed, attempt, status: "loading" };
 
   return (
-    <SafeAreaView style={styles.screen}>
+    // The route shows the native stack header, which already pads the top inset.
+    <SafeAreaView edges={["left", "right", "bottom"]} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
         {trimmed === "" ? null : (
           <Text accessibilityRole="header" style={styles.title}>
