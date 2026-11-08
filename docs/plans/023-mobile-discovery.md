@@ -1,10 +1,10 @@
 # Plan 023 — mobile discovery: find a property, understand the experience
 
-Status: Approved — 023-A implemented on `feat/023-a-mobile-foundation` and awaiting review; 023-B
-and 023-C not started
+Status: Approved — 023-A merged; 023-B implemented on `feat/023-b-discovery` (founder decision on
+non-pressable rows applied) and awaiting lead review; 023-C not started
 Owner: Claude Code (lead) · implementation by a worker model
 Related issue: None
-Last updated: 2026-09-22
+Last updated: 2026-09-27
 
 ## Objective
 
@@ -460,6 +460,29 @@ Recorded so they are not lost, and deliberately outside this slice:
   mapping untestable. The import is static now. Two environment gaps remain for the lead: no iOS
   simulator run (Xcode/SDK installation is out of bounds) and the web target is deliberately
   unconfigured.
+- 2026-09-27: 023-B implemented on `feat/023-b-discovery`. Backend C1 carries `type` and a new
+  `AddressSummaryView` through the existing seam (`PropertySearchProjection` → `PropertyMatch` →
+  `PropertySearchHitResponse`) from columns the search query already read — no new join, no second
+  query, no per-hit fetch. `docs/api/openapi.json` was updated to the canonical form
+  `OpenApiContractIntegrationTest` compares against, and `DECISION_LOG.md` gained P-016. Mobile
+  gained an `ApiProvider`-injected anonymous client, the home search entry, and the `/search?q=`
+  results screen with all four states, a bounded single request per query and no `score` or
+  `distanceMeters` anywhere in the rendered tree; the smoke screen and its diagnostics keys are
+  gone. Frontend L1 (`lint`, `test`, `typecheck` — 104 mobile tests) and governance pass. Backend
+  Gradle checks and the Testcontainers integration/contract tests could **not** run here (sandbox
+  blocks socket creation, so Gradle cannot start; the Docker socket is not accessible). As a
+  substitute the changed module was compiled and its 53 unit tests run directly with `javac` + the
+  JUnit platform, and google-java-format and checkstyle were run over the changed files; the gaps
+  are recorded in `docs/handoffs/current-task.md`.
+- 2026-09-27: 023-B worker takeover. Applied the founder decision recorded in the handoff: result
+  rows are not pressable in 023-B. `SearchResultsScreen` no longer takes `onOpenProperty`, the row
+  is a plain accessible `View` (no `button` role, no `onPress`, no `router.push`) whose label reads
+  name, address and translated type without announcing that it opens details; the `search.rowLabel`
+  catalogue entries dropped the "opens the property" clause; `app/search.tsx` no longer wires
+  navigation into `/property/[id]`. 023-C restores the press and the "opens details" semantics. The
+  affected mobile test was rewritten to assert the row is not a button and carries no "opens" hint.
+  Frontend L1 (`lint`, `test` — 104 mobile tests, `typecheck`) passes. Backend C1 is unchanged by
+  this step and its L1 evidence is the lead's Gradle run recorded in the handoff.
 
 ## Final outcome
 

@@ -2,9 +2,11 @@ package com.example.geohousing.app.properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.properties.application.PropertyAddressSummary;
 import com.example.geohousing.properties.application.PropertyMatch;
 import com.example.geohousing.properties.application.PropertyRepository;
 import com.example.geohousing.properties.domain.Coordinates;
+import com.example.geohousing.properties.domain.PropertyType;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -135,6 +137,50 @@ class PropertySearchIntegrationTest {
   }
 
   @Test
+  void aHitCarriesTheTypeAndTheAddressSummaryAPublicResultRowNeeds() {
+    PropertyMatch hit = match(search("orbi"), "Orbi Sea Towers Residence");
+
+    assertThat(hit.type()).isEqualTo(PropertyType.BUILDING);
+    // The seeded address is partial: a city and a street, with no district or building number.
+    assertThat(hit.address())
+        .contains(new PropertyAddressSummary("Batumi", null, "Chavchavadze Avenue", null));
+  }
+
+  @Test
+  void aPropertyWithNoAddressStillComesBackWithoutAnAddress() {
+    // The search query LEFT JOINs the address table, so "no address" is four null columns rather
+    // than a missing row; a result row must be able to tell that apart from a blank address.
+    assertThat(match(search("orbi draft"), "Orbi Draft Tower").address()).isEmpty();
+  }
+
+  @Test
+  void twoBuildingsWithTheSameNameAreToldApartByTheirAddress() {
+    property(
+        "Sunset Towers",
+        "ACTIVE",
+        fullAddress("Batumi", "Old Batumi", "Chavchavadze Avenue", "12"),
+        null,
+        null);
+    property(
+        "Sunset Towers",
+        "ACTIVE",
+        fullAddress("Batumi", "New Boulevard", "Sherif Khimshiashvili Street", "7"),
+        null,
+        null);
+
+    List<PropertyMatch> hits = search("sunset towers");
+
+    assertThat(hits).hasSize(2);
+    assertThat(hits)
+        .allSatisfy(hit -> assertThat(hit.address()).isPresent())
+        .extracting(hit -> hit.address().orElseThrow().district())
+        .containsExactlyInAnyOrder("Old Batumi", "New Boulevard");
+    assertThat(hits)
+        .extracting(hit -> hit.address().orElseThrow().building())
+        .containsExactlyInAnyOrder("12", "7");
+  }
+
+  @Test
   void theTrigramIndexesCanServeTheQueryRatherThanScanningTheCatalogue() {
     // With four rows the planner will always choose a sequential scan, so the question is whether
     // the index *can* serve this predicate — the operand order of <% decides it, and getting it
@@ -170,6 +216,14 @@ class PropertySearchIntegrationTest {
     return matches.stream().map(PropertyMatch::canonicalName).toList();
   }
 
+  private static PropertyMatch match(List<PropertyMatch> matches, String canonicalName) {
+    return matches.stream()
+        .filter(match -> match.canonicalName().equals(canonicalName))
+        .findFirst()
+        .orElseThrow(
+            () -> new AssertionError("no hit named " + canonicalName + " in " + names(matches)));
+  }
+
   private UUID address(String city, String street) {
     UUID id = UUID.randomUUID();
     jdbcTemplate.update(
@@ -177,6 +231,19 @@ class PropertySearchIntegrationTest {
         id,
         city,
         street);
+    return id;
+  }
+
+  private UUID fullAddress(String city, String district, String street, String building) {
+    UUID id = UUID.randomUUID();
+    jdbcTemplate.update(
+        "insert into properties.address (id, city, district, street, building)"
+            + " values (?::uuid, ?, ?, ?, ?)",
+        id,
+        city,
+        district,
+        street,
+        building);
     return id;
   }
 
