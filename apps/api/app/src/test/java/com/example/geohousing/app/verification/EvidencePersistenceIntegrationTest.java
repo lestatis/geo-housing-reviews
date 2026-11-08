@@ -75,7 +75,7 @@ class EvidencePersistenceIntegrationTest {
   static final MinIOContainer MINIO =
       new MinIOContainer(
               DockerImageName.parse(
-                      "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
+                      "pgsty/silo@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46")
                   .asCompatibleSubstituteFor("minio/minio"))
           .withEnv("MINIO_KMS_SECRET_KEY", "key1:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
           .withCreateContainerCmdModifier(
