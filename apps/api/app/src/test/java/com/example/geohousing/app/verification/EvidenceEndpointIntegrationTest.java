@@ -9,13 +9,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.jayway.jsonpath.JsonPath;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -27,13 +28,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
  * Exercises the Tier 2 HTTP boundary with the real security chain, Postgres metadata, and MinIO
  * bytes. Fixtures are unmistakably synthetic and no test ever logs the document body.
  */
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @Testcontainers
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,16 +45,11 @@ class EvidenceEndpointIntegrationTest {
   private static final byte[] SYNTHETIC =
       "SYNTHETIC-TEST-EVIDENCE-NOT-A-REAL-DOCUMENT".getBytes(StandardCharsets.UTF_8);
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
-
   @Container
   static final MinIOContainer MINIO =
       new MinIOContainer(
               DockerImageName.parse(
-                      "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e")
+                      "pgsty/silo@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46")
                   .asCompatibleSubstituteFor("minio/minio"))
           .withEnv("MINIO_KMS_SECRET_KEY", "key1:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")
           .withCreateContainerCmdModifier(
@@ -67,6 +63,7 @@ class EvidenceEndpointIntegrationTest {
 
   @DynamicPropertySource
   static void evidenceStorage(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
     registry.add("verification.evidence.storage.endpoint", MINIO::getS3URL);
     registry.add("verification.evidence.storage.bucket", () -> BUCKET);
     registry.add("verification.evidence.storage.access-key-id", MINIO::getUserName);

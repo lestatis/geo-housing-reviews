@@ -2,6 +2,7 @@ package com.example.geohousing.app.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.identity.api.AccountRestrictionUseCase;
 import com.example.geohousing.identity.api.AccountRoleUseCase;
 import com.example.geohousing.identity.domain.AccountId;
@@ -15,14 +16,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The platform must never be left without an administrator.
@@ -37,21 +36,23 @@ import org.testcontainers.utility.DockerImageName;
  * what makes it a test: both callers are held until each has read the world, and only then
  * released. Verified by removing the lock and watching this fail.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
-// Its own context, and therefore its own database. This test has to answer a question about the
-// whole population — "is anyone left in charge" — so it begins by demoting every administrator.
-// Spring caches contexts across classes with identical configuration, which would point this at a
-// database another class is using and let that wipe reach its data. The marker property gives this
-// class a cache key of its own; without it, the damage lands somewhere else and looks unrelated.
+// Its own context. This test has to answer a question about the whole population — "is anyone left
+// in charge" — so it begins by demoting every administrator. Spring caches contexts across classes
+// with identical configuration; the marker property gives this class a cache key of its own, so no
+// other class's context is reused here. The database is shared per JVM and emptied before each
+// class (SharedPostgis.ResetBeforeClass), and classes run one at a time.
 @org.springframework.test.context.TestPropertySource(
     properties = "test.isolation=last-administrator-race")
 class LastAdministratorConcurrencyIntegrationTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    // Six racing callers each hold a connection, and a refused one opens a second for its audit row
+    // (REQUIRES_NEW). The default pool of five deadlocks that race; twelve covers it.
+    SharedPostgis.register(registry, 12);
+  }
 
   @Autowired private AccountRoleUseCase roleUseCase;
   @Autowired private AccountRestrictionUseCase restrictionUseCase;

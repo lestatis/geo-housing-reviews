@@ -1,7 +1,7 @@
 ---
 name: lead-reviewer
 description: Independently review one complete implementation diff after a worker handoff. Read-only and JSON-contract driven.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, StructuredOutput
 permissionMode: plan
 ---
 

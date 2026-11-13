@@ -34,12 +34,44 @@ AI_CLAUDE_REVIEW_MODEL='your-explicit-claude-review-model' \
 ```
 
 Use `--max-cycles 1` for implementation plus a single review, or omit it for the default maximum of
-two review/fix cycles. `AI_COMMAND_TIMEOUT_SECONDS` defaults to 1800 and accepts 1–7200. The
+two worker runs (each followed by L1 and review). `AI_COMMAND_TIMEOUT_SECONDS` defaults to 1800 and accepts 1–7200. The
 reviewer model is required rather than silently inheriting an agent default.
 
 Run artefacts are stored under ignored `.ai/runs/`. Each worker result and review result is validated
 before its next stage. A successful run prints `READY_FOR_HUMAN_MERGE`; it means the bounded local
 workflow completed, not that CI is green or a merge is authorized.
+
+## Runner-owned L1
+
+The worker's Codex sandbox has no network and no Docker socket, so Gradle and Testcontainers cannot
+run in it. A chunk that needs them declares its L1 in a fenced block inside its own plan section
+(the section under the heading that starts with the chunk id), one command per line, run from the
+repository root:
+
+````markdown
+### 020-A — harness, baseline and pilot
+
+```ai-l1
+cd apps/api && ./gradlew :app:test --tests '*SomeTest' -PskipMutation
+cd apps/api && ./gradlew :app:spotlessCheck :app:checkstyleTest
+```
+````
+
+With a block present the runner:
+
+1. copies the commands when the loop starts (`l1-commands.txt`), so a worker edit to the plan does
+   not change what runs, and tells the worker that the runner owns L1;
+2. after a `READY_FOR_LEAD_REVIEW` worker result, stops with `LEAD_DECISION_REQUIRED` (exit 4) if the
+   worker changed build, automation or agent files (`protected-fingerprint.py` lists them), because
+   L1 would run them unsandboxed before any review;
+3. runs every command with a hard timeout (`AI_L1_TIMEOUT_SECONDS`, default 900, 1–7200), killing
+   the command's whole process group on timeout, and writes `l1-<n>.json` plus `l1-<n>-<k>.log`;
+4. on failure, sends the failing commands and their log tails back to the worker as a fix packet,
+   within the same `--max-cycles` budget; on success, starts the reviewer with the L1 evidence.
+
+L1 still executes worker-written test and production code outside the sandbox, as it would if a
+human ran it on an unreviewed branch. Without a block, the worker must report its own L1 evidence as
+before.
 
 ## Safety and stopping conditions
 

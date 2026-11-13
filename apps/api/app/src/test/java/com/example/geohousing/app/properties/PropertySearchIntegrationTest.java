@@ -2,6 +2,7 @@ package com.example.geohousing.app.properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.properties.application.PropertyMatch;
 import com.example.geohousing.properties.application.PropertyRepository;
 import com.example.geohousing.properties.domain.Coordinates;
@@ -9,28 +10,26 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Proves the catalogue search against a real PostgreSQL, because everything that makes it work is
  * the database's: trigram scoring, the operand order the GIN indexes can serve, and PostGIS
  * distance.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class PropertySearchIntegrationTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   private static final double BATUMI_LAT = 41.6412;
   private static final double BATUMI_LNG = 41.6300;

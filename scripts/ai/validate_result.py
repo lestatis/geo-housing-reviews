@@ -47,7 +47,7 @@ def require_string_list(value: Any, field: str) -> None:
         require_string(item, f"{field}[{index}]")
 
 
-def validate_worker(result: Any) -> dict[str, Any]:
+def validate_worker(result: Any, runner_l1: bool = False) -> dict[str, Any]:
     value = require_exact_keys(
         result,
         {
@@ -76,8 +76,11 @@ def validate_worker(result: Any) -> dict[str, Any]:
         value["status"] != "READY_FOR_LEAD_REVIEW" or not value["human_action_required"],
         "ready worker result cannot require human action",
     )
+    # When the runner owns L1 it runs the checks itself, outside the sandbox the worker cannot leave.
     require(
-        value["status"] != "READY_FOR_LEAD_REVIEW" or any(test["result"] == "passed" for test in value["tests"]),
+        runner_l1
+        or value["status"] != "READY_FOR_LEAD_REVIEW"
+        or any(test["result"] == "passed" for test in value["tests"]),
         "ready worker result requires at least one passed test command",
     )
     require(
@@ -133,18 +136,19 @@ def validate_review(result: Any) -> dict[str, Any]:
     return value
 
 
-def validate(kind: str, result: Any) -> dict[str, Any]:
-    return validate_worker(result) if kind == "worker" else validate_review(result)
+def validate(kind: str, result: Any, runner_l1: bool = False) -> dict[str, Any]:
+    return validate_worker(result, runner_l1) if kind == "worker" else validate_review(result)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("kind", choices=("worker", "review"))
     parser.add_argument("result", type=Path)
+    parser.add_argument("--runner-l1", action="store_true", help="the loop runner owns L1 for this worker")
     args = parser.parse_args()
     try:
         with args.result.open(encoding="utf-8") as source:
-            validate(args.kind, json.load(source))
+            validate(args.kind, json.load(source), args.runner_l1)
     except (OSError, json.JSONDecodeError, ValidationError) as exc:
         print(f"Invalid {args.kind} result: {exc}", file=sys.stderr)
         return 1

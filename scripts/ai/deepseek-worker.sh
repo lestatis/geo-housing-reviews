@@ -9,16 +9,18 @@ source "$SCRIPT_DIR/lib.sh"
 usage() {
   cat <<'EOF'
 Usage: scripts/ai/deepseek-worker.sh [--result .ai/path.json] [--review-findings .ai/review.json] \
-  <plan-path> <chunk-id>
+  [--runner-l1 .ai/l1-commands.txt] <plan-path> <chunk-id>
 
 Runs one bounded implementation or fix packet through the explicitly configured DeepSeek Codex
 profile and model. AI_CODEX_PROFILE and AI_DEEPSEEK_MODEL are required. The current branch must
-already be a non-main feature branch.
+already be a non-main feature branch. With --runner-l1 the worker is told that the loop runner runs
+the listed L1 commands outside the sandbox, and a ready result needs no passed test of its own.
 EOF
 }
 
 result_path=".ai/worker-result.json"
 review_findings=""
+runner_l1=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --result)
@@ -29,6 +31,11 @@ while [[ $# -gt 0 ]]; do
     --review-findings)
       [[ $# -ge 2 ]] || ai_die "--review-findings requires a path"
       review_findings="$2"
+      shift 2
+      ;;
+    --runner-l1)
+      [[ $# -ge 2 ]] || ai_die "--runner-l1 requires a path"
+      runner_l1="$2"
       shift 2
       ;;
     --help|-h)
@@ -56,6 +63,10 @@ ai_validate_result_path "$result_path"
 [[ -n "${AI_CODEX_PROFILE:-}" ]] || ai_die "AI_CODEX_PROFILE must name the configured DeepSeek profile"
 [[ "$AI_CODEX_PROFILE" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || ai_die "AI_CODEX_PROFILE contains unsupported characters"
 [[ -n "${AI_DEEPSEEK_MODEL:-}" ]] || ai_die "AI_DEEPSEEK_MODEL must name the configured DeepSeek model"
+if [[ -n "$runner_l1" ]]; then
+  ai_validate_result_path "$runner_l1"
+  [[ -f "$AI_ROOT/$runner_l1" ]] || ai_die "runner L1 command file does not exist: $runner_l1"
+fi
 if [[ -n "$review_findings" ]]; then
   ai_validate_result_path "$review_findings"
   python3 "$SCRIPT_DIR/validate_result.py" review "$AI_ROOT/$review_findings"
@@ -78,9 +89,17 @@ initial_head="$(git -C "$AI_ROOT" rev-parse HEAD)"
   printf 'Plan: `%s`\nChunk: `%s`\nBranch: `%s`\n\n' \
     "$plan_path" "$chunk_id" "$(git -C "$AI_ROOT" branch --show-current)"
   printf '%s\n' 'Implement exactly this chunk. Preserve all existing work on the branch. Update the active plan and handoff when the task is non-trivial. Do not create a branch, commit, push, open a pull request, merge, access credentials, or use web tools.'
-  printf '%s\n' 'Your final response must satisfy the supplied JSON Schema. `READY_FOR_LEAD_REVIEW` requires actual L1 evidence in `tests`; otherwise use a stopping status and explain it in `summary`.'
+  if [[ -n "$runner_l1" ]]; then
+    printf '\n## L1 is run by the loop runner\n\n'
+    printf '%s\n\n' 'Your sandbox has no network or Docker, so Gradle and Testcontainers cannot run in it. Do not try to work around that. After you finish, the runner runs these L1 checks itself, outside the sandbox, from the repository root:'
+    sed 's/^/    /' "$AI_ROOT/$runner_l1"
+    printf '\n%s\n' 'Run whatever narrower checks you can (compilation of single files, formatters, linters that need no network). Record the L1 commands above in `tests` as `skipped`. Return `READY_FOR_LEAD_REVIEW` when every in-scope acceptance criterion is implemented; a failure comes back to you as a fix packet. Do not change build scripts, `scripts/`, `.claude/`, `.github/` or `prompts/`: the runner refuses to run L1 after such a change and stops for the lead.'
+    printf '%s\n' 'Your final response must satisfy the supplied JSON Schema.'
+  else
+    printf '%s\n' 'Your final response must satisfy the supplied JSON Schema. `READY_FOR_LEAD_REVIEW` requires actual L1 evidence in `tests`; otherwise use a stopping status and explain it in `summary`.'
+  fi
   if [[ -n "$review_findings" ]]; then
-    printf '\n## Independent review findings to assess\n\n'
+    printf '\n## Findings to assess (independent review or runner L1)\n\n'
     sed -n '1,260p' "$AI_ROOT/$review_findings"
     printf '\n%s\n' 'This fix packet contains only findings with `blocks_merge: true`. Assess each finding against the current diff. Implement only valid corrections, add focused regression tests where appropriate, and record rejected or unresolved findings in `risks`. Non-blocking review notes remain for the human and are not part of this fix packet.'
   fi
@@ -96,5 +115,7 @@ initial_head="$(git -C "$AI_ROOT" rev-parse HEAD)"
 [[ "$(git -C "$AI_ROOT" branch --show-current)" == "$initial_branch" \
   && "$(git -C "$AI_ROOT" rev-parse HEAD)" == "$initial_head" ]] \
   || ai_die "worker changed the branch or HEAD; stop and inspect Git before continuing"
-python3 "$SCRIPT_DIR/validate_result.py" worker "$absolute_result"
+validate_args=(worker "$absolute_result")
+[[ -n "$runner_l1" ]] && validate_args+=(--runner-l1)
+python3 "$SCRIPT_DIR/validate_result.py" "${validate_args[@]}"
 printf 'Worker result: %s\n' "$result_path"
