@@ -8,7 +8,8 @@ source "$SCRIPT_DIR/lib.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/ai/claude-reviewer.sh [--result .ai/path.json] <base-ref> <plan-path> <worker-result>
+Usage: scripts/ai/claude-reviewer.sh [--result .ai/path.json] [--l1-result .ai/l1.json] \
+  <base-ref> <plan-path> <worker-result>
 
 Starts a fresh, read-only Claude Code review session. It does not write a fix, approve a pull
 request, or merge. The worker result must already satisfy the worker result contract.
@@ -16,14 +17,31 @@ EOF
 }
 
 result_path=".ai/review-result.json"
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  usage
-  exit 0
-elif [[ "${1:-}" == "--result" ]]; then
-  [[ $# -ge 2 ]] || ai_die "--result requires a path"
-  result_path="$2"
-  shift 2
-fi
+l1_result=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --result)
+      [[ $# -ge 2 ]] || ai_die "--result requires a path"
+      result_path="$2"
+      shift 2
+      ;;
+    --l1-result)
+      [[ $# -ge 2 ]] || ai_die "--l1-result requires a path"
+      l1_result="$2"
+      shift 2
+      ;;
+    --*)
+      ai_die "unknown option: $1"
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 [[ $# -eq 3 ]] || { usage >&2; exit 2; }
 base_ref="$1"
 plan_path="$2"
@@ -35,7 +53,13 @@ ai_validate_result_path "$result_path"
 ai_validate_result_path "$worker_result"
 git -C "$AI_ROOT" rev-parse --verify --quiet "${base_ref}^{commit}" >/dev/null \
   || ai_die "base ref is not a commit: $base_ref"
-python3 "$SCRIPT_DIR/validate_result.py" worker "$AI_ROOT/$worker_result"
+worker_validate_args=(worker "$AI_ROOT/$worker_result")
+if [[ -n "$l1_result" ]]; then
+  ai_validate_result_path "$l1_result"
+  [[ -f "$AI_ROOT/$l1_result" ]] || ai_die "L1 result does not exist: $l1_result"
+  worker_validate_args+=(--runner-l1)
+fi
+python3 "$SCRIPT_DIR/validate_result.py" "${worker_validate_args[@]}"
 
 claude_bin="${AI_CLAUDE_BIN:-claude}"
 ai_require_command "$claude_bin"
@@ -80,6 +104,13 @@ to the human but must not start another worker cycle. Use a stopping decision wh
 completed. This process still requires a human merge decision.
 EOF
 )
+if [[ -n "$l1_result" ]]; then
+  review_prompt+="
+
+The loop runner, not the worker, ran the chunk's L1 checks outside the worker sandbox and they
+passed; its evidence and per-command logs are in \`${l1_result}\`. Confirm the commands there match
+the plan's L1 for this chunk."
+fi
 
 timeout --foreground "${timeout_seconds}s" "$claude_bin" "${claude_args[@]}" "$review_prompt" \
   > "$raw_result"

@@ -18,7 +18,8 @@ Do not redesign the task. Do not add unrelated abstractions. Do not introduce de
 boundaries, public APIs or architectural decisions unless they are explicitly in the plan.
 
 Use the narrowest relevant L0 test while editing. Before handoff, run the contract's L1 tests with
-`-PskipMutation`. Do not repeatedly run `./scripts/check.sh`; the lead/CI owns the L2 merge gate.
+`-PskipMutation`, unless the assigned packet says the loop runner runs L1 for you. Do not repeatedly
+run `./scripts/check.sh`; the lead/CI owns the L2 merge gate.
 
 If implementation requires a decision outside the accepted plan, stop and output:
 
@@ -38,5 +39,5 @@ After implementation provide:
 - anything requiring lead review.
 
 End with READY_FOR_LEAD_REVIEW only when all in-scope acceptance criteria are complete and the L1
-handoff checks pass. Do not merge.
+handoff checks pass (or, when the runner owns L1, the implementation is complete). Do not merge.
 ```

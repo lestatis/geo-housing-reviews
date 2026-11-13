@@ -11,10 +11,13 @@ merge.
 
 1. Read `AGENTS.md`, the named plan, current handoff and `docs/AI_WORKFLOW.md`. Inspect the branch,
    status and diff before invoking anything.
-2. Require an existing non-`main` feature branch, a valid base ref, `AI_CODEX_PROFILE` configured
+2. If the chunk needs Gradle, Docker or any network, make sure its plan section has an `ai-l1`
+   block (see `scripts/ai/README.md`); the worker sandbox cannot run those checks, and without the
+   block the worker can only stop with `HUMAN_ACTION_REQUIRED`.
+3. Require an existing non-`main` feature branch, a valid base ref, `AI_CODEX_PROFILE` configured
    for `model_provider = "deepseek"`, `AI_DEEPSEEK_MODEL`, and `AI_CLAUDE_REVIEW_MODEL` configured
    outside the repository. Do not inspect or print credential values.
-3. Invoke exactly one bounded run:
+4. Invoke exactly one bounded run:
 
    ```bash
    AI_CODEX_PROFILE=deepseek AI_DEEPSEEK_MODEL=<configured-model> \
@@ -22,8 +25,8 @@ merge.
      scripts/ai/run-implementation-cycle.sh main docs/plans/<plan>.md <chunk-id>
    ```
 
-4. Read the JSON artefacts printed by the script and independently inspect the resulting Git diff.
+5. Read the JSON artefacts printed by the script and independently inspect the resulting Git diff.
    `READY_FOR_HUMAN_MERGE` is evidence for human review only; never merge automatically.
-5. If the script stops for a decision, malformed result, unavailable tool, timeout, or the two-cycle
+6. If the script stops for a decision, malformed result, unavailable tool, timeout, or the two-cycle
    cap, update the active handoff and return the exact evidence path to the human. Do not retry
    indefinitely or substitute self-review.

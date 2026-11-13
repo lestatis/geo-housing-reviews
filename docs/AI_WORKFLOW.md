@@ -228,7 +228,14 @@ It must inspect `git status --short`, `git diff --no-ext-diff <base>` and releva
 so worker changes do not need a commit before review. The reviewer returns a strict JSON decision.
 Only `FIXES_REQUIRED` findings with `blocks_merge: true` go back to the worker as a bounded fix
 packet; non-blocking findings are preserved for the human but do not spend a worker cycle. At most
-two review/fix cycles are allowed. Timeouts, invalid result contracts, unavailable CLIs,
+two worker runs (and so two reviews) are allowed.
+
+The worker sandbox has no network or Docker, so it cannot run Gradle or Testcontainers. When the
+chunk's plan section declares an `ai-l1` block, the runner snapshots those commands at loop start,
+refuses to continue if the worker changed build, automation or agent files, and otherwise runs the
+commands itself outside the sandbox with a per-command timeout. A failure returns to the worker as a
+fix packet within the same cycle budget; only a green runner L1 starts the review. The sandbox
+itself is not loosened: Docker access is root-equivalent on the host. See `scripts/ai/README.md`. Timeouts, invalid result contracts, unavailable CLIs,
 decision-required states, and the cycle cap stop the run and retain ignored `.ai/runs/` evidence for
 the task handoff.
 
