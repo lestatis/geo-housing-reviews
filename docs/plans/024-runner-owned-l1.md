@@ -81,3 +81,7 @@ Script-only and opt-in per plan: removing a chunk's `ai-l1` block restores the p
   with key or ref"). Pre-existing in `claude-reviewer.sh` (never reached before). The wrapper now
   drops that key from the argument; regression test added; a live `claude -p` smoke call returned a
   structured result that `extract_claude_result.py` accepts.
+- 2026-11-14: The next review returned free text: `--agent lead-reviewer` limits tools to its
+  `tools:` allowlist, which lacked `StructuredOutput`, so `--json-schema` was not enforced. Added
+  it to `.claude/agents/lead-reviewer.md` with a regression test; a live probe with the real agent
+  now returns a structured result the extractor accepts.

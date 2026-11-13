@@ -486,6 +486,13 @@ fi
         self.assertIn('"decision"', claude_arguments)
         self.assertNotIn("$schema", claude_arguments)
 
+    def test_reviewer_agent_may_return_structured_output(self) -> None:
+        # An agent's tools list is an allowlist. Without StructuredOutput, Claude Code ignores
+        # --json-schema and the review arrives as free text the extractor rejects (2.1.283).
+        definition = (SOURCE_ROOT / ".claude" / "agents" / "lead-reviewer.md").read_text(encoding="utf-8")
+        tools_line = next(line for line in definition.splitlines() if line.startswith("tools:"))
+        self.assertIn("StructuredOutput", [tool.strip() for tool in tools_line[len("tools:"):].split(",")])
+
     def test_all_entrypoints_support_help_without_configuration(self) -> None:
         for script in (
             "scripts/ai/deepseek-worker.sh",
