@@ -76,3 +76,8 @@ Script-only and opt-in per plan: removing a chunk's `ai-l1` block restores the p
   `python3 -m unittest discover -s scripts/ai/tests -p 'test_*.py'`: 16 tests OK; `bash -n` and
   `py_compile` clean; shellcheck is not installed. `scripts/validate_repo_governance.py` fails
   locally only on two malformed ignored `.ai/` artefacts from 2026-09-27, unrelated to this change.
+- 2026-11-14: The first real review run failed before reviewing: Claude Code 2.1.283 rejects a
+  `--json-schema` carrying `"$schema": "https://json-schema.org/draft/2020-12/schema"` ("no schema
+  with key or ref"). Pre-existing in `claude-reviewer.sh` (never reached before). The wrapper now
+  drops that key from the argument; regression test added; a live `claude -p` smoke call returned a
+  structured result that `extract_claude_result.py` accepts.

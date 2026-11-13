@@ -68,7 +68,9 @@ ai_require_command timeout
 cd "$AI_ROOT"
 timeout_seconds="$(ai_timeout_seconds)"
 schema_path="$SCRIPT_DIR/schemas/review-result.schema.json"
-schema_json="$(tr -d '\n' < "$schema_path")"
+# Claude Code cannot resolve the draft 2020-12 meta-schema reference and rejects the whole schema,
+# so the "$schema" key is dropped from the argument; the file keeps it for other validators.
+schema_json="$(python3 -c 'import json, sys; schema = json.load(open(sys.argv[1], encoding="utf-8")); schema.pop("$schema", None); print(json.dumps(schema, separators=(",", ":")))' "$schema_path")"
 absolute_result="$AI_ROOT/$result_path"
 raw_result="${absolute_result}.raw.json"
 mkdir -p "$(dirname "$absolute_result")"

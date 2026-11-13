@@ -474,6 +474,18 @@ fi
         self.assertFalse((self.root / "injected-by-worker").exists())
         self.assertEqual(self._l1_calls(), ["first", "second"])
 
+    def test_reviewer_schema_argument_omits_the_meta_schema_key(self) -> None:
+        # Claude Code rejects a --json-schema whose $schema it cannot resolve (2.1.283: "no schema with
+        # key or ref https://json-schema.org/draft/2020-12/schema"), so the wrapper must drop the key.
+        result = self._cycle(
+            "main", "docs/plans/l1.md", "TEST-1", environment=self._l1_environment()
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        claude_arguments = (self.state_dir / "claude-arguments.log").read_text(encoding="utf-8")
+        self.assertIn('"decision"', claude_arguments)
+        self.assertNotIn("$schema", claude_arguments)
+
     def test_all_entrypoints_support_help_without_configuration(self) -> None:
         for script in (
             "scripts/ai/deepseek-worker.sh",
