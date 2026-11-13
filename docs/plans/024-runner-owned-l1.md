@@ -85,3 +85,5 @@ Script-only and opt-in per plan: removing a chunk's `ai-l1` block restores the p
   `tools:` allowlist, which lacked `StructuredOutput`, so `--json-schema` was not enforced. Added
   it to `.claude/agents/lead-reviewer.md` with a regression test; a live probe with the real agent
   now returns a structured result the extractor accepts.
+- 2026-11-14: Founder decision: plan 024 ships in the same PR as plan 020-A from
+  `perf/020-shared-test-postgres` rather than a separate branch.
