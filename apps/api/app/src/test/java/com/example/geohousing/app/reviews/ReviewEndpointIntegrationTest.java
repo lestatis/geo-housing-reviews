@@ -8,15 +8,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.jayway.jsonpath.JsonPath;
 import java.time.Instant;
 import java.util.UUID;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -24,27 +25,25 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Drives the review endpoints end to end through the real security chain (stub {@link JwtDecoder},
  * as in the other endpoint tests), including the visibility rules that decide what a stranger is
  * allowed to learn about someone else's review.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(ReviewEndpointIntegrationTest.StubJwtDecoderConfig.class)
 class ReviewEndpointIntegrationTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private MockMvc mockMvc;
   @Autowired private JdbcTemplate jdbcTemplate;

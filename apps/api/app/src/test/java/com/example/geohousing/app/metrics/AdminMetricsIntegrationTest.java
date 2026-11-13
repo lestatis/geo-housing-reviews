@@ -2,6 +2,7 @@ package com.example.geohousing.app.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.moderation.api.ModerationMetrics;
 import com.example.geohousing.moderation.api.ModerationThroughput;
 import com.example.geohousing.reviews.api.ReviewMetrics;
@@ -10,14 +11,12 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The counting itself, against a real database.
@@ -30,14 +29,14 @@ import org.testcontainers.utility.DockerImageName;
  * <p>Rows are written with {@code JdbcTemplate} because the point is the timestamp, which no
  * sequence of HTTP calls can be made to choose.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class AdminMetricsIntegrationTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private ModerationMetrics moderation;
   @Autowired private ReviewMetrics reviews;

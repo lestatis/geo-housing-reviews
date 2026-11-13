@@ -3,6 +3,7 @@ package com.example.geohousing.app.moderation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.moderation.application.ModerationCaseRepository;
 import com.example.geohousing.moderation.domain.ModerationCase;
 import com.example.geohousing.moderation.domain.ModerationCaseId;
@@ -11,13 +12,11 @@ import com.example.geohousing.moderation.domain.ModerationTargetType;
 import com.example.geohousing.moderation.domain.StaleModerationWriteException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * A decision belongs to the state of the case it was made about.
@@ -32,14 +31,14 @@ import org.testcontainers.utility.DockerImageName;
  * holding a version the row has since left behind, which is a state two sequential requests cannot
  * produce.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class StaleModerationWriteIntegrationTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private ModerationCaseRepository cases;
 

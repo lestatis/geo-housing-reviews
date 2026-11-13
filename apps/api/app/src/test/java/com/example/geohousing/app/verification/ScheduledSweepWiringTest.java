@@ -2,18 +2,17 @@ package com.example.geohousing.app.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * That the sweeps are actually invoked in a running application.
@@ -26,14 +25,14 @@ import org.testcontainers.utility.DockerImageName;
  * <p>Each job is checked for a real trigger rather than merely for existing as a bean: a
  * {@code @Scheduled} method whose annotation was dropped would still be a perfectly healthy bean.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class ScheduledSweepWiringTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private ApplicationContext context;
 

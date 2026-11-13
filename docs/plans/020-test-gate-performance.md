@@ -1,7 +1,7 @@
 # Plan 020 — reuse PostgreSQL integration-test infrastructure
 
-Status: Active — 020-A L1 green and reviewed `READY_TO_MERGE` 2026-11-14 (awaiting human merge
-decision and L2); 020-B designed, not started
+Status: Active — 020-A merged in #6 (2026-11-14); 020-B implemented on
+`perf/020-b-migrate-classes` 2026-11-14, runner-owned L1 and lead L2/review pending
 Owner: Claude (drafted by Human 2026-09-21; design revised by Claude 2026-11-08)
 Related issue: None
 Last updated: 2026-11-14
@@ -17,27 +17,47 @@ classes without weakening database isolation, endpoint coverage, or mutation-tes
 
 ## Acceptance criteria
 
+Evidence for every box: lead L2 on 2026-11-14 (020-B working tree on `c654440`), table under
+"Results".
+
 - [x] Record a reproducible cold baseline using `./gradlew check --rerun-tasks --no-build-cache`.
-- [ ] Replace per-class PostgreSQL startup with a shared JVM/test-harness lifecycle where the test
-  architecture permits it.
-- [ ] Isolate each test class through schema/database reset or equivalent deterministic cleanup;
-  no test may depend on another class's data or execution order.
-- [ ] Demonstrate that many integration classes do not cause the same number of PostgreSQL starts.
-- [ ] Record before/after timings and the test-count/container-start evidence in this plan or its
+- [x] Replace per-class PostgreSQL startup with a shared JVM/test-harness lifecycle where the test
+  architecture permits it. All 36 standard classes migrated; only the two recorded exceptions remain.
+- [x] Isolate each test class through schema/database reset or equivalent deterministic cleanup;
+  no test may depend on another class's data or execution order. Full `:app` suite green in L1 and
+  in the cold L2.
+- [x] Demonstrate that many integration classes do not cause the same number of PostgreSQL starts:
+  41 → 6.
+- [x] Record before/after timings and the test-count/container-start evidence in this plan or its
   handoff.
-- [ ] Keep PITest thresholds and the full endpoint/Cucumber suites enabled; `./gradlew check` passes.
+- [x] Keep PITest thresholds and the full endpoint/Cucumber suites enabled; `./gradlew check` passes
+  without `-PskipMutation` (thresholds untouched; no `build.gradle.kts` changed).
 
 Added by the 2026-11-08 design:
 
-- [ ] At most one shared PostgreSQL container starts per test JVM (fork) for the `:app` JUnit
-  suite; the only other PostgreSQL containers are the two recorded exceptions (Cucumber and the
-  migration-history split test).
-- [ ] Every test class starts with every application table empty, enforced by the harness before
-  the class's first test, not by the class itself.
-- [ ] Test JVM shutdown no longer logs `HikariPool-N - Failed to validate connection` /
-  `Connection to localhost:<port> refused` for databases whose container already stopped.
-- [ ] The `:app` test count after the change equals the baseline count plus the tests this plan
-  adds (`SharedPostgisResetTest`: 2), i.e. 356 against the 354 baseline; no existing test is lost.
+- [x] At most one shared PostgreSQL container starts per test JVM (fork) for the `:app` JUnit
+  suite; the only other PostgreSQL containers are the two recorded exceptions. 6 starts = 4 forks +
+  `MigrationHistorySplitIntegrationTest` + Cucumber's `AcceptanceWorld`.
+- [x] Every test class starts with every application table empty, enforced by the harness before
+  the class's first test, not by the class itself. Every shared-database class declares the reset
+  extension before `@SpringBootTest`; `SharedPostgisWiringArchitectureTest` enforces that order.
+- [x] Test JVM shutdown no longer logs `HikariPool-N - Failed to validate connection` /
+  `Connection to localhost:<port> refused`: 0 matching lines in the cold L2 log.
+- [x] The `:app` test count after the change equals the baseline count plus the tests this plan
+  adds (`SharedPostgisResetTest`: 2; `SharedPostgisWiringArchitectureTest`: one ArchUnit rule plus
+  two JUnit tests): 359 = 354 + 5, 0 failures, 0 skipped.
+
+## Results
+
+| Measure (cold `./gradlew check --rerun-tasks --no-build-cache`, this workstation) | Before (baseline on `c8cc682`) | After (020-B) |
+| --- | --- | --- |
+| Wall clock | 1m 41s (101 s) | 1m 16s (77 s), −24% |
+| PostGIS container starts | 41 | 6 |
+| `:app` tests | 354, 0 failures | 359, 0 failures |
+| Shutdown-warning lines | present (motivating run, 2026-11-08) | 0 |
+| PITest | passes | passes, thresholds unchanged |
+
+Note the baseline already ran with 4 forks; the saving is container startup and per-class migration.
 
 ## Non-goals
 
@@ -113,7 +133,7 @@ Inventory taken 2026-11-08 on `origin/main` (`f51d666`):
 | Durability (**founder decision, 2026-11-08**) | Shared container runs with `fsync=off`, `synchronous_commit=off`, `full_page_writes=off` | Test data is disposable; these remove disk-flush waits. They do not change transaction semantics, locking or visibility, so the concurrency test is unaffected | — |
 | Container lifecycle | Started once per JVM by the harness, never stopped explicitly; Ryuk removes it at JVM exit | Standard Testcontainers singleton pattern; the database stays reachable until every cached context has closed, which removes the shutdown noise | — |
 | Cucumber (**founder decision, 2026-11-08**) | `AcceptanceWorld` keeps its own container | One container; Cucumber owns that class's lifecycle | The suite grows enough to matter |
-| Acceptance wording (lead decision, 2026-11-13) | "One container" means one shared container per test JVM, shown with `--max-workers=1`; the test-count target is baseline + tests this plan adds (356) | Gradle forks up to 4 test JVMs (`maxParallelForks`), and the design is a per-JVM singleton; the count criterion guards against lost tests, not the required new ones. Raised by the 020-A worker (`.ai/runs/implementation-loop.f95DMb/worker-0.json`) | Fork configuration changes |
+| Acceptance wording (lead decision, 2026-11-13) | "One container" means one shared container per test JVM, shown with `--max-workers=1`; the test-count target is baseline + tests this plan adds (expected 359: 354 baseline + 2 reset tests + 3 guard tests) | Gradle forks up to 4 test JVMs (`maxParallelForks`), and the design is a per-JVM singleton; the count criterion guards against lost tests, not the required new ones. Raised by the 020-A worker (`.ai/runs/implementation-loop.f95DMb/worker-0.json`) | Fork configuration changes |
 | Migration-history split test (lead decision, founder-confirmed 2026-11-08) | `MigrationHistorySplitIntegrationTest` keeps its own container | It must meet a database whose history was written the pre-split way (every module in one `public` history). The shared database already holds the split histories, and resetting rows cannot undo that. Truncating history tables to fake it would break every class that runs after it | Never, while that test exists |
 
 ## Implementation steps
@@ -204,38 +224,77 @@ the reset is slower than starting a container.
 
 ### 020-B — migrate the remaining classes
 
-Files: the other 35 standard `:app` classes declaring `PostgreSQLContainer`, plus
-`EvidencePersistenceIntegrationTest`; the forking comment in
-`buildSrc/src/main/kotlin/geohousing.java-conventions.gradle.kts`; the "slow gate" paragraph of
-`CONTRIBUTING.md`; this plan and its handoff. `MigrationHistorySplitIntegrationTest` and
-`acceptance/AcceptanceWorld` are **not** changed.
+Revised 2026-11-14 after the 020-A review and plan 024; founder-approved 2026-11-14.
+
+Files (worker):
+
+- the other 35 standard `:app` classes declaring `PostgreSQLContainer`, plus
+  `EvidencePersistenceIntegrationTest` (36 in all). `MigrationHistorySplitIntegrationTest` and
+  `acceptance/AcceptanceWorld` are **not** changed;
+- `app/support/SharedPostgisResetTest.java` (cleanup fix below);
+- new `app/architecture/SharedPostgisWiringArchitectureTest.java`;
+- the "slow gate" paragraph of `CONTRIBUTING.md`; this plan and its handoff.
+
+Files (lead, after the loop): the forking comment in
+`buildSrc/src/main/kotlin/geohousing.java-conventions.gradle.kts`. It is a build file on the
+runner's protected list (plan 024), so a worker edit would stop the loop; the change is comment-only.
 
 Behaviour:
 
-- Standard classes: the same one-for-one replacement as the pilot, nothing else. No class gains
-  its own cleanup to make it pass.
-- Docs: the forking comment and `CONTRIBUTING.md` no longer say each class starts its own
-  container; they describe the shared container, the reset before each class, the sweep-delay
-  override, and the two classes that keep their own container and why.
+- Standard classes: the same one-for-one replacement as the pilot (`@ExtendWith(SharedPostgis.
+  ResetBeforeClass.class)` declared before `@SpringBootTest`, `@Container @ServiceConnection`
+  PostGIS field replaced by `SharedPostgis.register(registry)` in a `@DynamicPropertySource`, or
+  added to the class's existing one). Remove `@Testcontainers` only where no other `@Container`
+  remains. Nothing else changes. No class gains its own cleanup to make it pass.
+- `SharedPostgisResetTest` drops `properties.future_migration_table` in a `finally` block, so a
+  failed assertion cannot leave it in the shared database (020-A review, low).
+- `SharedPostgisWiringArchitectureTest` (ArchUnit, like `ModuleBoundaryArchitectureTest`) fails if
+  a Spring test class calls `SharedPostgis.register` without declaring
+  `@ExtendWith(SharedPostgis.ResetBeforeClass.class)`, or declares it after `@SpringBootTest` in
+  its declared-annotation order (the order JUnit registers extensions in). The manual
+  `SharedPostgisResetTest` is excluded because it exercises `register` directly and creates no
+  Spring context. The guard must be shown to fail on deliberately misordered fixture classes
+  inside the test, not by editing a real class (020-A review, low).
+- Docs: `CONTRIBUTING.md` no longer says each class starts its own container; it describes the
+  shared container, the reset before each class, the sweep-delay override, and the two classes that
+  keep their own container and why.
+
+Implementation status (2026-11-14): all 36 standard classes migrated one-for-one; the 37 changed
+test sources plus the new guard compile with `javac`; `SharedPostgisResetTest` drops its temporary
+table in `finally`; `SharedPostgisWiringArchitectureTest` rejects both a missing and a late reset
+extension using fixture classes. `CONTRIBUTING.md` is updated. `grep -rln 'new
+PostgreSQLContainer' apps/api/app/src/test` lists only the three intended files. After the first
+runner L1 failed only in that guard, the rule now ignores the harness's own self-call and the
+fixture checks use a dedicated rule that does not exclude fixtures; the three guard tests pass in a
+local JUnit launcher run. L1 remains runner-owned.
+
+Runner-owned L1 (plan 024):
+
+```ai-l1
+cd apps/api && ./gradlew :app:test -PskipMutation --rerun-tasks
+cd apps/api && ./gradlew :app:test --tests '*SharedPostgisWiringArchitectureTest' --tests '*SharedPostgisResetTest' -PskipMutation --rerun-tasks
+cd apps/api && ./gradlew :app:spotlessCheck :app:checkstyleTest
+```
 
 Acceptance:
 
 - `grep -rln 'new PostgreSQLContainer' apps/api/app/src/test` lists only `SharedPostgis`,
   `MigrationHistorySplitIntegrationTest` and `AcceptanceWorld`;
-- the cold `./gradlew check --rerun-tasks --no-build-cache` passes **without** `-PskipMutation`,
-  with the same `:app` test count as the baseline plus the 2 reset tests (356) and PITest
-  thresholds unchanged;
-- PostGIS container starts per run are at most the number of forks plus 2, and before/after
-  timings are recorded;
-- the shutdown log contains no `Failed to validate connection` / `Connection refused` warnings.
+- the runner L1 above passes;
+- lead L2, once: the cold `./gradlew check --rerun-tasks --no-build-cache` passes **without**
+  `-PskipMutation`, with the `:app` test count equal to the expected 359 (354 baseline + 2 reset
+  tests + 3 guard tests), and PITest thresholds unchanged;
+- lead evidence: PostGIS container starts per run are at most the number of forks plus 2
+  (the shared container in each fork, plus `MigrationHistorySplitIntegrationTest` and Cucumber via
+  `docker events`), wall time is recorded against the 1m41s baseline, and the run log contains no
+  `Failed to validate connection` / `Connection refused` warnings.
 
-L0: `./gradlew :app:test --tests '<changed class>' -PskipMutation` per class.
-L1: `./gradlew :app:test -PskipMutation` and `./gradlew :app:spotlessCheck :app:checkstyleTest`.
-L2 (lead, once): the cold `check` above.
+L0: `./gradlew :app:test --tests '<changed class>' -PskipMutation` per class (lead or runner; the
+worker sandbox cannot run Gradle).
 
 Lead decision required if: any class fails only under the shared database (stop and report the
-class and the leaked state; do not add cleanup to that class), or the measured time does not
-improve.
+class and the leaked state; do not add cleanup to that class), a class's container declaration does
+not fit the one-for-one pattern, or the measured time does not improve.
 
 ### 020-C — withdrawn
 
@@ -341,6 +400,31 @@ database, migrations run once per JVM, so there is nothing for it to save.
   tree is clean. L1 remains runner-owned; no authoritative test, container-start or test-count
   evidence is claimed here.
 
+- 2026-11-14: 020-A merged (#6; CI backend/frontend/governance green). 020-B revised with the
+  020-A review's two low findings (reset-test cleanup, wiring/order guard), an `ai-l1` block, and
+  the build-file comment moved to the lead (protected path). Founder approved; dispatched from
+  `perf/020-b-migrate-classes` (base `c654440`).
+- 2026-11-14: 020-B implemented on `perf/020-b-migrate-classes`: all 36 standard classes moved to
+  `@ExtendWith(SharedPostgis.ResetBeforeClass.class)` plus `SharedPostgis.register(registry)`; the
+  two recorded exceptions keep their own containers. `SharedPostgisResetTest` now drops its
+  temporary table in `finally`; `SharedPostgisWiringArchitectureTest` guards missing and misordered
+  reset extensions; `CONTRIBUTING.md` describes the shared container, reset, sweep-delay override
+  and exceptions. The 38 changed/added test sources compile with `javac`, formatting is clean and
+  `git diff --check` passes. Runner-owned L1 and lead L2/review remain.
+- 2026-11-14: Runner L1 found the wiring guard itself broken: ArchUnit selected
+  `SharedPostgis` through its own delegating `register` self-call, and the fixture tests reused the
+  production rule that excludes `*Fixture`, so they could never reject. The production rule now
+  excludes the harness class, and the fixture checks use a separate rule without that exclusion.
+  All three guard tests pass under a local JUnit launcher; Spotless-style google-java-format and
+  Checkstyle 10.24.0 pass on the changed file. Runner L1 is rerun by the loop runner.
+
+- 2026-11-14: 020-B loop (`.ai/runs/implementation-loop.KuKd5I`): runner L1 round 1 failed — the
+  new guard flagged `SharedPostgis`'s own `register` overload call — fixed by the worker; round 2
+  L1 3/3 green; fresh review `READY_TO_MERGE`, two low findings (guard excludes by simple name,
+  not exact class; acceptance boxes ticked before evidence — corrected here). Lead updated the
+  forking comment in `geohousing.java-conventions.gradle.kts` and ran the cold L2: see "Results".
+
 ## Final outcome
 
-020-A implemented; runner-owned L1 rerun and lead review pending. 020-B not started.
+020-A merged (#6). 020-B implemented on `perf/020-b-migrate-classes`; runner-owned L1 and lead
+L2/review pending.

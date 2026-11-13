@@ -3,6 +3,7 @@ package com.example.geohousing.app.verification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.properties.domain.CreatorId;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
@@ -32,16 +33,15 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -50,6 +50,7 @@ import org.testcontainers.utility.DockerImageName;
  *
  * <p>Fixtures are unmistakably synthetic (`.claude/rules/security.md`).
  */
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @Testcontainers
 @SpringBootTest
 class EvidencePersistenceIntegrationTest {
@@ -59,11 +60,6 @@ class EvidencePersistenceIntegrationTest {
       Clock.fixed(Instant.parse("2026-07-23T10:00:00Z"), ZoneOffset.UTC);
   private static final byte[] SYNTHETIC =
       "SYNTHETIC-TEST-EVIDENCE-NOT-A-REAL-DOCUMENT".getBytes(StandardCharsets.UTF_8);
-
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
 
   // A local KMS key so MinIO honours the SSE-S3 requests the adapter makes; managed S3 supports
   // AES256 natively. Fixed non-secret test value.
@@ -89,6 +85,7 @@ class EvidencePersistenceIntegrationTest {
 
   @DynamicPropertySource
   static void evidenceStorage(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
     registry.add("verification.evidence.storage.endpoint", MINIO::getS3URL);
     registry.add("verification.evidence.storage.bucket", () -> BUCKET);
     registry.add("verification.evidence.storage.access-key-id", MINIO::getUserName);

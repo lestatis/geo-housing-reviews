@@ -150,8 +150,18 @@ and commit the diff alongside the change that caused it.
 
 ### If the gate is unexpectedly slow or fails oddly
 
-Most of the cost is container startup: nearly every `:app` integration test class starts its own
-PostgreSQL container. Two failure modes are worth recognising:
+Container startup used to dominate the gate because nearly every `:app` integration test class
+started its own PostgreSQL container. Integration tests now share one PostGIS container and one
+database per test JVM (`SharedPostgis`). Before each class, `SharedPostgis.ResetBeforeClass`
+truncates every application table in one `TRUNCATE … RESTART IDENTITY CASCADE`, leaving Flyway
+history and extension-owned tables such as `public.spatial_ref_sys` intact. `SharedPostgis.register`
+also raises both verification sweep delays to `PT24H`, so a context cached from an earlier class
+cannot write to the next class's rows. Declare
+`@ExtendWith(SharedPostgis.ResetBeforeClass.class)` before `@SpringBootTest`;
+`SharedPostgisWiringArchitectureTest` enforces that order. Two classes keep their own PostgreSQL
+container: `MigrationHistorySplitIntegrationTest` needs a pre-split one-schema history, and the
+Cucumber `AcceptanceWorld` because Cucumber owns its lifecycle. MinIO containers stay per class.
+Two failure modes are still worth recognising:
 
 - **Orphaned containers.** A build killed mid-run leaves containers behind, because Testcontainers'
   reaper dies with the JVM. They accumulate and starve the machine. Check with:
