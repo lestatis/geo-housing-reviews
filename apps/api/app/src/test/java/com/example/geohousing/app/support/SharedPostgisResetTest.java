@@ -51,21 +51,23 @@ class SharedPostgisResetTest {
           .as("the reset must not truncate extension-owned tables")
           .isEqualTo(spatialRows);
 
-      try (Statement statement = connection.createStatement()) {
-        statement.execute(
-            "create table properties.future_migration_table (id int primary key, note text)");
-        statement.execute("insert into properties.future_migration_table values (1, 'future')");
-      }
-      assertThat(count(connection, "properties.future_migration_table")).isEqualTo(1);
+      try {
+        try (Statement statement = connection.createStatement()) {
+          statement.execute(
+              "create table properties.future_migration_table (id int primary key, note text)");
+          statement.execute("insert into properties.future_migration_table values (1, 'future')");
+        }
+        assertThat(count(connection, "properties.future_migration_table")).isEqualTo(1);
 
-      SharedPostgis.resetApplicationTables();
+        SharedPostgis.resetApplicationTables();
 
-      assertThat(count(connection, "properties.future_migration_table"))
-          .as("a table added after the first reset must be discovered by the catalogue query")
-          .isZero();
-
-      try (Statement statement = connection.createStatement()) {
-        statement.execute("drop table properties.future_migration_table");
+        assertThat(count(connection, "properties.future_migration_table"))
+            .as("a table added after the first reset must be discovered by the catalogue query")
+            .isZero();
+      } finally {
+        try (Statement statement = connection.createStatement()) {
+          statement.execute("drop table if exists properties.future_migration_table");
+        }
       }
     }
   }

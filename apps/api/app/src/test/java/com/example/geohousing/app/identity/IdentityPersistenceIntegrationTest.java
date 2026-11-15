@@ -3,6 +3,7 @@ package com.example.geohousing.app.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.identity.domain.Account;
 import com.example.geohousing.identity.domain.AccountId;
 import com.example.geohousing.identity.domain.AuthSubjectAlreadyProvisionedException;
@@ -16,25 +17,23 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class IdentityPersistenceIntegrationTest {
 
   private static final Instant CREATED_AT = Instant.parse("2026-01-01T00:00:00Z");
   private static final Clock CREATED_CLOCK = Clock.fixed(CREATED_AT, ZoneOffset.UTC);
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private JpaIdentityPersistenceAdapter persistence;
 

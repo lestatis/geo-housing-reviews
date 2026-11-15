@@ -2,6 +2,7 @@ package com.example.geohousing.app.properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.properties.application.CreatePropertyCommand;
 import com.example.geohousing.properties.application.PropertyCreationResult;
 import com.example.geohousing.properties.application.PropertyCreationService;
@@ -9,26 +10,24 @@ import com.example.geohousing.properties.domain.CreatorId;
 import com.example.geohousing.properties.domain.PropertyType;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Proves chunks 3+4+5 compose: the wired {@link PropertyCreationService} uses the real PostGIS
  * finder, so a second same-named create is stopped with duplicates and only proceeds when allowed.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class PropertyCreationFlowIntegrationTest {
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private PropertyCreationService creationService;
 

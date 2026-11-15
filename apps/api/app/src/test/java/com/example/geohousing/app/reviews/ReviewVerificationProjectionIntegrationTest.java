@@ -2,6 +2,7 @@ package com.example.geohousing.app.reviews;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.reviews.api.ReviewVerificationTier;
 import com.example.geohousing.reviews.api.ReviewVerificationUpdater;
 import com.example.geohousing.reviews.application.ReviewRepository;
@@ -18,30 +19,28 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The reviews module's inbound verification contract, driven through the real Spring wiring and
  * real Postgres. This is the reviews half of the verification → reviews projection: chunk 4 wires
  * and proves it here; the verification half joins once verification has its own persistence.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class ReviewVerificationProjectionIntegrationTest {
 
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-07-23T10:00:00Z"), ZoneOffset.UTC);
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private ReviewVerificationUpdater verificationUpdater;
   @Autowired private ReviewRepository reviews;

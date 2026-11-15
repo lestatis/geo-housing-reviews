@@ -3,6 +3,7 @@ package com.example.geohousing.app.verification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.verification.application.VerificationCaseRepository;
 import com.example.geohousing.verification.domain.AccountRef;
 import com.example.geohousing.verification.domain.ModeratorId;
@@ -19,21 +20,19 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The verification case aggregate against a real database. Because the application boots with
  * {@code ddl-auto=validate}, every mapping here is checked against the migrated schema before a
  * single assertion runs.
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class VerificationPersistenceIntegrationTest {
 
@@ -41,10 +40,10 @@ class VerificationPersistenceIntegrationTest {
   private static final Clock CLOCK = Clock.fixed(CREATED_AT, ZoneOffset.UTC);
   private static final ModeratorId MODERATOR = ModeratorId.of(UUID.randomUUID());
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private VerificationCaseRepository cases;
 

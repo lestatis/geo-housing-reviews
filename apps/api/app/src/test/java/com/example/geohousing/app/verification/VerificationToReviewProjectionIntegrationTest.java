@@ -2,6 +2,7 @@ package com.example.geohousing.app.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.properties.domain.CreatorId;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
@@ -25,13 +26,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * The whole verification → reviews projection, end to end through real Spring wiring and real
@@ -39,7 +38,7 @@ import org.testcontainers.utility.DockerImageName;
  * first chunk in which the verification services run in the app context (their persistence now
  * exists).
  */
-@Testcontainers
+@ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
 class VerificationToReviewProjectionIntegrationTest {
 
@@ -47,10 +46,10 @@ class VerificationToReviewProjectionIntegrationTest {
       Clock.fixed(Instant.parse("2026-07-23T10:00:00Z"), ZoneOffset.UTC);
   private static final ModeratorId MODERATOR = ModeratorId.of(UUID.randomUUID());
 
-  @Container @ServiceConnection
-  static final PostgreSQLContainer POSTGRES =
-      new PostgreSQLContainer(
-          DockerImageName.parse("postgis/postgis:18-3.6").asCompatibleSubstituteFor("postgres"));
+  @DynamicPropertySource
+  static void database(DynamicPropertyRegistry registry) {
+    SharedPostgis.register(registry);
+  }
 
   @Autowired private VerificationSubmissionService submission;
   @Autowired private VerificationDecisionService decisions;
