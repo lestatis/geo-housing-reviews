@@ -9,8 +9,20 @@ interface PropertySearchProjection {
 
   String getCanonicalName();
 
+  String getType();
+
   double getScore();
 
   /** Metres from the searched point, or null when the search carried no point. */
   Double getDistanceMeters();
+
+  String getCity();
+
+  String getDistrict();
+
+  String getStreet();
+
+  String getBuilding();
+
+  boolean getHasAddress();
 }

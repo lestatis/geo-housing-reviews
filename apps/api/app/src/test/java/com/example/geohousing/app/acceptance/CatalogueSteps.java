@@ -25,6 +25,19 @@ public class CatalogueSteps {
     state.rememberProperty(propertyName, api.createProperty(actor, propertyName));
   }
 
+  @Given("{word} added a building named {string} on {string} in {string}")
+  public void addedBuilding(String actor, String name, String street, String city)
+      throws Exception {
+    api.createProperty(actor, "BUILDING", name, city, street, null);
+  }
+
+  @Given(
+      "{word} added a building named {string} on {string} in {string} with original text {string}")
+  public void addedBuildingWithOriginalText(
+      String actor, String name, String street, String city, String originalText) throws Exception {
+    api.createProperty(actor, "BUILDING", name, city, street, originalText);
+  }
+
   @When("an anonymous visitor asks for the reviews of {string}")
   public void anonymousAsksForReviews(String propertyName) throws Exception {
     api.perform(get("/api/properties/" + state.propertyIdFor(propertyName) + "/reviews"));
@@ -74,7 +87,42 @@ public class CatalogueSteps {
     assertThat(api.<Integer>readLast("$.items.length()")).isZero();
   }
 
+  @Then("the results show {string} as a {string} at {string}")
+  public void theResultsShowAsAt(String canonicalName, String type, String street) {
+    assertThat(resultRows())
+        .anySatisfy(
+            row -> {
+              assertThat(row.canonicalName()).isEqualTo(canonicalName);
+              assertThat(row.type()).isEqualTo(type);
+              assertThat(row.street()).isEqualTo(street);
+            });
+  }
+
+  @Then("the search response contains no address original text")
+  public void theSearchResponseContainsNoAddressOriginalText() {
+    assertThat(api.lastBody())
+        .doesNotContain("originalText")
+        .doesNotContain("apt 12")
+        .doesNotContain("\"country\"");
+  }
+
   private List<String> matchedNames() {
     return api.readLast("$.items[*].canonicalName");
   }
+
+  private List<ResultRow> resultRows() {
+    List<String> names = api.readLast("$.items[*].canonicalName");
+    List<String> types = api.readLast("$.items[*].type");
+    List<java.util.Map<String, Object>> addresses = api.readLast("$.items[*].address");
+    return java.util.stream.IntStream.range(0, names.size())
+        .mapToObj(
+            index ->
+                new ResultRow(
+                    names.get(index),
+                    types.get(index),
+                    (String) addresses.get(index).get("street")))
+        .toList();
+  }
+
+  private record ResultRow(String canonicalName, String type, String street) {}
 }

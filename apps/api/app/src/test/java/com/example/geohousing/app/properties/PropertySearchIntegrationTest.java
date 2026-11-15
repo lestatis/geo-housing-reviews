@@ -6,6 +6,7 @@ import com.example.geohousing.app.support.SharedPostgis;
 import com.example.geohousing.properties.application.PropertyMatch;
 import com.example.geohousing.properties.application.PropertyRepository;
 import com.example.geohousing.properties.domain.Coordinates;
+import com.example.geohousing.properties.domain.PropertyType;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,14 +47,21 @@ class PropertySearchIntegrationTest {
     jdbcTemplate.update("delete from properties.address");
     jdbcTemplate.update("delete from properties.property");
 
-    UUID chavchavadze = address("Batumi", "Chavchavadze Avenue");
-    UUID rustaveli = address("Batumi", "Rustaveli Street");
-    orbi = property("Orbi Sea Towers Residence", "ACTIVE", chavchavadze, BATUMI_LAT, BATUMI_LNG);
+    UUID chavchavadze = address("Batumi", "Old Batumi", "Chavchavadze Avenue", "12");
+    UUID rustaveli = address("Batumi", null, "Rustaveli Street", null);
+    orbi =
+        property(
+            "Orbi Sea Towers Residence",
+            "RESIDENTIAL_COMPLEX",
+            "ACTIVE",
+            chavchavadze,
+            BATUMI_LAT,
+            BATUMI_LNG);
     alias(orbi, "ka", "ორბი რეზიდენსი");
-    property("Alliance Palace", "ACTIVE", rustaveli, 41.6500, 41.6400);
-    property("Orbi Draft Tower", "DRAFT", null, null, null);
-    property("Orbi Withdrawn Tower", "HIDDEN", null, null, null);
-    property("Orbi Merged Tower", "MERGED", null, null, null);
+    property("Alliance Palace", "BUILDING", "ACTIVE", rustaveli, 41.6500, 41.6400);
+    property("Orbi Draft Tower", "BUILDING", "DRAFT", null, null, null);
+    property("Orbi Withdrawn Tower", "BUILDING", "HIDDEN", null, null, null);
+    property("Orbi Merged Tower", "BUILDING", "MERGED", null, null, null);
   }
 
   @Test
@@ -129,6 +137,46 @@ class PropertySearchIntegrationTest {
   }
 
   @Test
+  void aHitCarriesItsTypeAndFullAddress() {
+    PropertyMatch orbiMatch =
+        search("orbi").stream()
+            .filter(match -> match.canonicalName().equals("Orbi Sea Towers Residence"))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(orbiMatch.type()).isEqualTo(PropertyType.RESIDENTIAL_COMPLEX);
+    assertThat(orbiMatch.address())
+        .contains(
+            new PropertyMatch.AddressSummary("Batumi", "Old Batumi", "Chavchavadze Avenue", "12"));
+  }
+
+  @Test
+  void aHitWithAPartialAddressKeepsThePartsThatExist() {
+    UUID partial = address("Kobuleti", null, null, null);
+    property("Partial Address House", "BUILDING", "ACTIVE", partial, null, null);
+
+    PropertyMatch match = search("partial address").getFirst();
+
+    assertThat(match.address())
+        .contains(new PropertyMatch.AddressSummary("Kobuleti", null, null, null));
+  }
+
+  @Test
+  void aPropertyWithoutAnAddressHasNoAddressSummary() {
+    PropertyMatch match = search("draft").getFirst();
+
+    assertThat(match.canonicalName()).isEqualTo("Orbi Draft Tower");
+    assertThat(match.address()).isEmpty();
+  }
+
+  @Test
+  void everyHitCarriesItsType() {
+    assertThat(search("batumi"))
+        .extracting(PropertyMatch::type)
+        .containsExactlyInAnyOrder(PropertyType.BUILDING, PropertyType.RESIDENTIAL_COMPLEX);
+  }
+
+  @Test
   void theLimitIsRespected() {
     assertThat(properties.search("batumi", null, 0, 1)).hasSize(1);
   }
@@ -169,23 +217,28 @@ class PropertySearchIntegrationTest {
     return matches.stream().map(PropertyMatch::canonicalName).toList();
   }
 
-  private UUID address(String city, String street) {
+  private UUID address(String city, String district, String street, String building) {
     UUID id = UUID.randomUUID();
     jdbcTemplate.update(
-        "insert into properties.address (id, city, street) values (?::uuid, ?, ?)",
+        "insert into properties.address (id, city, district, street, building)"
+            + " values (?::uuid, ?, ?, ?, ?)",
         id,
         city,
-        street);
+        district,
+        street,
+        building);
     return id;
   }
 
-  private UUID property(String name, String status, UUID addressId, Double lat, Double lng) {
+  private UUID property(
+      String name, String type, String status, UUID addressId, Double lat, Double lng) {
     UUID id = UUID.randomUUID();
     jdbcTemplate.update(
         "insert into properties.property"
             + " (id, type, status, canonical_name, address_id, latitude, longitude, created_by)"
-            + " values (?::uuid, 'BUILDING', ?, ?, ?::uuid, ?, ?, gen_random_uuid())",
+            + " values (?::uuid, ?, ?, ?, ?::uuid, ?, ?, gen_random_uuid())",
         id,
+        type,
         status,
         name,
         addressId,

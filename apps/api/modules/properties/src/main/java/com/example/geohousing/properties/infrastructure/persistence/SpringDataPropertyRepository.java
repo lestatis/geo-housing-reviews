@@ -75,6 +75,7 @@ interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, 
           """
           SELECT p.id AS id,
                  p.canonical_name AS canonicalName,
+                 p.type AS type,
                  GREATEST(
                    word_similarity(lower(:text), lower(p.canonical_name)),
                    COALESCE((SELECT MAX(word_similarity(lower(:text), lower(a.name)))
@@ -86,7 +87,12 @@ interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, 
                  CASE WHEN :hasPoint AND p.geo IS NOT NULL
                       THEN ST_Distance(p.geo,
                              ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)
-                 END AS distanceMeters
+                 END AS distanceMeters,
+                 addr.city AS city,
+                 addr.district AS district,
+                 addr.street AS street,
+                 addr.building AS building,
+                 addr.id IS NOT NULL AS hasAddress
           FROM properties.property p
           LEFT JOIN properties.address addr ON addr.id = p.address_id
           WHERE p.status NOT IN ('HIDDEN', 'MERGED')

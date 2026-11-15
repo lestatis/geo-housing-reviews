@@ -5,6 +5,7 @@ import com.example.geohousing.properties.application.PropertyRepository;
 import com.example.geohousing.properties.domain.Coordinates;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
+import com.example.geohousing.properties.domain.PropertyType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
@@ -62,8 +63,13 @@ public class JpaPropertyRepository implements PropertyRepository {
                 new PropertyMatch(
                     PropertyId.of(row.getId()),
                     row.getCanonicalName(),
+                    PropertyType.valueOf(row.getType()),
                     row.getScore(),
-                    row.getDistanceMeters()))
+                    row.getDistanceMeters(),
+                    row.getHasAddress()
+                        ? new PropertyMatch.AddressSummary(
+                            row.getCity(), row.getDistrict(), row.getStreet(), row.getBuilding())
+                        : null))
         .toList();
   }
 }
