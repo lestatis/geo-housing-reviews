@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.List;
+import java.util.stream.StreamSupport;
 
 /** Steps about the property catalogue and the public review listing. */
 public class CatalogueSteps {
@@ -104,6 +107,18 @@ public class CatalogueSteps {
         .doesNotContain("originalText")
         .doesNotContain("apt 12")
         .doesNotContain("\"country\"");
+  }
+
+  @Then("the search hit for {string} has no address")
+  public void theSearchHitHasNoAddress(String canonicalName) throws Exception {
+    JsonNode hit =
+        StreamSupport.stream(
+                new ObjectMapper().readTree(api.lastBody()).path("items").spliterator(), false)
+            .filter(item -> item.path("canonicalName").asText().contains(canonicalName))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no search hit matching " + canonicalName));
+    assertThat(hit.has("address")).as("the hit carries an address key").isTrue();
+    assertThat(hit.get("address").isNull()).as("the hit's address is JSON null").isTrue();
   }
 
   private List<String> matchedNames() {

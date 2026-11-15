@@ -11,11 +11,11 @@ describe("message interpolation", () => {
   });
 
   it("translates whole phrases rather than assembled fragments", () => {
-    expect(translate("ru", "home.diagnosticsLocaleLine", { locale: "ru" })).toBe(
-      "Активный язык: ru",
+    expect(translate("ru", "results.emptyTitle", { query: "Orbi" })).toBe(
+      "По запросу «Orbi» ничего не найдено",
     );
-    expect(translate("en", "home.diagnosticsLocaleLine", { locale: "en" })).toBe(
-      "Active locale: en",
+    expect(translate("en", "results.emptyTitle", { query: "Orbi" })).toBe(
+      "No building found for «Orbi»",
     );
   });
 });

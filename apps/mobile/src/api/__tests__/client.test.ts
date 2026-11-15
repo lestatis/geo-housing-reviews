@@ -1,4 +1,8 @@
-import { createMobileApiClient, type MobileApiClientOptions } from "../client";
+import {
+  createMobileApiClient,
+  type MobileApiClient,
+  type MobileApiClientOptions,
+} from "../client";
 import type { components } from "../generated/schema";
 import { hasString, isRecord, type RuntimeGuard } from "../guards";
 import {
@@ -28,6 +32,20 @@ const BASE_URL = "https://api.test";
 const isPropertyResponse: RuntimeGuard<PropertyResponse> = (value): value is PropertyResponse =>
   isRecord(value) && hasString(value, "propertyId") && hasString(value, "canonicalName");
 
+type UnrelatedBody = { propertyId: number };
+
+const isUnrelatedBody: RuntimeGuard<UnrelatedBody> = (value): value is UnrelatedBody =>
+  isRecord(value) && typeof value.propertyId === "number";
+
+/**
+ * Compile-time contract: a guard may narrow the generated body but must not replace it with a type
+ * the schema does not describe. This function is never called; `tsc --noEmit` is the assertion.
+ */
+function guardForUnrelatedTypeIsRejected(client: MobileApiClient) {
+  // @ts-expect-error a guard must narrow the generated body, not replace it
+  return client.get(PROPERTY_PATH, isUnrelatedBody);
+}
+
 function onlineProbe(): NetworkStatusProbe {
   return { read: async () => "online" };
 }
@@ -53,6 +71,10 @@ function clientWith(
 }
 
 describe("mobile API client", () => {
+  it("keeps the generated body as the type a guard may narrow", () => {
+    expect(guardForUnrelatedTypeIsRejected).toBeDefined();
+  });
+
   it("returns the parsed body for a 200 that matches the guard", async () => {
     const body = { propertyId: "prop-1", canonicalName: "Abashidze 12" };
     const client = clientWith(async () => jsonResponse(JSON.stringify(body)));

@@ -1,8 +1,10 @@
 # Plan 023 — mobile discovery: find a property, understand the experience
 
 Status: Approved — 023-A merged (#2); 023-B in progress on `feat/023-b-mobile-discovery`: B1
-(backend C1) L1-green and reviewed `READY_TO_MERGE` 2026-11-15; B2 (mobile) next; 023-C not
-started
+(backend C1) L1-green and reviewed `READY_TO_MERGE` 2026-11-15; B2 (mobile) implemented
+2026-11-15; B2r (contract nullability and review fixes) implemented 2026-11-15, fix round 1
+applied after the contract test's fail-fast message mismatch, runner-owned L1 and fresh review
+next; 023-C not started
 Owner: Claude Code (lead) · implementation by a worker model
 Related issue: None
 Last updated: 2026-11-15
@@ -437,6 +439,60 @@ Lead, after B2: device check on Android against the local API (search, rows with
 the placeholder and back, airplane mode → "No connection" + Retry, Russian strings), then the cold
 backend `check` without `-PskipMutation` and the root `pnpm lint && pnpm test && pnpm typecheck`.
 
+#### 023-B2r — contract nullability and two review fixes
+
+Founder-approved 2026-11-15 after the 023-B2 review (`.ai/runs/implementation-loop.Y6OesQ`). The
+spec did not mark `address` or its parts nullable although the backend sends `null`, so B2 widened
+`MobileApiClient.get` to let a guard choose any result type and hand-overrode `address` — bending
+AGENTS §3.7. Fix the source and narrow the workaround.
+
+Lead decisions: JSpecify `@Nullable` was tried and has **no effect** on the generated spec (a
+type-use annotation swagger-core does not read on record components; verified 2026-11-15). Adding
+swagger annotations to `:modules:properties` would be a new module dependency (AGENTS §3.5), so the
+nullability is declared in `:app`'s `OpenApiConfiguration`, which already owns API-wide facts that
+signatures cannot express.
+
+Backend:
+
+1. `app/config/OpenApiConfiguration`: an `OpenApiCustomizer` bean that marks, in the generated
+   document, `PropertySearchHitResponse.address` as nullable (a `$ref` to `AddressSummaryView` or
+   `null`, in the JSON Schema 2020-12 form OpenAPI 3.1 uses) and each `AddressSummaryView` part
+   (`city`, `district`, `street`, `building`) as `["string", "null"]` — the same form the existing
+   `@Schema(nullable = true)` fields produce. If a named schema or property is missing, the
+   customizer fails fast rather than silently doing nothing.
+2. New JUnit test `app/.../config/SearchHitNullabilityContractTest` asserting those exact forms in
+   the generated document, so a rename cannot turn the customizer into a no-op.
+3. Gherkin, in `find-property.feature`: *a property with no address is found, with no address* — the
+   hit's `address` is JSON `null` (pins the HTTP shape the review asked for).
+4. Regenerate `docs/api/openapi.json` (`-DupdateOpenApiSpec=true`, as in B1).
+
+Mobile:
+
+5. `src/api/client.ts`: `get<P extends GetApiPath, T extends GetSuccessBody<P> = GetSuccessBody<P>>`
+   — a guard may only **narrow** the generated body, never replace it. Add a compile-time test (a
+   `// @ts-expect-error` case) proving a guard for an unrelated type is rejected.
+6. `src/api/searchGuards.ts`: `SearchHit` is the generated hit with the guard-verified fields made
+   required; no hand-written `address` type — it comes from the generated `AddressSummaryView | null`.
+7. `PropertyPlaceholderScreen`: Back uses `router.canGoBack() ? router.back() : router.replace("/")`;
+   add a test for the no-history (deep-link) case.
+8. `src/i18n/intl.ts`: keep `intlSupport()` and say in its comment that it records how 023-A's device
+   evidence was obtained and is test-only now.
+
+Out of scope: nullability of other existing schemas (for example the detail `AddressView`) — a
+follow-up.
+
+```ai-l1
+cd apps/api && ./gradlew :app:test --tests '*SearchHitNullabilityContractTest' --tests '*OpenApiContractIntegrationTest' --tests '*AcceptanceTest' --tests '*PropertySearchIntegrationTest' -PskipMutation --rerun-tasks
+cd apps/api && ./gradlew :app:spotlessCheck :app:checkstyleMain :app:checkstyleTest
+pnpm --filter @geo-housing/admin-web typecheck
+pnpm --filter @geo-housing/mobile lint
+pnpm --filter @geo-housing/mobile typecheck
+pnpm --filter @geo-housing/mobile test
+```
+
+Lead decision required if: the customizer cannot express `$ref`-or-null in a form openapi-typescript
+renders as `| null`; or any other schema's output changes.
+
 ### 023-C — property experience
 
 - Backend C2: split `ReviewResponse` / `AdminReviewResponse`, update the affected tests, regenerate
@@ -592,6 +648,52 @@ Recorded so they are not lost, and deliberately outside this slice:
   Fresh review `READY_TO_MERGE`. Review noted, pre-existing and outside B1: the public detail
   response `AddressView` still returns `originalText`, which this plan's detail mapping uses as a
   fallback. Raised to the founder before 023-C.
+- 2026-11-15: 023-B2 implemented on `feat/023-b-mobile-discovery`. The anonymous client is supplied
+  once through `ApiClientProvider`; `useSearch` sends one `{q, limit: 20}` request per submitted
+  query, discards superseded responses, sends nothing for a blank query and exposes
+  idle/loading/loaded/empty/error with manual retry. Home is now the search entry (023-A diagnostics
+  removed, locale switch kept); results render name, formatted address and translated type — never
+  `score` or `distanceMeters` — with loading, empty, offline/temporary-error and 20-result states; a
+  temporary localized `/property/[id]` placeholder closes the tap loop until 023-C. Runtime guards
+  enforce the B1 hit shape. Because `docs/api/openapi.json` does not mark the address nullable, the
+  client lets the guard determine the validated result type while defaulting to the generated body.
+  Node-only tests cover guard accept/reject, address formatting, every search state, retry, stale
+  discard, one request per query and row accessibility. Local L1-equivalent checks pass: mobile
+  typecheck, lint and 110 Jest tests. Runner-owned L1 and the Android device pass remain.
+
+- 2026-11-15: 023-B2 loop (`.ai/runs/implementation-loop.Y6OesQ`): L1 3/3 (15 suites, 110 mobile
+  tests), review `READY_TO_MERGE` with three low findings. Founder approved fixing the contract
+  nullability at the source plus the two small items as 023-B2r. Lead verified JSpecify
+  `@Nullable` does not affect the spec, so nullability goes in `:app`'s `OpenApiConfiguration`.
+- 2026-11-15: 023-B2r implemented on `feat/023-b-mobile-discovery`. The generated document now
+  declares `PropertySearchHitResponse.address` as `AddressSummaryView` or `null` and every
+  `AddressSummaryView` part as `string` or `null`; the customizer fails fast if either schema or a
+  named property disappears. `SearchHit` derives its address from the generated schema again, and
+  `MobileApiClient.get` only lets a guard narrow the generated body (with a compile-time rejection
+  case). The placeholder falls back to `/` when a deep link has no history, and `intlSupport()` is
+  documented as test-only. A Cucumber scenario pins the JSON `null` address. Local checks pass
+  (mobile lint/typecheck and 15 suites / 112 Jest tests); runner-owned L1, including the new Java
+  contract test, is pending.
+- 2026-11-15: 023-B2r L1 round 1 failed one contract test. `new Components()` leaves `schemas` null,
+  so the customizer took the "no component schemas" path and its message did not name
+  `PropertySearchHitResponse`, which the fail-fast test requires. The customizer now reports the
+  missing named schema in both the null-schemas and missing-schema cases; the test is unchanged.
+  Runner-owned L1 re-run is pending.
+- 2026-11-15: 023-B2r runner L1 round 1 (`.ai/runs/implementation-loop.ZQb2ow`) failed before any
+  test ran: Gradle could not spawn the test executor (`Failed to exec spawn helper`) and the
+  Checkstyle worker (`Failed to start 'Gradle Worker Daemon'`). Compilation and
+  `:app:spotlessCheck` passed, existing Checkstyle reports contain no errors for the changed files,
+  and a later diagnostic spawned both `true` and the same JDK from a fresh JVM successfully. No code
+  correction applies; L1 needs a rerun on a healthy host process state.
+
+- 2026-11-15: 023-B2r closed. A system OpenJDK upgrade (21.0.12 → 21.0.13, 10:14) left running
+  Gradle daemons unable to spawn test JVMs ("spawn helper … JDK version mismatch"), which failed both
+  rounds of `.ai/runs/implementation-loop.ZQb2ow`; the worker correctly changed no code. After
+  `./gradlew --stop`, the lead ran the runner's own `run-l1-checks.py` on the snapshotted commands as
+  round 3: 6/6 green (`l1-3.json`). Fresh review on that evidence: `READY_TO_MERGE`
+  (`review-1.json`), two low findings — the locale-switch accessibility test dropped in B2 was
+  restored unchanged from `4253d1a`; this entry closes the stale status. Remaining: lead L2, Android
+  device check, PR.
 
 ## Final outcome
 
