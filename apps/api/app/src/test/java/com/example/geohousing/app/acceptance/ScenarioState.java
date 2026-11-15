@@ -30,6 +30,7 @@ public class ScenarioState {
   private String currentReportId;
   private String currentAppealId;
   private String lastCreatedPropertyId;
+  private String lastOriginalText;
   private MvcResult lastResult;
 
   public void rememberActor(String name, String bearerToken) {
@@ -115,6 +116,19 @@ public class ScenarioState {
   public void rememberProperty(String name, String propertyId) {
     propertyIds.put(name, propertyId);
     this.lastCreatedPropertyId = propertyId;
+  }
+
+  public void rememberOriginalText(String originalText) {
+    this.lastOriginalText = originalText;
+  }
+
+  /** The free text the scenario's most recent address was created with. */
+  public String lastOriginalText() {
+    if (lastOriginalText == null) {
+      throw new IllegalStateException(
+          "this scenario has not created an address with original text");
+    }
+    return lastOriginalText;
   }
 
   /** The property most recently created — "that property" in the feature files. */

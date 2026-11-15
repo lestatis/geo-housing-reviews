@@ -99,4 +99,21 @@ public class OutcomeSteps {
     }
     assertThat(body).doesNotContain("voter");
   }
+
+  @Then("no internal account identifier is exposed")
+  public void noInternalAccountIdentifierIsExposed() {
+    String body = api.lastBody();
+    // Readable content says who is a resident and what they experienced, never which account wrote
+    // it: a stable id would let anyone correlate reviews across properties into one person's
+    // history (DECISION_LOG P-003, P-017).
+    assertThat(state.knownAccountIds())
+        .as("the scenario must have introduced accounts for this check to mean anything")
+        .isNotEmpty();
+    for (String accountId : state.knownAccountIds()) {
+      assertThat(body)
+          .as("account id %s must not appear in a public representation", accountId)
+          .doesNotContain(accountId);
+    }
+    assertThat(body).doesNotContain("authorAccountId");
+  }
 }

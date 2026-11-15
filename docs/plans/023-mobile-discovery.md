@@ -1,10 +1,8 @@
 # Plan 023 — mobile discovery: find a property, understand the experience
 
-Status: Approved — 023-A merged (#2); 023-B in progress on `feat/023-b-mobile-discovery`: B1
-(backend C1) L1-green and reviewed `READY_TO_MERGE` 2026-11-15; B2 (mobile) implemented
-2026-11-15; B2r (contract nullability and review fixes) implemented 2026-11-15, fix round 1
-applied after the contract test's fail-fast message mismatch, runner-owned L1 and fresh review
-next; 023-C not started
+Status: Approved — 023-A merged (#2); 023-B merged (#8, 2026-11-15; Android device check not
+recorded); 023-C designed 2026-11-15 (adds C3); 023-C1 implemented on
+`feat/023-c-property-experience` and ready for lead review
 Owner: Claude Code (lead) · implementation by a worker model
 Related issue: None
 Last updated: 2026-11-15
@@ -163,6 +161,18 @@ code reads it, and the mobile app is unreleased. Record this reasoning in the pu
 Both changes are founder decisions — add an entry for each to `docs/DECISION_LOG.md` using the next
 free `P-0xx` numbers.
 
+### C3 — remove `originalText` from the public property response (in 023-C)
+
+Founder decision 2026-11-15, after the 023-B1 review. `originalText` is free text a resident typed
+and the likeliest place for an apartment number (P-016, AGENTS §5). Search hits already omit it.
+
+`PropertyResponse` is shared by `PropertyController` (public get, list, create) and
+`AdminPropertyController` (activate, hide, merge), and there is no admin read-one endpoint, so this
+is a **split**: public `PropertyResponse.AddressView` drops `originalText`; a new
+`AdminPropertyResponse` keeps the current full shape and is returned only by the admin controller.
+The public create response uses the public type. Domain, persistence and the duplicate finder are
+untouched; no migration. `apps/web` reads neither field outside generated types.
+
 ## Data mapping
 
 Only these fields are read. Anything else the API returns is deliberately not rendered.
@@ -173,8 +183,8 @@ Only these fields are read. Anything else the API returns is deliberately not re
 rendered**.
 
 **Property → detail header**
-`canonicalName` → title · `address.{street, building, district, city}` → address line;
-`address.originalText` → fallback only when the structured parts are all empty · `aliases[].name` →
+`canonicalName` → title · `address.{street, building, district, city}` → address line, omitted when
+all are empty (no `originalText` fallback: C3 removes it from the public response) · `aliases[].name` →
 "also known as", de-duplicated against the title, preferring the user's `locale` · `type` →
 translated label · `status` → drives the data-sufficiency notice · coordinates, `version`,
 `parentPropertyId`, `mergedIntoPropertyId`, timestamps → not shown.
@@ -512,6 +522,107 @@ leaves the first page on screen; the DRAFT notice appears for a DRAFT property; 
 or aggregate is displayed anywhere; the review card is checked at 200% text scaling on one device and
 the evidence recorded in the pull request.
 
+**Engineering design (lead, founder-approved 2026-11-15).** Facts verified against `7301cd0`. Two
+packets on `feat/023-c-property-experience`, one PR.
+
+| Decision | Choice | Why |
+| --- | --- | --- |
+| C3 shape | Split, `AdminPropertyResponse` keeps `originalText` | Admins have no other read of it; same convention as C2 |
+| Create response | Public type | One public shape; the creator knows what they typed |
+| `country` on detail | Kept | Outside the decision; harmless |
+| Nullability | B2r's customizer becomes one schema → nullable-fields table for the public schemas | The narrow-only client needs it; no new dependency; fail-fast and table-tested |
+| Empty address | Line omitted | No `originalText` fallback |
+| Rating categories (founder, P-019) | `NOISE`, `UTILITIES`, `HEATING`, `LIFTS_COMMON_AREAS`, `CLEANLINESS`, `MANAGEMENT`, `SAFETY`, `NEIGHBOURHOOD`, `CONSTRUCTION`, `VALUE` (PRD §5.3) | The card needs a fixed set to translate; any other id shows a generic "Other aspect" label, never the raw string |
+
+#### 023-C1 — backend contracts: C2, C3, public nullability, category ids
+
+1. **Gherkin first** (reuse B1's "added a building … with original text" and the "no voter identity"
+   pattern):
+   - *the address text a resident typed is never shown on the property's public page* — public
+     detail and list carry no `originalText` key and none of the typed text;
+   - *a reviewer is never identified to the public* — the author's account id appears in neither the
+     feed nor `GET /api/reviews/{id}`; worded "no internal account identifier is exposed";
+   - *moderators still see who wrote a review, and what was typed* — an admin review action response
+     carries `authorAccountId`; an admin property action response carries `address.originalText`.
+2. **C2** as specified above: `ReviewResponse` drops `authorAccountId`; new `AdminReviewResponse`
+   returned only by `AdminReviewController`; `ReviewEndpointIntegrationTest` asserts absent publicly,
+   present on admin. Internal ports (`ModeratableTarget`, gateway adapters) untouched.
+3. **C3** as specified above.
+4. **Nullability**: refactor `OpenApiConfiguration`'s customizer into one declarative table (schema →
+   nullable fields, plus object-or-null `$ref` fields), keeping fail-fast on a missing schema or
+   property. Cover the public `PropertyResponse`, `AddressView`, `AliasView`, `ReviewListResponse`,
+   `ReviewResponse`, `ContentView`, `RatingView` and the existing search-hit entries. Rule: declare a
+   field nullable exactly when its `from()` mapping can yield `null`. `SearchHitNullabilityContractTest`
+   becomes table-driven `PublicNullabilityContractTest`. Admin DTO nullability is a follow-up.
+5. Regenerate `docs/api/openapi.json`; `DECISION_LOG.md` entries **P-017** (C2), **P-018** (C3),
+   **P-019** (the ten category ids; documentation only — the backend still accepts any string).
+
+Out of scope for C1: `apps/mobile`; any migration; validating category ids on submit.
+
+**C1 implementation status (2026-11-15).** C2, C3, the public-nullability table, the Gherkin and
+integration coverage, the regenerated spec, P-017–P-019 and the approved `apps/web` nullable-distance
+guard are implemented. `PropertySearchHitResponse.from()` passes `PropertyMatch.distanceMeters`
+(`Double`) straight through, so the accepted nullability rule makes `distanceMeters` nullable.
+`formatDistance` now accepts `number | null | undefined`, rendering "—" for both nullish values, with
+an explicit null-distance test. Admin-web typecheck and all 75 tests pass. C1 awaits lead review; the
+Gradle L1 gate is runner-owned.
+
+```ai-l1
+cd apps/api && ./gradlew :modules:properties:test :modules:reviews:test -PskipMutation --rerun-tasks
+cd apps/api && ./gradlew :app:test --tests '*PublicNullabilityContractTest' --tests '*OpenApiContractIntegrationTest' --tests '*AcceptanceTest' --tests '*ReviewEndpointIntegrationTest' --tests '*AdminReviewEndpointIntegrationTest' --tests '*AdminPropertyEndpointIntegrationTest' --tests '*Moderation*' -PskipMutation --rerun-tasks
+cd apps/api && ./gradlew :app:spotlessCheck :app:checkstyleMain :app:checkstyleTest :modules:properties:spotlessCheck :modules:properties:checkstyleMain :modules:reviews:spotlessCheck :modules:reviews:checkstyleMain
+pnpm --filter @geo-housing/admin-web typecheck
+pnpm --filter @geo-housing/admin-web test
+```
+
+Lead decision required if: a moderation or ownership test needs a change; `apps/web` needs a code
+change; or a field's nullability cannot be determined from its mapping.
+
+**Lead decision 2026-11-15 (raised by the C1 worker, `.ai/runs/implementation-loop.zcjmNS`):**
+`PropertySearchHitResponse.distanceMeters` is `null` for every search without a point, so it is
+declared nullable under the rule above. `apps/web`'s `formatDistance` then fails typecheck; C1 may
+change it to accept `number | null | undefined` (both render "—") and add a null-distance test in
+`apps/web/src/properties/property.test.ts`. No other `apps/web` change is in scope.
+
+#### 023-C2 — mobile property detail and review feed
+
+Starts after C1 is reviewed; consumes C1's `docs/api/openapi.json`.
+
+1. `src/api/propertyGuards.ts`, `src/api/reviewGuards.ts`: narrow-only guards over the regenerated
+   nullable types. A body's `authorAccountId`, if present, is ignored, never read.
+2. `useProperty(id)`: one GET; `loading | loaded | notFound | error(outcome)`; manual retry.
+3. `useReviewFeed(id)`: cursor paging, `limit=20`, pages appended; `loadMore()` is a no-op without a
+   `nextCursor` or while a page is in flight; a failed next page keeps every loaded page and has its own
+   retry; superseded responses dropped (the `useSearch` pattern); no automatic retry. Detail and feed
+   requests fire in parallel.
+4. `PropertyScreen` replaces the placeholder at `app/property/[id].tsx`, keeping its deep-link-safe
+   Back. Header per "Data mapping" (no `originalText` fallback); DRAFT low-confidence notice; 404 →
+   "This building is no longer listed"; header error fails the screen with Retry.
+5. Feed per "UI states": empty, "Showing the first 20 reviews", inline footer indicator **and** a
+   "Load more" button, feed-level error with Retry preserving loaded pages.
+6. `ReviewCard` per "Data mapping" (review → feed card): years-only residence; verification badge as
+   a checked *relationship* with icon + text; recommendation icon + text; category chips skipping
+   `notApplicable` and showing `note`, labelled from the P-019 ids with a generic fallback; pros, cons,
+   body; `helpfulCount` number only; relative `publishedAt`; language tag when `content.locale` differs.
+   No totals, aggregates or author identifiers anywhere.
+7. en and ru strings, Russian plurals; no `allowFontScaling={false}`; targets ≥ 44pt.
+8. Node-only tests (mock `expo-router`): guards; `useProperty` outcomes; `useReviewFeed` (two pages
+   then stop on null cursor, failed page 2 keeps page 1, superseded response dropped, no request while
+   in flight); `PropertyScreen` states, DRAFT notice, 404 copy; `ReviewCard` (years only; no author id
+   in the rendered tree even when the body carries one; no count/aggregate text; badge wording;
+   language tag; unknown category → generic label).
+
+```ai-l1
+pnpm --filter @geo-housing/mobile lint
+pnpm --filter @geo-housing/mobile typecheck
+pnpm --filter @geo-housing/mobile test
+```
+
+Lead, after C2: Android device check (open from search; header and feed; page to the end; airplane
+mode on page 2 keeps page 1 with Retry; DRAFT notice; 404 for a hidden property; review card at 200%
+text scaling; Russian copy), cold backend `check` with PITest, root `pnpm lint && pnpm test &&
+pnpm typecheck`, then one PR.
+
 ## Verification
 
 - **Unit** (Jest + React Native Testing Library): every state of every screen, driven by a stubbed
@@ -566,6 +677,12 @@ Recorded so they are not lost, and deliberately outside this slice:
    people hitting the 20-result ceiling.
 4. **Review detail screen** and device-local recent searches.
 5. **Device E2E** (Detox or Maestro) once there is a reason to pay for emulator infrastructure.
+6. **Validate rating category ids on submit** against P-019, and migrate test fixtures that use other
+   ids (for example `LIFT`).
+7. **Nullability for admin response schemas** (`AdminPropertyResponse`, `AdminReviewResponse` and
+   others), in the same customizer table.
+8. **Build `AdminPropertyResponse` from the public mapping** plus the full address, the way
+   `AdminReviewResponse` is built, so the two property views cannot drift (023-C1 review, low).
 
 ## Risks and rollback/forward-fix
 
@@ -694,6 +811,17 @@ Recorded so they are not lost, and deliberately outside this slice:
   (`review-1.json`), two low findings — the locale-switch accessibility test dropped in B2 was
   restored unchanged from `4253d1a`; this entry closes the stale status. Remaining: lead L2, Android
   device check, PR.
+
+- 2026-11-15: 023-B merged (#8). 023-C designed: adds C3 (public `originalText` removal, founder
+  decision), generalises B2r's nullability customizer to the public detail/review schemas, and
+  defines the ten rating category ids (P-019, founder decision). Split into 023-C1 (backend) and
+  023-C2 (mobile). Founder approved; 023-C1 dispatched.
+
+- 2026-11-15: 023-C1 complete in the loop (`.ai/runs/implementation-loop.MW5d99`) after the lead's
+  `distanceMeters` decision: L1 5/5 (properties 49 and reviews 106 module tests; 155 `:app` tests
+  across 17 classes including all moderation classes; lint; `apps/web` typecheck and 75 tests).
+  Fresh review `READY_TO_MERGE`, three low findings: P-016 now points to P-018; the
+  `AdminPropertyResponse` mapping duplication and admin nullability are follow-ups 8 and 7.
 
 ## Final outcome
 

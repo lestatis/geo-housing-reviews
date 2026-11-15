@@ -9,6 +9,10 @@ import java.util.List;
 /**
  * Public view of a property. {@code createdBy} is deliberately omitted: it is another user's opaque
  * account id and nothing needs it yet (least exposure, consistent with identity's DTOs).
+ *
+ * <p>{@code address.originalText} is also deliberately omitted: it is free text a resident typed
+ * and the likeliest place an apartment number is recorded (DECISION_LOG P-018). Moderators read it
+ * from {@link AdminPropertyResponse} instead.
  */
 public record PropertyResponse(
     String propertyId,
@@ -26,12 +30,7 @@ public record PropertyResponse(
     long version) {
 
   public record AddressView(
-      String country,
-      String city,
-      String district,
-      String street,
-      String building,
-      String originalText) {}
+      String country, String city, String district, String street, String building) {}
 
   public record AliasView(String locale, String name, String source, Double confidence) {}
 
@@ -44,14 +43,7 @@ public record PropertyResponse(
         property
             .address()
             .map(
-                a ->
-                    new AddressView(
-                        a.country(),
-                        a.city(),
-                        a.district(),
-                        a.street(),
-                        a.building(),
-                        a.originalText()))
+                a -> new AddressView(a.country(), a.city(), a.district(), a.street(), a.building()))
             .orElse(null),
         property.coordinates().map(c -> c.latitude()).orElse(null),
         property.coordinates().map(c -> c.longitude()).orElse(null),

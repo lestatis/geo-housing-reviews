@@ -38,6 +38,7 @@ describe("a search hit", () => {
   it("shows a distance only when the search had somewhere to measure from", () => {
     expect(toSearchRow({ ...HIT, distanceMeters: 240 }).distance).toBe("240 m");
     expect(toSearchRow({ ...HIT, distanceMeters: undefined }).distance).toBe("—");
+    expect(toSearchRow({ ...HIT, distanceMeters: null }).distance).toBe("—");
   });
 
   it("copes with a hit the API described only partially", () => {
