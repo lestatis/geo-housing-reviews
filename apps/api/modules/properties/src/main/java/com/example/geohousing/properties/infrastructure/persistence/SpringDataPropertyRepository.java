@@ -1,5 +1,7 @@
 package com.example.geohousing.properties.infrastructure.persistence;
 
+import com.example.geohousing.properties.domain.PropertyStatus;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
@@ -9,9 +11,15 @@ import org.springframework.data.repository.query.Param;
 
 interface SpringDataPropertyRepository extends JpaRepository<PropertyJpaEntity, UUID> {
 
-  /** Newest-first page of properties. {@code Limit} keeps the bound in the query, not in memory. */
-  @Query("select p from PropertyJpaEntity p order by p.createdAt desc, p.id desc")
-  List<PropertyJpaEntity> findRecent(Limit limit);
+  /**
+   * Newest-first page of properties whose status is not excluded. {@code Limit} keeps the bound in
+   * the query, not in memory.
+   */
+  @Query(
+      "select p from PropertyJpaEntity p where p.status not in :excludedStatuses"
+          + " order by p.createdAt desc, p.id desc")
+  List<PropertyJpaEntity> findRecentExcluding(
+      @Param("excludedStatuses") Collection<PropertyStatus> excludedStatuses, Limit limit);
 
   /**
    * Deterministic duplicate candidates: a property whose normalized canonical name equals the given

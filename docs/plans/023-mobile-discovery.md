@@ -706,6 +706,7 @@ Recorded so they are not lost, and deliberately outside this slice:
     withheld property's existing reviews stay readable is unaffected. Exposure until then: hidden
     properties are not searchable, so only a holder of a direct link sees one. Founder chose to defer
     (2026-11-15).
+    **Taken up as `docs/plans/025-withhold-hidden-properties.md`.**
 
 ## Risks and rollback/forward-fix
 

@@ -5,6 +5,7 @@ import com.example.geohousing.properties.application.PropertyRepository;
 import com.example.geohousing.properties.domain.Coordinates;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
+import com.example.geohousing.properties.domain.PropertyStatus;
 import com.example.geohousing.properties.domain.PropertyType;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 /** JPA implementation of the {@link PropertyRepository} port. */
 @Repository
 public class JpaPropertyRepository implements PropertyRepository {
+
+  private static final List<PropertyStatus> WITHHELD_FROM_PUBLIC_LIST =
+      List.of(PropertyStatus.HIDDEN, PropertyStatus.MERGED);
 
   private final SpringDataPropertyRepository properties;
 
@@ -31,7 +35,7 @@ public class JpaPropertyRepository implements PropertyRepository {
   @Override
   @Transactional(readOnly = true)
   public List<Property> findRecent(int limit) {
-    return properties.findRecent(Limit.of(limit)).stream()
+    return properties.findRecentExcluding(WITHHELD_FROM_PUBLIC_LIST, Limit.of(limit)).stream()
         .map(PropertyJpaMapper::toDomain)
         .toList();
   }

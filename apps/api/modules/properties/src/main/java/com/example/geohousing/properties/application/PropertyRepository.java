@@ -11,7 +11,10 @@ public interface PropertyRepository {
 
   Optional<Property> findById(PropertyId propertyId);
 
-  /** The most recently created properties, newest first, bounded by {@code limit}. */
+  /**
+   * The most recently created publicly visible properties, newest first, bounded by {@code limit}.
+   * Hidden and merged properties are withheld from the public catalogue.
+   */
   List<Property> findRecent(int limit);
 
   /** Persists a newly created property (with its address, aliases and sources) atomically. */

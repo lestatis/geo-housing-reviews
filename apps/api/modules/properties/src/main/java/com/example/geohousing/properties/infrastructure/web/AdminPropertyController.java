@@ -1,12 +1,14 @@
 package com.example.geohousing.properties.infrastructure.web;
 
 import com.example.geohousing.properties.application.AdminPropertyService;
+import com.example.geohousing.properties.application.PropertyQueryService;
 import com.example.geohousing.properties.domain.Property;
 import com.example.geohousing.properties.domain.PropertyId;
 import com.example.geohousing.properties.domain.PropertyNotFoundException;
 import java.security.Principal;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,19 +16,29 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Admin lifecycle actions on properties. The {@code ROLE_ADMIN} gate is enforced by the security
- * filter chain ({@code /api/admin/**}), so reaching this controller already implies an
- * authenticated admin; every action is audited by {@link AdminPropertyService}, including attempts
- * against a property that does not exist.
+ * Admin reads and lifecycle actions on properties. The {@code ROLE_ADMIN} gate is enforced by the
+ * security filter chain ({@code /api/admin/**}), so reaching this controller already implies an
+ * authenticated admin. The read returns a property whatever its status and is not audited; each
+ * lifecycle action is audited by {@link AdminPropertyService}, including attempts against a
+ * property that does not exist.
  */
 @RestController
 @RequestMapping("/api/admin/properties")
 class AdminPropertyController {
 
   private final AdminPropertyService adminPropertyService;
+  private final PropertyQueryService queryService;
 
-  AdminPropertyController(AdminPropertyService adminPropertyService) {
+  AdminPropertyController(
+      AdminPropertyService adminPropertyService, PropertyQueryService queryService) {
     this.adminPropertyService = adminPropertyService;
+    this.queryService = queryService;
+  }
+
+  /** Any property, whatever its status, including one an administrator withdrew or merged. */
+  @GetMapping("/{propertyId}")
+  AdminPropertyResponse getProperty(@PathVariable("propertyId") String propertyId) {
+    return AdminPropertyResponse.from(queryService.getById(parseId(propertyId)));
   }
 
   @PostMapping("/{propertyId}/activate")

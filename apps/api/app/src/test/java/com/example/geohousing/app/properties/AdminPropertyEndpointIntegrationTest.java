@@ -27,9 +27,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Admin lifecycle actions end to end: the ROLE_ADMIN gate, the state transitions, optimistic
- * concurrency, and the append-only audit trail. An account is promoted to ADMIN by SQL, mirroring
- * the manual first-admin bootstrap.
+ * Admin reads and lifecycle actions end to end: the ROLE_ADMIN gate, the state transitions,
+ * optimistic concurrency, and the append-only audit trail. An account is promoted to ADMIN by SQL,
+ * mirroring the manual first-admin bootstrap.
  */
 @ExtendWith(SharedPostgis.ResetBeforeClass.class)
 @SpringBootTest
@@ -79,6 +79,70 @@ class AdminPropertyEndpointIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"version\":0}"))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void theAdminReadIsAdminOnlyAndReportsUnknownAndMalformedIds() throws Exception {
+    String user = bearer("prop-admin-read-gate");
+    String propertyId = createProperty(user, "Read Gate Tower " + UUID.randomUUID());
+
+    mockMvc
+        .perform(get("/api/admin/properties/" + propertyId))
+        .andExpect(status().isUnauthorized());
+
+    mockMvc
+        .perform(get("/api/admin/properties/" + propertyId).header("Authorization", user))
+        .andExpect(status().isForbidden());
+
+    String admin = adminBearer("prop-admin-read-unknown");
+    mockMvc
+        .perform(get("/api/admin/properties/" + UUID.randomUUID()).header("Authorization", admin))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
+
+    mockMvc
+        .perform(get("/api/admin/properties/not-a-uuid").header("Authorization", admin))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
+  void theAdminReadReturnsAHiddenPropertyWithItsAddressText() throws Exception {
+    String admin = adminBearer("prop-admin-read-hidden");
+    String name = "Withdrawn Read Tower " + UUID.randomUUID();
+    String originalText = "Flat 12, entrance from the courtyard";
+    String created =
+        mockMvc
+            .perform(
+                post("/api/properties")
+                    .header("Authorization", admin)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createBodyWithAddress(name, originalText)))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String propertyId = JsonPath.read(created, "$.propertyId");
+
+    mockMvc
+        .perform(
+            post("/api/admin/properties/" + propertyId + "/hide")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":0}"))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(get("/api/properties/" + propertyId))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
+
+    mockMvc
+        .perform(get("/api/admin/properties/" + propertyId).header("Authorization", admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.propertyId").value(propertyId))
+        .andExpect(jsonPath("$.status").value("HIDDEN"))
+        .andExpect(jsonPath("$.address.originalText").value(originalText));
   }
 
   @Test
@@ -174,6 +238,11 @@ class AdminPropertyEndpointIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("MERGED"))
         .andExpect(jsonPath("$.mergedIntoPropertyId").value(target));
+
+    mockMvc
+        .perform(get("/api/admin/properties/" + source).header("Authorization", admin))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("MERGED"));
 
     assertThat(storedStatus(source)).isEqualTo("MERGED");
     assertThat(auditCount(source, "MERGE", "APPLIED")).isEqualTo(1);

@@ -116,6 +116,35 @@ Feature: Find a property and understand the experience of living there
     Then the request succeeds
     And the response carries the address original text "Sunset Tower, apt 12"
 
+  Scenario: a property an administrator withdrew is no longer readable by the public
+    Given a resident "Dato"
+    And an administrator "Mari"
+    And Dato added a building named "Withdrawn House" on "Rustaveli Street" in "Batumi" with original text "Withdrawn House, apt 4"
+    And Mari withdraws that property
+    When an anonymous visitor opens that property
+    Then the content is reported as not found
+    And the public detail answers exactly as for an unknown id
+    When an anonymous visitor lists the catalogue
+    Then the results do not include "Withdrawn House"
+
+  Scenario: a moderator can still open a withdrawn property
+    Given a resident "Dato"
+    And an administrator "Mari"
+    And Dato added a building named "Withdrawn House II" on "Rustaveli Street" in "Batumi" with original text "Withdrawn House II, apt 5"
+    And Mari withdraws that property
+    When Mari opens that property through the admin catalogue
+    Then the request succeeds
+    And the property's status is "HIDDEN"
+    And the response carries the address original text "Withdrawn House II, apt 5"
+
+  Scenario: only administrators can use the admin property read
+    Given a resident "Nino"
+    And Nino created the property "Vake Heights"
+    When an anonymous visitor opens that property through the admin catalogue
+    Then the request is rejected as unauthenticated
+    When Nino opens that property through the admin catalogue
+    Then the request is rejected as forbidden
+
   Scenario: a property an administrator withdrew is not findable
     Given a resident "Giorgi"
     And an administrator "Mari"

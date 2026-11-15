@@ -1874,6 +1874,32 @@
         "tags" : [ "admin-moderation-controller" ]
       }
     },
+    "/api/admin/properties/{propertyId}" : {
+      "get" : {
+        "operationId" : "getProperty",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "propertyId",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminPropertyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-property-controller" ]
+      }
+    },
     "/api/admin/properties/{propertyId}/activate" : {
       "post" : {
         "operationId" : "activate",
