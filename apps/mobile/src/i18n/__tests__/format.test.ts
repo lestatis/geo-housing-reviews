@@ -1,4 +1,10 @@
-import { fallbackFormatDate, formatDate, interpolate, translate } from "../format";
+import {
+  fallbackFormatDate,
+  formatDate,
+  formatRelativeDate,
+  interpolate,
+  translate,
+} from "../format";
 import { withoutIntl } from "./intlStub";
 
 describe("message interpolation", () => {
@@ -57,5 +63,24 @@ describe("date formatting", () => {
         rendered: fallbackFormatDate(locale, new Date(2026, 0, 31)),
       });
     }
+  });
+});
+
+describe("relative date formatting", () => {
+  const now = new Date(2026, 8, 15, 12);
+
+  it.each([
+    [new Date(2026, 8, 15, 8), "en", "Today"],
+    [new Date(2026, 8, 14, 23), "en", "Yesterday"],
+    [new Date(2026, 8, 12, 10), "en", "3 days ago"],
+    [new Date(2026, 5, 15, 10), "en", "3 months ago"],
+    [new Date(2023, 8, 15, 10), "en", "3 years ago"],
+    [new Date(2026, 8, 12, 10), "ru", "3 дня назад"],
+  ])("renders %s in %s as %s", (value, locale, expected) => {
+    expect(formatRelativeDate(locale as "en" | "ru", value, now)).toBe(expected);
+  });
+
+  it("does not invent an age for an unparseable timestamp", () => {
+    expect(formatRelativeDate("en", "not-a-date", now)).toBe("");
   });
 });

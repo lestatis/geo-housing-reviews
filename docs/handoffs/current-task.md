@@ -20,8 +20,11 @@ design, chunks 023-C1 and 023-C2, `ai-l1` blocks).
 
 ## Current status
 
-in_progress — 023-C1 L1-green (5/5) and reviewed `READY_TO_MERGE` 2026-11-15
-(`.ai/runs/implementation-loop.MW5d99`), committed locally. 023-C2 dispatched next.
+in_progress — 023-C1 (`714289c`) and 023-C2 committed locally; both reviewed `READY_TO_MERGE`
+(C2: `.ai/runs/implementation-loop.JNcC1u/review-2.json`). Lead L2 green 2026-11-15: cold
+`./gradlew check --rerun-tasks --no-build-cache` with PITest — BUILD SUCCESSFUL 1m32s, `:app` 374
+tests / 0 failures, thresholds held, 6 PostGIS starts, 0 shutdown warnings; root
+`pnpm lint && pnpm test && pnpm typecheck` green (mobile 20 suites / 188 tests). Not pushed.
 
 ## Completed work
 
@@ -51,12 +54,30 @@ in_progress — 023-C1 L1-green (5/5) and reviewed `READY_TO_MERGE` 2026-11-15
   fields. `DECISION_LOG.md` has P-017 (C2), P-018 (C3) and P-019 (category ids).
 - `apps/web`'s `formatDistance` accepts `number | null | undefined` and renders "—" for both nullish
   values; the property-row test covers `null` explicitly. No other admin-web code changed.
+- **C2 mobile**: `propertyGuards` and `reviewGuards` narrow the regenerated nullable responses and
+  ignore extra private fields. `useProperty` makes one GET with loading/loaded/notFound/error and
+  manual retry. `useReviewFeed` appends 20-item cursor pages, stops without a cursor, prevents a
+  second in-flight page, preserves loaded pages after a page failure, and drops superseded responses.
+- **C2 UI**: `PropertyScreen` replaces the placeholder and keeps the deep-link-safe Back. It renders
+  identity, aliases, address, translated type, DRAFT notice and 404 copy, with independent header and
+  feed errors. `ReviewCard` renders relationship, years-only residence, checked-relationship badge,
+  recommendation, P-019 category chips, pros/cons/body, helpful count, relative date and the content
+  language tag. No author identifier, total or aggregate is rendered.
+- **C2 localization/tests**: en/ru property and review copy, Russian plural forms and relative-date
+  formatting are covered by node-only Jest tests. Targeted property/review suites pass 36 tests; the
+  full local mobile preflight passes lint, typecheck and 187 tests across 20 suites.
+- **C2 review fix round 1**: `ReviewCard` appends the "checked evidence … does not certify every
+  statement" tooltip to its accessibility label only for `RELATIONSHIP_SIGNAL` and
+  `DOCUMENT_VERIFIED`. `UNVERIFIED` and unknown tiers announce the badge text alone, so no check is
+  implied. `ReviewCard.test.tsx` covers both checked tiers and both not-checked cases. The narrow
+  ReviewCard suite (15 tests), ESLint on the changed files and `tsc --noEmit` pass locally.
 
 ## Remaining work
 
-1. 023-C2 loop (mobile property detail and review feed).
-2. Lead: Android device check (including 200% text scaling on the review card), cold backend `check`
-   with PITest, root `pnpm lint && pnpm test && pnpm typecheck`, then one PR.
+1. Android device checks for 023-B and 023-C (human; no adb/emulator on the lead's machine):
+   open from search; header and feed; page to the end; airplane mode on page 2 keeps page 1 with
+   Retry; DRAFT notice; 404 for a hidden property; review card at 200% text scaling; Russian copy.
+2. Push and open one PR (founder decision).
 
 ## Decisions made
 
@@ -94,6 +115,26 @@ category ids (founder). The lead approved keeping `distanceMeters` nullable and 
 - `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/infrastructure/web/ReviewResponse.java`
 - `apps/web/src/properties/property.ts`
 - `apps/web/src/properties/property.test.ts`
+- `apps/mobile/app/property/[id].tsx`
+- `apps/mobile/src/api/propertyGuards.ts` (new)
+- `apps/mobile/src/api/reviewGuards.ts` (new)
+- `apps/mobile/src/api/__tests__/propertyGuards.test.ts` (new)
+- `apps/mobile/src/api/__tests__/reviewGuards.test.ts` (new)
+- `apps/mobile/src/components/ReviewCard.tsx` (new)
+- `apps/mobile/src/components/__tests__/ReviewCard.test.tsx` (new)
+- `apps/mobile/src/property/useProperty.ts` (new)
+- `apps/mobile/src/property/__tests__/useProperty.test.tsx` (new)
+- `apps/mobile/src/reviews/useReviewFeed.ts` (new)
+- `apps/mobile/src/reviews/__tests__/useReviewFeed.test.tsx` (new)
+- `apps/mobile/src/screens/PropertyScreen.tsx` (new)
+- `apps/mobile/src/screens/PropertyPlaceholderScreen.tsx` (deleted)
+- `apps/mobile/src/screens/__tests__/PropertyScreen.test.tsx` (new)
+- `apps/mobile/src/screens/__tests__/PropertyPlaceholderScreen.test.tsx` (deleted)
+- `apps/mobile/src/i18n/en.ts`
+- `apps/mobile/src/i18n/ru.ts`
+- `apps/mobile/src/i18n/format.ts`
+- `apps/mobile/src/i18n/__tests__/format.test.ts`
+- `apps/mobile/src/i18n/__tests__/plural.test.ts`
 - `docs/DECISION_LOG.md`
 - `docs/api/openapi.json`
 - `docs/plans/023-mobile-discovery.md`
@@ -117,10 +158,17 @@ so it is not part of the diff.
   `null` distance case.
 - Gradle L1 (`:modules:properties:test`, `:modules:reviews:test`, the `:app:test` filters,
   spotless/checkstyle): skipped in this sandbox — no Docker/network. The loop runner owns them.
+- Targeted mobile property/review Jest run (`useProperty`, `useReviewFeed`, `ReviewCard`,
+  `PropertyScreen`): passed (4 suites, 36 tests).
+- `pnpm --filter @geo-housing/mobile typecheck`: passed locally.
+- `pnpm --filter @geo-housing/mobile lint`: passed locally.
+- `pnpm --filter @geo-housing/mobile test`: passed locally (20 suites, 187 tests). These are local
+  preflight results; the loop runner must rerun the three mobile L1 commands as the handoff gate.
+- `git diff --check`: passed.
 
 ## Known failures
 
-None. C1's L1 passed 5/5 in the runner.
+None. C1's L1 passed 5/5 in the runner. C2's local preflight is green.
 
 ## Risks and unresolved questions
 
@@ -129,15 +177,20 @@ None. C1's L1 passed 5/5 in the runner.
 - Admin DTO nullability (`AdminPropertyResponse`, `AdminReviewResponse`) is intentionally a
   follow-up; those schemas currently describe optional values as non-null.
 - 023-B's Android device check was not recorded before #8 merged.
+- 023-C2's Android device check is still pending: navigation from search, header/feed rendering,
+  paging to the end, airplane mode on page 2, DRAFT/404 states, Russian copy and 200% text scaling.
+- The loop runner, not the worker sandbox, must produce the authoritative mobile L1 result.
 
 ## Human actions required
 
-The Android device checks for 023-B and 023-C need a device or emulator. They are not required to
-finish 023-C1.
+The Android device checks for 023-B and 023-C need a device or emulator. They are not part of worker
+implementation and remain for the lead/human.
 
 ## Recommended next action
 
-Lead reviews 023-C1 and dispatches 023-C2 when the C1 diff and runner-owned L1 result are accepted.
+Founder: push/PR decision and the device checks. Afterwards: plan 024 hardening (tolerate prose
+around the worker JSON; stop on environment failures; post-review human checks are not
+`human_action_required`), then plan 020 closure and the follow-ups listed in plan 023.
 
 ## Last updated
 

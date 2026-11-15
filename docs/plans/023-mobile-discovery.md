@@ -1,8 +1,9 @@
 # Plan 023 — mobile discovery: find a property, understand the experience
 
 Status: Approved — 023-A merged (#2); 023-B merged (#8, 2026-11-15; Android device check not
-recorded); 023-C designed 2026-11-15 (adds C3); 023-C1 implemented on
-`feat/023-c-property-experience` and ready for lead review
+recorded); 023-C designed 2026-11-15 (adds C3); 023-C1 and 023-C2 implemented on
+`feat/023-c-property-experience`; 023-C2 fix round 1 (verification badge wording) applied and
+ready for lead review
 Owner: Claude Code (lead) · implementation by a worker model
 Related issue: None
 Last updated: 2026-11-15
@@ -618,6 +619,15 @@ pnpm --filter @geo-housing/mobile typecheck
 pnpm --filter @geo-housing/mobile test
 ```
 
+**C2 implementation status (2026-11-15).** The runtime guards, `useProperty`, cursor-paged
+`useReviewFeed`, `PropertyScreen`, `ReviewCard`, en/ru copy and node-only tests are implemented. The
+detail and feed requests run in parallel; blank or whitespace ids issue no request; header and feed
+failures each have a manual retry; a failed next page preserves every loaded review; and superseded
+responses are dropped. Extra private fields such as `authorAccountId` and removed address text are
+ignored, never rendered. Local mobile L1 passes: lint, typecheck and 20 Jest suites / 187 tests. The
+runner still owns the L1 gate, and the Android checks below remain lead-owned. No
+`allowFontScaling={false}` was introduced, and every screen control meets the 44pt touch target.
+
 Lead, after C2: Android device check (open from search; header and feed; page to the end; airplane
 mode on page 2 keeps page 1 with Retry; DRAFT notice; 404 for a hidden property; review card at 200%
 text scaling; Russian copy), cold backend `check` with PITest, root `pnpm lint && pnpm test &&
@@ -683,6 +693,10 @@ Recorded so they are not lost, and deliberately outside this slice:
    others), in the same customizer table.
 8. **Build `AdminPropertyResponse` from the public mapping** plus the full address, the way
    `AdminReviewResponse` is built, so the two property views cannot drift (023-C1 review, low).
+9. **Visible verification explanation.** The "checked evidence of the relationship … does not certify
+   every statement" text is only in the badge's accessibility label; TRUST_VERIFICATION.md §4 requires
+   public badge copy to carry it. Add the visible tooltip or explanatory sheet once Dasha decides the
+   badge treatment (023-C2 review, low).
 
 ## Risks and rollback/forward-fix
 
@@ -822,6 +836,24 @@ Recorded so they are not lost, and deliberately outside this slice:
   across 17 classes including all moderation classes; lint; `apps/web` typecheck and 75 tests).
   Fresh review `READY_TO_MERGE`, three low findings: P-016 now points to P-018; the
   `AdminPropertyResponse` mapping duplication and admin nullability are follow-ups 8 and 7.
+
+- 2026-11-15: 023-C2 fix round 1. Independent review found the verification badge's accessibility
+  label appended the "checked evidence … does not certify every statement" tooltip on `UNVERIFIED`
+  and unknown tiers, so a screen-reader user heard that a check happened when it did not. The
+  tooltip is now added only for `RELATIONSHIP_SIGNAL` and `DOCUMENT_VERIFIED`; `UNVERIFIED` and
+  unknown tiers read the badge text alone. `ReviewCard.test.tsx` asserts the checked tiers keep the
+  disclaimer and the not-checked tiers carry neither the disclaimer nor "checked evidence" wording.
+  Narrow ReviewCard Jest suite (15 tests), ESLint on the two changed files and `tsc --noEmit` pass
+  locally; the runner-owned mobile L1 re-run is pending.
+
+- 2026-11-15: 023-C2 complete (`.ai/runs/implementation-loop.JNcC1u`). The lead continued the run
+  by hand with the runner's own scripts after two worker-contract rejections (READY with
+  `human_action_required: true`; JSON wrapped in prose), keeping each original result as evidence
+  beside a lead copy. Review 1 `FIXES_REQUIRED`: the verification badge's accessibility label claimed
+  a check on unverified reviews (trust rule); fixed in cycle 2, L1 round 2 3/3 (188 tests), review 2
+  `READY_TO_MERGE`. Founder-approved follow-ups applied by the lead: Tier 1 badge copy now matches
+  TRUST_VERIFICATION.md ("Relationship signal confirmed" / «Сигнал связи подтверждён»); the language
+  tag uses the themed meta style. The visible-disclaimer finding is follow-up 9.
 
 ## Final outcome
 

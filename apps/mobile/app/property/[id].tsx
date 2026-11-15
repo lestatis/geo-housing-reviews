@@ -1,1 +1,1 @@
-export { default } from "../../src/screens/PropertyPlaceholderScreen";
+export { default } from "../../src/screens/PropertyScreen";
