@@ -2,10 +2,10 @@
 
 The public, anonymous mobile client: React Native with Expo and `expo-router`, in TypeScript.
 
-This is the 023-A foundation only. It boots a smoke screen that proves routing, localization and
-styling work on a device, and it carries the pieces the next chunks build on: the generated API
-contract, an anonymous API client, and the English/Russian catalogues. Search, results, property
-detail and the review feed belong to 023-B and 023-C.
+This is the 023-B discovery slice: an anonymous home search entry, a results screen with loading,
+empty, recoverable-error and loaded states, and a temporary property-detail placeholder. It builds
+on the 023-A foundation (generated API contract, anonymous API client, English/Russian catalogues).
+The property header, data-sufficiency notice and review feed belong to 023-C.
 
 ## Commands
 
@@ -54,9 +54,13 @@ Metro inlines `EXPO_PUBLIC_*` at build time; see `src/config.ts`.
 app/                     expo-router routes — files here are destinations, never tests
   _layout.tsx            stack + locale provider + crash boundary
   index.tsx              home route, re-exporting src/screens/HomeScreen
+  search.tsx             results route, re-exporting src/screens/ResultsScreen
+  property/[id].tsx      temporary detail placeholder; 023-C replaces it
 src/
   api/                   anonymous API client, runtime guards, generated schema
+  components/            shared screen components (result row)
   i18n/                  en/ru catalogues, plural rules, date formatting, locale provider
+  search/                useSearch request/state hook and address formatting
   screens/               screen components, with their tests alongside
   expo-types.d.ts        typed Metro globals; replaces the CLI's generated expo-env.d.ts
 ```
@@ -77,7 +81,12 @@ a slow or flaky React Native test setup would slow `apps/web` pull requests too.
   Do not add a token abstraction in anticipation of it.
 - **No hand-written request or response types** (AGENTS.md §3.7). Types come from
   `pnpm generate:api`; a response body that does not match its generated type is `malformed`, and
-  `src/api/client.ts` explains how that is decided without a validation framework.
+  `src/api/client.ts` explains how that is decided without a validation framework. The one derived
+  exception is the search address: `src/api/searchGuards.ts` derives its keys from the generated
+  `AddressSummaryView` and states only the nullability the backend actually serializes.
+- **One search request per submitted query.** `src/search/useSearch.ts` sends a single
+  `GET /api/properties/search` with `limit: 20`, never fetches details per hit, and discards a
+  response that belongs to a superseded query.
 - **`offline` is a claim about the device**, not about a failed request. It comes from
   `expo-network`, and a request that hit its 10-second deadline is `timeout` even then.
 - **Every message is a whole phrase with named placeholders** in `src/i18n/en.ts` (the source of
@@ -86,17 +95,18 @@ a slow or flaky React Native test setup would slow `apps/web` pull requests too.
 
 ## Manual verification on a device
 
-These three checks cannot be performed by the test suite and are recorded as evidence in the chunk's
-pull request:
+These checks cannot be performed by the test suite and are recorded as evidence in the chunk's pull
+request. 023-B is pending this device pass:
 
-1. the app launches and shows the smoke screen;
-2. switching the language button changes the visible tagline;
-3. the "Localization check" card shows `1 отзыв · 2 отзыва · 5 отзывов` and a Russian date, and
-   reports whether the runtime provided native `Intl` or the local fallback.
+1. the app launches on the search entry and fires no request until a query is submitted;
+2. a search against the local API returns rows with name, address and translated type, including two
+   same-name properties told apart by address;
+3. tapping a row opens the placeholder and the back action returns to the results;
+4. airplane mode shows the "No connection" copy, and Retry recovers once signal returns;
+5. the home, results and placeholder copy renders correctly in Russian.
 
-Verified on a real Android device on 2026-09-22: all three passed, with screenshots of the English
-and Russian states. The card reported **local fallback**, so that Hermes build ships without at least
-one of `Intl.PluralRules` and `Intl.DateTimeFormat`. The fallback is the production path on Android
-rather than a theoretical one, and `1 отзыв · 2 отзыва · 5 отзывов` and `1 сентября 2026 г.` were
-confirmed correct there; `src/i18n/plural.ts` and `src/i18n/format.ts` must keep working without
-`Intl`.
+The 023-A foundation was verified on a real Android device on 2026-09-22: the app launched, the
+locale switch changed visible strings, and the Russian plural and date forms rendered correctly. That
+device reported the **local fallback** for `Intl`, so `1 отзыв · 2 отзыва · 5 отзывов` and
+`1 сентября 2026 г.` exercise `src/i18n/plural.ts` and `src/i18n/format.ts` as the production path on
+Android, not a theoretical one; both must keep working without `Intl`.

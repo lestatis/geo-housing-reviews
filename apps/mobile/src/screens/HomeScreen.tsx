@@ -1,50 +1,81 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { intlSupport } from "../i18n/intl";
 import { useMessages } from "../i18n/LocaleProvider";
 import { SUPPORTED_LOCALES, type Locale } from "../i18n/locale";
 import { MIN_TOUCH_TARGET, theme } from "../theme";
-
-/**
- * The 023-A smoke screen.
- *
- * It exists to prove that routing, localization and styling boot on a device, and to give a human
- * the evidence plan 023 asks for: the active locale, the Russian 1/2/5 plural forms, a formatted
- * date, and whether the runtime has real `Intl` or the local fallback. The search entry replaces it
- * in 023-B, at which point this screen and its diagnostics go away.
- *
- * The counts below are fixed localization samples, not review counts read from the API: no screen
- * in this slice may show a count it did not itself count (plan 023, "DRAFT and data sufficiency").
- */
-
-const SAMPLE_DATE = new Date(2026, 8, 1);
-const PLURAL_SAMPLES = [1, 2, 5];
-// The three rendered messages are listed side by side so a human can compare them; this is not a
-// sentence assembled from fragments.
-const PLURAL_SEPARATOR = " · ";
 
 function localeLabelKey(locale: Locale) {
   return locale === "ru" ? ("home.languageRussian" as const) : ("home.languageEnglish" as const);
 }
 
+/**
+ * The anonymous search entry.
+ *
+ * Nothing fires on launch: the first network request belongs to the person who submits a query.
+ * The locale switch stays here because the manual override has no account or settings screen yet.
+ */
 export default function HomeScreen() {
-  const { locale, setLocale, t, count, date } = useMessages();
-  const pluralSamples = PLURAL_SAMPLES.map((value) => count("reviews.count", value)).join(
-    PLURAL_SEPARATOR,
-  );
-  const intl = intlSupport();
+  const router = useRouter();
+  const { locale, setLocale, t } = useMessages();
+  const [query, setQuery] = useState("");
+  const trimmedQuery = query.trim();
+  const canSubmit = trimmedQuery.length > 0;
+
+  function submit() {
+    if (!canSubmit) {
+      return;
+    }
+    router.push(`/search?q=${encodeURIComponent(trimmedQuery)}`);
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text accessibilityRole="header" style={styles.title}>
           {t("app.name")}
         </Text>
         <Text style={styles.tagline}>{t("home.tagline")}</Text>
 
-        <View style={styles.card}>
-          <Text accessibilityRole="header" style={styles.cardHeading}>
+        <View style={styles.searchCard}>
+          <TextInput
+            accessibilityLabel={t("home.searchLabel")}
+            autoCorrect={false}
+            onChangeText={setQuery}
+            onSubmitEditing={submit}
+            placeholder={t("home.searchPlaceholder")}
+            placeholderTextColor={theme.mutedText}
+            returnKeyType="search"
+            style={styles.input}
+            testID="home-search-input"
+            value={query}
+          />
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("home.searchAction")}
+            accessibilityState={{ disabled: !canSubmit }}
+            disabled={!canSubmit}
+            onPress={submit}
+            style={[styles.searchButton, !canSubmit && styles.searchButtonDisabled]}
+            testID="home-search-submit"
+          >
+            <Text style={[styles.searchButtonText, !canSubmit && styles.searchButtonTextDisabled]}>
+              {t("home.searchAction")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.languageBlock}>
+          <Text accessibilityRole="header" style={styles.sectionHeading}>
             {t("home.languageHeading")}
           </Text>
           <View style={styles.localeRow}>
@@ -69,27 +100,6 @@ export default function HomeScreen() {
             })}
           </View>
         </View>
-
-        <View style={styles.card}>
-          <Text accessibilityRole="header" style={styles.cardHeading}>
-            {t("home.diagnosticsHeading")}
-          </Text>
-          <Text style={styles.line}>{t("home.diagnosticsLocaleLine", { locale })}</Text>
-          <Text style={styles.line}>{t("home.diagnosticsPluralLine", { forms: pluralSamples })}</Text>
-          <Text style={styles.line}>
-            {t("home.diagnosticsDateLine", { date: date(SAMPLE_DATE) })}
-          </Text>
-          <Text style={styles.line}>
-            {t("home.diagnosticsIntlLine", {
-              support:
-                intl === "native"
-                  ? t("home.diagnosticsIntlNative")
-                  : t("home.diagnosticsIntlFallback"),
-            })}
-          </Text>
-        </View>
-
-        <Text style={styles.notice}>{t("home.diagnosticsNote")}</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -101,28 +111,61 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    gap: 16,
+    gap: 18,
     padding: 20,
   },
   title: {
     color: theme.text,
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "700",
+    lineHeight: 36,
   },
   tagline: {
     color: theme.mutedText,
     fontSize: 17,
     lineHeight: 24,
   },
-  card: {
+  searchCard: {
     backgroundColor: theme.surface,
     borderColor: theme.border,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    gap: 8,
+    gap: 12,
     padding: 16,
   },
-  cardHeading: {
+  input: {
+    borderColor: theme.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    color: theme.text,
+    fontSize: 17,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  searchButton: {
+    alignItems: "center",
+    backgroundColor: theme.accent,
+    borderRadius: 10,
+    justifyContent: "center",
+    minHeight: MIN_TOUCH_TARGET,
+    paddingHorizontal: 18,
+  },
+  searchButtonDisabled: {
+    backgroundColor: theme.border,
+  },
+  searchButtonText: {
+    color: theme.surface,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  searchButtonTextDisabled: {
+    color: theme.mutedText,
+  },
+  languageBlock: {
+    gap: 10,
+  },
+  sectionHeading: {
     color: theme.text,
     fontSize: 15,
     fontWeight: "600",
@@ -134,6 +177,7 @@ const styles = StyleSheet.create({
   },
   localeButton: {
     alignItems: "center",
+    backgroundColor: theme.surface,
     borderColor: theme.border,
     borderRadius: 10,
     borderWidth: 1,
@@ -153,15 +197,5 @@ const styles = StyleSheet.create({
   localeButtonTextSelected: {
     color: theme.accent,
     fontWeight: "600",
-  },
-  line: {
-    color: theme.text,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  notice: {
-    color: theme.mutedText,
-    fontSize: 14,
-    lineHeight: 20,
   },
 });

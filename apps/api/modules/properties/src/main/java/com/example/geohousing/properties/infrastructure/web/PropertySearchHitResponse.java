@@ -11,12 +11,27 @@ import com.example.geohousing.properties.application.PropertyMatch;
  * against.
  */
 public record PropertySearchHitResponse(
-    String propertyId, String canonicalName, double score, Double distanceMeters) {
+    String propertyId,
+    String canonicalName,
+    String type,
+    AddressSummaryView address,
+    double score,
+    Double distanceMeters) {
+
+  public record AddressSummaryView(String city, String district, String street, String building) {}
 
   static PropertySearchHitResponse from(PropertyMatch match) {
     return new PropertySearchHitResponse(
         match.propertyId().value().toString(),
         match.canonicalName(),
+        match.type().name(),
+        match
+            .address()
+            .map(
+                address ->
+                    new AddressSummaryView(
+                        address.city(), address.district(), address.street(), address.building()))
+            .orElse(null),
         match.score(),
         match.distanceMeters());
   }

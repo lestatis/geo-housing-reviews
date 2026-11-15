@@ -197,6 +197,42 @@ public class TestApi {
     return JsonPath.read(result.getResponse().getContentAsString(), "$.propertyId");
   }
 
+  public String createProperty(
+      String actorName,
+      String type,
+      String canonicalName,
+      String city,
+      String street,
+      String originalText)
+      throws Exception {
+    String address =
+        "{\"city\":\""
+            + city
+            + "\",\"street\":\""
+            + street
+            + "\""
+            + (originalText == null ? "" : ",\"originalText\":\"" + originalText + "\"")
+            + "}";
+    MvcResult result =
+        mockMvc
+            .perform(
+                json(
+                        authorized(post("/api/properties"), actorName),
+                        "{\"type\":\""
+                            + type
+                            + "\",\"canonicalName\":\""
+                            + canonicalName
+                            + "\",\"address\":"
+                            + address
+                            + ",\"allowDuplicate\":true}")
+                    .accept(MediaType.APPLICATION_JSON))
+            .andReturn();
+    assertThat(result.getResponse().getStatus())
+        .as("creating property %s", canonicalName)
+        .isEqualTo(201);
+    return JsonPath.read(result.getResponse().getContentAsString(), "$.propertyId");
+  }
+
   public MvcResult submitReview(String actorName, String propertyId, String body) throws Exception {
     return perform(
         json(

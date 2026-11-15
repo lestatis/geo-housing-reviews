@@ -4,6 +4,11 @@ import { LocaleProvider } from "../../i18n/LocaleProvider";
 import { createMemoryLocaleStore } from "../../i18n/localeStore";
 import HomeScreen from "../HomeScreen";
 
+const mockPush = jest.fn();
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 function renderHome(deviceLocale = "en-US") {
   render(
     <LocaleProvider store={createMemoryLocaleStore()} deviceLocale={deviceLocale}>
@@ -13,30 +18,51 @@ function renderHome(deviceLocale = "en-US") {
 }
 
 describe("HomeScreen", () => {
-  it("renders the smoke screen in English", () => {
+  beforeEach(() => {
+    mockPush.mockReset();
+  });
+
+  it("renders the anonymous search entry without firing navigation on launch", () => {
     renderHome();
 
     expect(screen.getByText("Geo Housing Reviews")).toBeTruthy();
     expect(screen.getByText("Find a building. Read what living there is like.")).toBeTruthy();
-    expect(screen.getByText("Review count forms: 1 review · 2 reviews · 5 reviews")).toBeTruthy();
+    expect(screen.getByLabelText("Search for a building")).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("changes a visible string when the locale is switched to Russian", () => {
+  it("navigates to the results route with a trimmed query", () => {
+    renderHome();
+
+    fireEvent.changeText(screen.getByTestId("home-search-input"), "  Orbi Sea Towers  ");
+    fireEvent.press(screen.getByTestId("home-search-submit"));
+
+    expect(mockPush).toHaveBeenCalledWith("/search?q=Orbi%20Sea%20Towers");
+  });
+
+  it("disables submit while the query is blank", () => {
+    renderHome();
+
+    const submit = screen.getByTestId("home-search-submit");
+    expect(submit.props.accessibilityState).toEqual({ disabled: true });
+
+    fireEvent.press(submit);
+    expect(mockPush).not.toHaveBeenCalled();
+
+    fireEvent.changeText(screen.getByTestId("home-search-input"), "   ");
+    expect(screen.getByTestId("home-search-submit").props.accessibilityState).toEqual({
+      disabled: true,
+    });
+  });
+
+  it("keeps the persisted-able locale switch reachable", () => {
     renderHome();
 
     fireEvent.press(screen.getByTestId("locale-ru"));
 
     expect(screen.getByText("Найдите дом. Узнайте, каково там жить.")).toBeTruthy();
+    expect(screen.getByText("Найти")).toBeTruthy();
     expect(screen.queryByText("Find a building. Read what living there is like.")).toBeNull();
-  });
-
-  it("shows the Russian 1/2/5 plural forms and a Russian date", () => {
-    renderHome();
-
-    fireEvent.press(screen.getByTestId("locale-ru"));
-
-    expect(screen.getByText("Формы количества отзывов: 1 отзыв · 2 отзыва · 5 отзывов")).toBeTruthy();
-    expect(screen.getByText(/^Формат даты: 1 сентября 2026/)).toBeTruthy();
   });
 
   it("gives both locale choices a role, a label and a selected state", () => {

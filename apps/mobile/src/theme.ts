@@ -1,5 +1,5 @@
 /**
- * Provisional tokens for the smoke screen.
+ * Provisional tokens for the discovery screens.
  *
  * Colour, typography and spacing are Dasha's call (plan 023, "Design decisions owned by Dasha").
  * These values exist so nothing is unstyled by accident, and they keep body text above the 4.5:1

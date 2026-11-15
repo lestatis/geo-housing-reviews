@@ -1,8 +1,13 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { ApiClientProvider } from "../src/api/ApiClientProvider";
+import { createMobileApiClient } from "../src/api/client";
+import { createExpoNetworkStatusProbe } from "../src/api/network";
+import { apiBaseUrl } from "../src/config";
 import { deviceLocaleTag } from "../src/i18n/deviceLocale";
 import { LocaleProvider } from "../src/i18n/LocaleProvider";
 import { persistentLocaleStore } from "../src/i18n/localeStore";
@@ -16,11 +21,20 @@ import { MIN_TOUCH_TARGET, theme } from "../src/theme";
  * product.
  */
 export default function RootLayout() {
+  const [apiClient] = useState(() =>
+    createMobileApiClient({
+      baseUrl: apiBaseUrl(),
+      networkStatus: createExpoNetworkStatusProbe(),
+    }),
+  );
+
   return (
     <SafeAreaProvider>
-      <LocaleProvider store={persistentLocaleStore} deviceLocale={deviceLocaleTag()}>
-        <Stack screenOptions={{ headerShown: false }} />
-      </LocaleProvider>
+      <ApiClientProvider client={apiClient}>
+        <LocaleProvider store={persistentLocaleStore} deviceLocale={deviceLocaleTag()}>
+          <Stack screenOptions={{ headerShown: false }} />
+        </LocaleProvider>
+      </ApiClientProvider>
       <StatusBar style="auto" />
     </SafeAreaProvider>
   );

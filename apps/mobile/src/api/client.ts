@@ -79,12 +79,17 @@ export interface MobileApiClient {
   /**
    * Performs a GET and classifies the outcome. `guard` decides whether the parsed body is the shape
    * the caller reads; a 2xx body that does not satisfy it is `malformed`.
+   *
+   * The validated type is the generated 200 body or a narrower view of it. A guard may require a
+   * field the document marks optional, but it may not substitute an unrelated type: the schema
+   * remains the contract, and the guard only states what the caller actually checked at runtime.
+   * Omitting an explicit type keeps the generated body as the default.
    */
-  get<P extends GetApiPath>(
+  get<P extends GetApiPath, T extends GetSuccessBody<P> = GetSuccessBody<P>>(
     path: P,
-    guard: RuntimeGuard<GetSuccessBody<P>>,
+    guard: RuntimeGuard<T>,
     options?: GetRequestOptions<P>,
-  ): Promise<ApiResult<GetSuccessBody<P>>>;
+  ): Promise<ApiResult<T>>;
 }
 
 export interface MobileApiClientOptions {
@@ -127,11 +132,11 @@ export function createMobileApiClient(options: MobileApiClientOptions): MobileAp
   });
   const rawGet = client.GET as unknown as UntypedGet;
 
-  async function get<P extends GetApiPath>(
+  async function get<P extends GetApiPath, T extends GetSuccessBody<P> = GetSuccessBody<P>>(
     path: P,
-    guard: RuntimeGuard<GetSuccessBody<P>>,
+    guard: RuntimeGuard<T>,
     options?: GetRequestOptions<P>,
-  ): Promise<ApiResult<GetSuccessBody<P>>> {
+  ): Promise<ApiResult<T>> {
     const controller = new AbortController();
     let deadlineElapsed = false;
     const deadline = setTimeout(() => {

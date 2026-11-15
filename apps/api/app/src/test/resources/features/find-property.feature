@@ -56,6 +56,28 @@ Feature: Find a property and understand the experience of living there
     When an anonymous visitor searches for "vake garden"
     Then the results include "Vake Garden House"
 
+  Scenario: a property with no address is found, with no address
+    Given a resident "Ana"
+    And Ana created the property "Unaddressed House"
+    When an anonymous visitor searches for "unaddressed"
+    Then the results include "Unaddressed House"
+    And the search hit for "Unaddressed House" has no address
+
+  Scenario: two buildings with the same name are told apart by their address
+    Given a resident "Nino"
+    And Nino added a building named "Sunrise Residence" on "Rustaveli Street" in "Batumi"
+    And Nino added a building named "Sunrise Residence" on "Chavchavadze Avenue" in "Batumi"
+    When an anonymous visitor searches for "sunrise residence"
+    Then the results show "Sunrise Residence" as a "BUILDING" at "Rustaveli Street"
+    And the results show "Sunrise Residence" as a "BUILDING" at "Chavchavadze Avenue"
+
+  Scenario: the address text a resident typed is never shown in search results
+    Given a resident "Dato"
+    And Dato added a building named "Sunset Tower" on "Rustaveli Street" in "Batumi" with original text "Sunset Tower, apt 12"
+    When an anonymous visitor searches for "sunset"
+    Then the results include "Sunset Tower"
+    And the search response contains no address original text
+
   Scenario: a property an administrator withdrew is not findable
     Given a resident "Giorgi"
     And an administrator "Mari"

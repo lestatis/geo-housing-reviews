@@ -3,10 +3,10 @@ import type { Locale } from "./locale";
 /**
  * Native `Intl` access, with the smallest honest fallback when a runtime lacks it.
  *
- * Plan 023 asks for exactly this check in 023-A, because discovering it later means rewriting every
- * count string. Every helper returns `undefined` rather than throwing, and the caller falls back to
- * the local implementation in `plural.ts` / `format.ts`. Nothing here turns ICU support into a
- * project.
+ * `intlSupport()` records how 023-A's device evidence was obtained; it is test-only now that the
+ * diagnostics card has been removed from the home screen. Every helper returns `undefined` rather
+ * than throwing, and the caller falls back to the local implementation in `plural.ts` /
+ * `format.ts`. Nothing here turns ICU support into a project.
  */
 
 export type IntlSupport = "native" | "fallback";
