@@ -254,12 +254,16 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  // A pill in a row sizes itself to its text's one-line width unless the text may shrink; at large
+  // font scales that pushed the pill past the card's edge (023-C device check, 200%).
   badge: {
     alignItems: "center",
+    alignSelf: "flex-start",
     backgroundColor: theme.selectedSurface,
     borderRadius: 999,
     flexDirection: "row",
     gap: 6,
+    maxWidth: "100%",
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -270,16 +274,19 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: theme.accent,
+    flexShrink: 1,
     fontSize: 14,
     lineHeight: 20,
   },
   recommendation: {
     alignItems: "center",
+    alignSelf: "flex-start",
     borderColor: theme.border,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     gap: 6,
+    maxWidth: "100%",
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
@@ -290,6 +297,7 @@ const styles = StyleSheet.create({
   },
   recommendationText: {
     color: theme.text,
+    flexShrink: 1,
     fontSize: 14,
     lineHeight: 20,
   },

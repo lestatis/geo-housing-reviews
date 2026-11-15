@@ -74,10 +74,9 @@ tests / 0 failures, thresholds held, 6 PostGIS starts, 0 shutdown warnings; root
 
 ## Remaining work
 
-1. Android device checks for 023-B and 023-C (human; no adb/emulator on the lead's machine):
-   open from search; header and feed; page to the end; airplane mode on page 2 keeps page 1 with
-   Retry; DRAFT notice; 404 for a hidden property; review card at 200% text scaling; Russian copy.
-2. Push and open one PR (founder decision).
+1. Push and open one PR (founder approved 2026-11-15); CI; founder merge decision.
+2. After merge: a plan for follow-up 10 (withhold hidden properties from the public read, with an
+   admin read endpoint), plan 024 hardening, plan 020 closure.
 
 ## Decisions made
 
@@ -176,15 +175,15 @@ None. C1's L1 passed 5/5 in the runner. C2's local preflight is green.
   in C1's L1.
 - Admin DTO nullability (`AdminPropertyResponse`, `AdminReviewResponse`) is intentionally a
   follow-up; those schemas currently describe optional values as non-null.
-- 023-B's Android device check was not recorded before #8 merged.
+- A hidden property remains publicly readable by id (plan 023 follow-up 10, deferred).
 - 023-C2's Android device check is still pending: navigation from search, header/feed rendering,
   paging to the end, airplane mode on page 2, DRAFT/404 states, Russian copy and 200% text scaling.
 - The loop runner, not the worker sandbox, must produce the authoritative mobile L1 result.
 
 ## Human actions required
 
-The Android device checks for 023-B and 023-C need a device or emulator. They are not part of worker
-implementation and remain for the lead/human.
+None. The Android device checks for 023-B and 023-C were done on an emulator on 2026-11-15
+(`.ai/device-check-023/`).
 
 ## Recommended next action
 

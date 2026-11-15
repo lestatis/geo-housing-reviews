@@ -697,6 +697,15 @@ Recorded so they are not lost, and deliberately outside this slice:
    every statement" text is only in the badge's accessibility label; TRUST_VERIFICATION.md §4 requires
    public badge copy to carry it. Add the visible tooltip or explanatory sheet once Dasha decides the
    badge treatment (023-C2 review, low).
+10. **Withhold a hidden property from the public read.** `GET /api/properties/{id}` returns a property
+    an administrator hid (`HIDDEN`) with 200, although `PropertyCatalogService.visibilityOf` treats
+    `HIDDEN` as withheld and search excludes it; the app then shows a withdrawn building normally
+    (found on device 2026-11-15). The fix needs its own plan: `apps/web`'s property page reads the
+    public endpoint, so a public 404 needs a new `GET /api/admin/properties/{id}` (with 401/403/200
+    tests and an audit decision) and the web page switched to it. The reviews module's rule that a
+    withheld property's existing reviews stay readable is unaffected. Exposure until then: hidden
+    properties are not searchable, so only a holder of a direct link sees one. Founder chose to defer
+    (2026-11-15).
 
 ## Risks and rollback/forward-fix
 
@@ -854,6 +863,17 @@ Recorded so they are not lost, and deliberately outside this slice:
   `READY_TO_MERGE`. Founder-approved follow-ups applied by the lead: Tier 1 badge copy now matches
   TRUST_VERIFICATION.md ("Relationship signal confirmed" / «Сигнал связи подтверждён»); the language
   tag uses the themed meta style. The visible-disclaimer finding is follow-up 9.
+
+- 2026-11-15: Android device check for 023-B and 023-C on an emulator (API 35, KVM) against the
+  local stack with synthetic data seeded through the API (first admin and two verification tiers set
+  by SQL, as `apps/web/e2e/seed.ts` does). Passed: search → result row; detail header; feed paging
+  with Load more to a null cursor; airplane mode on page 2 → "No connection" + Retry with page 1
+  kept, then recovery; unverified badge without the "checked" explanation; signal/document badges
+  with it; unknown category → "Other aspect"; language tag; DRAFT notice and empty feed; deep-link
+  Back → Home; 200% text scaling; Russian copy and plurals. Found: the verification and
+  recommendation pills overflowed the card at 200% — fixed (`flexShrink`/`maxWidth`) and re-checked
+  on device; a hidden property is publicly readable — follow-up 10 (deferred by the founder).
+  Screenshots: `.ai/device-check-023/` (local, untracked).
 
 ## Final outcome
 
