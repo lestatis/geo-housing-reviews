@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -65,6 +66,11 @@ public class ReviewSteps {
   @When("an anonymous visitor asks for that review")
   public void anonymousAsksForThatReview() throws Exception {
     api.perform(get("/api/reviews/" + state.currentReviewId()));
+  }
+
+  @Then("the response identifies the review's author as {string}")
+  public void responseIdentifiesTheReviewsAuthorAs(String actor) {
+    assertThat(api.<String>readLast("$.authorAccountId")).isEqualTo(state.accountIdFor(actor));
   }
 
   @When("an anonymous visitor tries to submit a review of {string}")

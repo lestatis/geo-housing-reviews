@@ -30,7 +30,7 @@ class AdminPropertyController {
   }
 
   @PostMapping("/{propertyId}/activate")
-  PropertyResponse activate(
+  AdminPropertyResponse activate(
       Principal principal,
       @PathVariable("propertyId") String propertyId,
       @RequestBody AdminLifecycleRequest request) {
@@ -41,7 +41,7 @@ class AdminPropertyController {
   }
 
   @PostMapping("/{propertyId}/hide")
-  PropertyResponse hide(
+  AdminPropertyResponse hide(
       Principal principal,
       @PathVariable("propertyId") String propertyId,
       @RequestBody AdminLifecycleRequest request) {
@@ -51,7 +51,7 @@ class AdminPropertyController {
   }
 
   @PostMapping("/{propertyId}/merge")
-  PropertyResponse merge(
+  AdminPropertyResponse merge(
       Principal principal,
       @PathVariable("propertyId") String propertyId,
       @RequestBody AdminLifecycleRequest request) {
@@ -73,9 +73,10 @@ class AdminPropertyController {
     return PropertyId.of(UUID.fromString(value));
   }
 
-  private static PropertyResponse respond(Optional<Property> property, PropertyId requestedId) {
+  private static AdminPropertyResponse respond(
+      Optional<Property> property, PropertyId requestedId) {
     return property
-        .map(PropertyResponse::from)
+        .map(AdminPropertyResponse::from)
         .orElseThrow(() -> new PropertyNotFoundException(requestedId));
   }
 }

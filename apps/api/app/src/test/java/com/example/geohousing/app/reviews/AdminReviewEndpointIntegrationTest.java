@@ -81,12 +81,14 @@ class AdminReviewEndpointIntegrationTest {
   void aModeratorSeesAPendingReviewThatThePublicEndpointDenies() throws Exception {
     String author = bearer("subject-mod-pending-author");
     String admin = adminBearer("subject-mod-pending-admin");
+    String authorAccountId = accountIdOf(author);
     String reviewId = submitReview(author, "მოდერაციის მოლოდინში");
 
     mockMvc
         .perform(get("/api/admin/reviews/" + reviewId).header("Authorization", admin))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("PENDING_MODERATION"));
+        .andExpect(jsonPath("$.status").value("PENDING_MODERATION"))
+        .andExpect(jsonPath("$.authorAccountId").value(authorAccountId));
     // The same admin on the public endpoint is a plain user and is told it does not exist.
     mockMvc
         .perform(get("/api/reviews/" + reviewId).header("Authorization", admin))
@@ -98,6 +100,7 @@ class AdminReviewEndpointIntegrationTest {
     String author = bearer("subject-publish-author");
     String admin = adminBearer("subject-publish-admin");
     String adminAccountId = accountIdOf(admin);
+    String authorAccountId = accountIdOf(author);
     String reviewId = submitReview(author, "გამოსაქვეყნებელი");
 
     mockMvc
@@ -108,6 +111,7 @@ class AdminReviewEndpointIntegrationTest {
                 .content(decision(0, "CLEAN")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("PUBLISHED"))
+        .andExpect(jsonPath("$.authorAccountId").value(authorAccountId))
         .andExpect(jsonPath("$.publishedAt").isNotEmpty());
 
     // Now on the public listing for everyone.

@@ -78,6 +78,44 @@ Feature: Find a property and understand the experience of living there
     Then the results include "Sunset Tower"
     And the search response contains no address original text
 
+  Scenario: the address text a resident typed is never shown on the property's public page
+    Given a resident "Dato"
+    And Dato added a building named "Sunset Tower" on "Rustaveli Street" in "Batumi" with original text "Sunset Tower, apt 12"
+    When an anonymous visitor opens that property
+    Then the request succeeds
+    And the public response contains no address original text
+    When an anonymous visitor lists the catalogue
+    Then the request succeeds
+    And the public response contains no address original text
+
+  Scenario: a reviewer is never identified to the public
+    Given a resident "Nino"
+    And Nino created the property "Vake Heights"
+    And Nino published a review of "Vake Heights" saying "მშვიდი ეზო და კარგი მეზობლები"
+    When an anonymous visitor asks for the reviews of "Vake Heights"
+    Then the request succeeds
+    And no internal account identifier is exposed
+    When an anonymous visitor asks for that review
+    Then the request succeeds
+    And no internal account identifier is exposed
+
+  Scenario: a moderator still sees who wrote a review
+    Given a resident "Nino"
+    And an administrator "Mari"
+    And Nino created the property "Vake Heights"
+    And Nino submitted a review of "Vake Heights" saying "კარგი მდებარეობა"
+    When Mari publishes that review with reason "CLEAN"
+    Then the request succeeds
+    And the response identifies the review's author as "Nino"
+
+  Scenario: an administrator still sees the address text a resident typed
+    Given a resident "Dato"
+    And an administrator "Mari"
+    And Dato added a building named "Sunset Tower" on "Rustaveli Street" in "Batumi" with original text "Sunset Tower, apt 12"
+    When Mari activates that property
+    Then the request succeeds
+    And the response carries the address original text "Sunset Tower, apt 12"
+
   Scenario: a property an administrator withdrew is not findable
     Given a resident "Giorgi"
     And an administrator "Mari"

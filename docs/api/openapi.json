@@ -55,22 +55,19 @@
       "AddressView" : {
         "properties" : {
           "building" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "city" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "country" : {
             "type" : "string"
           },
           "district" : {
-            "type" : "string"
-          },
-          "originalText" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "street" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           }
         },
         "type" : "object"
@@ -97,6 +94,29 @@
           "version" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminAddressView" : {
+        "properties" : {
+          "building" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "country" : {
+            "type" : "string"
+          },
+          "district" : {
+            "type" : "string"
+          },
+          "originalText" : {
+            "type" : "string"
+          },
+          "street" : {
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -232,11 +252,117 @@
         },
         "type" : "object"
       },
+      "AdminPropertyResponse" : {
+        "properties" : {
+          "address" : {
+            "$ref" : "#/components/schemas/AdminAddressView"
+          },
+          "aliases" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AliasView"
+            },
+            "type" : "array"
+          },
+          "canonicalName" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "mergedIntoPropertyId" : {
+            "type" : "string"
+          },
+          "parentPropertyId" : {
+            "type" : "string"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminReviewResponse" : {
+        "properties" : {
+          "authorAccountId" : {
+            "type" : "string"
+          },
+          "content" : {
+            "$ref" : "#/components/schemas/ContentView"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "helpfulCount" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "propertyId" : {
+            "type" : "string"
+          },
+          "publishedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "relationshipType" : {
+            "type" : "string"
+          },
+          "residenceFrom" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "residenceTo" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "reviewId" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "verificationTier" : {
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "AliasView" : {
         "properties" : {
           "confidence" : {
             "format" : "double",
-            "type" : "number"
+            "type" : [ "number", "null" ]
           },
           "locale" : {
             "type" : "string"
@@ -405,7 +531,7 @@
             "type" : "string"
           },
           "cons" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "createdAt" : {
             "format" : "date-time",
@@ -415,7 +541,7 @@
             "type" : "string"
           },
           "pros" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "ratings" : {
             "items" : {
@@ -811,7 +937,11 @@
       "PropertyResponse" : {
         "properties" : {
           "address" : {
-            "$ref" : "#/components/schemas/AddressView"
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/AddressView"
+            }, {
+              "type" : "null"
+            } ]
           },
           "aliases" : {
             "items" : {
@@ -828,17 +958,17 @@
           },
           "latitude" : {
             "format" : "double",
-            "type" : "number"
+            "type" : [ "number", "null" ]
           },
           "longitude" : {
             "format" : "double",
-            "type" : "number"
+            "type" : [ "number", "null" ]
           },
           "mergedIntoPropertyId" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "parentPropertyId" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "propertyId" : {
             "type" : "string"
@@ -874,7 +1004,7 @@
           },
           "distanceMeters" : {
             "format" : "double",
-            "type" : "number"
+            "type" : [ "number", "null" ]
           },
           "propertyId" : {
             "type" : "string"
@@ -913,11 +1043,11 @@
             "type" : "boolean"
           },
           "note" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "value" : {
             "format" : "int32",
-            "type" : "integer"
+            "type" : [ "integer", "null" ]
           }
         },
         "type" : "object"
@@ -1010,18 +1140,19 @@
             "type" : "array"
           },
           "nextCursor" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           }
         },
         "type" : "object"
       },
       "ReviewResponse" : {
         "properties" : {
-          "authorAccountId" : {
-            "type" : "string"
-          },
           "content" : {
-            "$ref" : "#/components/schemas/ContentView"
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ContentView"
+            }, {
+              "type" : "null"
+            } ]
           },
           "createdAt" : {
             "format" : "date-time",
@@ -1036,18 +1167,18 @@
           },
           "publishedAt" : {
             "format" : "date-time",
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "relationshipType" : {
             "type" : "string"
           },
           "residenceFrom" : {
             "format" : "date",
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "residenceTo" : {
             "format" : "date",
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "reviewId" : {
             "type" : "string"
@@ -1769,7 +1900,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/PropertyResponse"
+                  "$ref" : "#/components/schemas/AdminPropertyResponse"
                 }
               }
             },
@@ -1805,7 +1936,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/PropertyResponse"
+                  "$ref" : "#/components/schemas/AdminPropertyResponse"
                 }
               }
             },
@@ -1841,7 +1972,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/PropertyResponse"
+                  "$ref" : "#/components/schemas/AdminPropertyResponse"
                 }
               }
             },
@@ -1867,7 +1998,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ReviewResponse"
+                  "$ref" : "#/components/schemas/AdminReviewResponse"
                 }
               }
             },
@@ -1903,7 +2034,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ReviewResponse"
+                  "$ref" : "#/components/schemas/AdminReviewResponse"
                 }
               }
             },
@@ -1939,7 +2070,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ReviewResponse"
+                  "$ref" : "#/components/schemas/AdminReviewResponse"
                 }
               }
             },
@@ -1975,7 +2106,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ReviewResponse"
+                  "$ref" : "#/components/schemas/AdminReviewResponse"
                 }
               }
             },
@@ -2011,7 +2142,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ReviewResponse"
+                  "$ref" : "#/components/schemas/AdminReviewResponse"
                 }
               }
             },
@@ -2047,7 +2178,7 @@
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ReviewResponse"
+                  "$ref" : "#/components/schemas/AdminReviewResponse"
                 }
               }
             },

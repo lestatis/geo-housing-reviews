@@ -67,18 +67,31 @@ class ReviewEndpointIntegrationTest {
   void anonymousVisitorsCanReadButNeverWrite() throws Exception {
     // Reading is public (DECISION_LOG P-011) …
     String bearer = bearer("subject-anon-read");
+    String authorAccountId = accountIdOf(bearer);
     String propertyId = createProperty(bearer, "Anon Read Tower " + UUID.randomUUID());
     String publishedId = submitReview(bearer, propertyId, "საჯაროდ წასაკითხი");
     publish(publishedId);
 
-    mockMvc
-        .perform(get("/api/properties/" + propertyId + "/reviews"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.items[0].reviewId").value(publishedId));
-    mockMvc
-        .perform(get("/api/reviews/" + publishedId))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.reviewId").value(publishedId));
+    String feed =
+        mockMvc
+            .perform(get("/api/properties/" + propertyId + "/reviews"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[0].reviewId").value(publishedId))
+            .andExpect(jsonPath("$.items[0].authorAccountId").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String review =
+        mockMvc
+            .perform(get("/api/reviews/" + publishedId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.reviewId").value(publishedId))
+            .andExpect(jsonPath("$.authorAccountId").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(feed).doesNotContain("authorAccountId").doesNotContain(authorAccountId);
+    assertThat(review).doesNotContain("authorAccountId").doesNotContain(authorAccountId);
 
     // … but only of published content: an unpublished review does not exist for a visitor.
     String pendingId =
@@ -127,8 +140,9 @@ class ReviewEndpointIntegrationTest {
             .getResponse()
             .getContentAsString();
 
-    // The author is taken from the token, never from the body.
-    assertThat(JsonPath.read(body, "$.authorAccountId").toString()).isEqualTo(accountIdOf(bearer));
+    // The author is taken from the token, never from the body, and the public view exposes no
+    // stable account identifier. Moderators read it from the admin response instead (P-017).
+    assertThat(body).doesNotContain("authorAccountId").doesNotContain(accountIdOf(bearer));
     // The edit reason is written for moderators, so it is not part of the public representation.
     assertThat(body).doesNotContain("editReason");
   }

@@ -19,11 +19,14 @@ import java.util.List;
  * <p>{@code helpfulCount} is an aggregate and nothing more: who signalled, and when, are never
  * exposed, because voter identities and timing are what make targeting and campaign analysis
  * possible (plan 008). The reader learns how many people found the review helpful, not which.
+ *
+ * <p>The author's account id is deliberately absent: a stable id in a public response can be
+ * correlated across properties into one person's review history (DECISION_LOG P-017). Moderators
+ * read it from {@link AdminReviewResponse} instead.
  */
 public record ReviewResponse(
     String reviewId,
     String propertyId,
-    String authorAccountId,
     String relationshipType,
     LocalDate residenceFrom,
     LocalDate residenceTo,
@@ -58,7 +61,6 @@ public record ReviewResponse(
     return new ReviewResponse(
         review.id().value().toString(),
         review.propertyRef().value().toString(),
-        review.authorId().value().toString(),
         review.relationshipType().name(),
         review.residencePeriod().map(period -> period.from()).orElse(null),
         review.residencePeriod().map(period -> period.to()).orElse(null),

@@ -69,8 +69,8 @@ function formatAddress(address: Property["address"]): string {
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
-function formatDistance(meters: number | undefined): string {
-  if (meters === undefined) {
+function formatDistance(meters: number | null | undefined): string {
+  if (meters === undefined || meters === null) {
     return "—";
   }
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;

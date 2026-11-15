@@ -50,4 +50,21 @@ describe("Russian plural handling", () => {
       expect(formatCount("ru", "reviews.count", 5)).toBe("5 отзывов");
     });
   });
+
+  it.each([
+    ["reviews.helpful", 1, "1 человек считает отзыв полезным"],
+    ["reviews.helpful", 2, "2 человека считают отзыв полезным"],
+    ["reviews.helpful", 5, "5 человек считают отзыв полезным"],
+    ["reviews.age.days", 1, "1 день назад"],
+    ["reviews.age.days", 2, "2 дня назад"],
+    ["reviews.age.days", 5, "5 дней назад"],
+    ["reviews.age.months", 1, "1 месяц назад"],
+    ["reviews.age.months", 2, "2 месяца назад"],
+    ["reviews.age.months", 5, "5 месяцев назад"],
+    ["reviews.age.years", 1, "1 год назад"],
+    ["reviews.age.years", 2, "2 года назад"],
+    ["reviews.age.years", 5, "5 лет назад"],
+  ] as const)("uses the Russian %s form for %i", (key, count, expected) => {
+    expect(formatCount("ru", key, count)).toBe(expected);
+  });
 });

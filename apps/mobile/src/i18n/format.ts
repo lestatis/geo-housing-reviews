@@ -55,6 +55,48 @@ export function formatDate(
   return fallbackFormatDate(locale, date);
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** A local-calendar day number, so a DST shift cannot turn "yesterday" into "2 days ago". */
+function localDayNumber(date: Date): number {
+  return Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MS_PER_DAY,
+  );
+}
+
+/**
+ * A relative publication date ("Today", "3 days ago", "2 months ago").
+ *
+ * It follows local calendar days and is deterministic without ICU data, which keeps the card honest
+ * on devices that ship a partial locale. A future timestamp (clock skew) reads as "Today" rather
+ * than as a negative age.
+ */
+export function formatRelativeDate(
+  locale: Locale,
+  value: Date | number | string,
+  now: Date | number = Date.now(),
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const today = now instanceof Date ? now : new Date(now);
+  const days = localDayNumber(today) - localDayNumber(date);
+  if (days <= 0) {
+    return translate(locale, "reviews.age.today");
+  }
+  if (days === 1) {
+    return translate(locale, "reviews.age.yesterday");
+  }
+  if (days < 30) {
+    return formatCount(locale, "reviews.age.days", days);
+  }
+  if (days < 365) {
+    return formatCount(locale, "reviews.age.months", Math.floor(days / 30));
+  }
+  return formatCount(locale, "reviews.age.years", Math.floor(days / 365));
+}
+
 const EN_MONTHS = [
   "January",
   "February",

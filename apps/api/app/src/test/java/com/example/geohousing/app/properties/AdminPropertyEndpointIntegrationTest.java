@@ -100,6 +100,47 @@ class AdminPropertyEndpointIntegrationTest {
   }
 
   @Test
+  void publicPropertyResponsesOmitOriginalTextWhileAnAdminActionKeepsIt() throws Exception {
+    String admin = adminBearer("prop-admin-original-text");
+    String name = "Original Text Tower " + UUID.randomUUID();
+    String originalText = "Flat 12, entrance from the courtyard";
+
+    String created =
+        mockMvc
+            .perform(
+                post("/api/properties")
+                    .header("Authorization", admin)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createBodyWithAddress(name, originalText)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.address.originalText").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(created).doesNotContain("originalText").doesNotContain(originalText);
+    String propertyId = JsonPath.read(created, "$.propertyId");
+
+    String read =
+        mockMvc
+            .perform(get("/api/properties/" + propertyId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.address.originalText").doesNotExist())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(read).doesNotContain("originalText").doesNotContain(originalText);
+
+    mockMvc
+        .perform(
+            post("/api/admin/properties/" + propertyId + "/activate")
+                .header("Authorization", admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":0}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.address.originalText").value(originalText));
+  }
+
+  @Test
   void adminHidesAProperty() throws Exception {
     String admin = adminBearer("prop-admin-hide");
     String propertyId = createProperty(admin, "Hide Tower " + UUID.randomUUID());
@@ -233,6 +274,15 @@ class AdminPropertyEndpointIntegrationTest {
             .getResponse()
             .getContentAsString();
     return JsonPath.read(body, "$.propertyId");
+  }
+
+  private static String createBodyWithAddress(String name, String originalText) {
+    return "{\"type\":\"BUILDING\",\"canonicalName\":\""
+        + name
+        + "\",\"address\":{\"city\":\"Batumi\",\"street\":\"Rustaveli Street\","
+        + "\"originalText\":\""
+        + originalText
+        + "\"},\"allowDuplicate\":true}";
   }
 
   private String storedStatus(String propertyId) {

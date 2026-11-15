@@ -38,7 +38,19 @@ public class CatalogueSteps {
       "{word} added a building named {string} on {string} in {string} with original text {string}")
   public void addedBuildingWithOriginalText(
       String actor, String name, String street, String city, String originalText) throws Exception {
-    api.createProperty(actor, "BUILDING", name, city, street, originalText);
+    state.rememberProperty(
+        name, api.createProperty(actor, "BUILDING", name, city, street, originalText));
+    state.rememberOriginalText(originalText);
+  }
+
+  @When("an anonymous visitor opens that property")
+  public void anonymousOpensThatProperty() throws Exception {
+    api.perform(get("/api/properties/" + state.lastCreatedPropertyId()));
+  }
+
+  @When("an anonymous visitor lists the catalogue")
+  public void anonymousListsTheCatalogue() throws Exception {
+    api.perform(get("/api/properties"));
   }
 
   @When("an anonymous visitor asks for the reviews of {string}")
@@ -107,6 +119,28 @@ public class CatalogueSteps {
         .doesNotContain("originalText")
         .doesNotContain("apt 12")
         .doesNotContain("\"country\"");
+  }
+
+  @Then("the public response contains no address original text")
+  public void thePublicResponseContainsNoAddressOriginalText() {
+    assertThat(api.lastBody())
+        .doesNotContain("originalText")
+        .doesNotContain(state.lastOriginalText());
+  }
+
+  @When("{word} activates that property")
+  public void activatesThatProperty(String administrator) throws Exception {
+    api.perform(
+        api.json(
+            api.authorized(
+                post("/api/admin/properties/" + state.lastCreatedPropertyId() + "/activate"),
+                administrator),
+            "{\"version\":0}"));
+  }
+
+  @Then("the response carries the address original text {string}")
+  public void theResponseCarriesTheAddressOriginalText(String originalText) {
+    assertThat(api.<String>readLast("$.address.originalText")).isEqualTo(originalText);
   }
 
   @Then("the search hit for {string} has no address")

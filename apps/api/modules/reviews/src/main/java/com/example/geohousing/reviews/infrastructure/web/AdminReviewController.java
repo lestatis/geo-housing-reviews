@@ -50,7 +50,7 @@ class AdminReviewController {
 
   /** A single review as a moderator sees it: unpublished states included. */
   @GetMapping("/{reviewId}")
-  ReviewResponse get(Principal principal, @PathVariable("reviewId") String reviewId) {
+  AdminReviewResponse get(Principal principal, @PathVariable("reviewId") String reviewId) {
     Review review =
         queryService.getById(
             parseId(reviewId), ReviewViewer.moderator(WebAuthentication.authorId(principal)));
@@ -58,7 +58,7 @@ class AdminReviewController {
   }
 
   @PostMapping("/{reviewId}/publish")
-  ReviewResponse publish(
+  AdminReviewResponse publish(
       Principal principal,
       @PathVariable("reviewId") String reviewId,
       @RequestBody ModerationDecisionRequest request) {
@@ -71,7 +71,7 @@ class AdminReviewController {
   }
 
   @PostMapping("/{reviewId}/reject")
-  ReviewResponse reject(
+  AdminReviewResponse reject(
       Principal principal,
       @PathVariable("reviewId") String reviewId,
       @RequestBody ModerationDecisionRequest request) {
@@ -84,7 +84,7 @@ class AdminReviewController {
   }
 
   @PostMapping("/{reviewId}/hide")
-  ReviewResponse hide(
+  AdminReviewResponse hide(
       Principal principal,
       @PathVariable("reviewId") String reviewId,
       @RequestBody ModerationDecisionRequest request) {
@@ -97,7 +97,7 @@ class AdminReviewController {
   }
 
   @PostMapping("/{reviewId}/restore")
-  ReviewResponse restore(
+  AdminReviewResponse restore(
       Principal principal,
       @PathVariable("reviewId") String reviewId,
       @RequestBody ModerationDecisionRequest request) {
@@ -110,7 +110,7 @@ class AdminReviewController {
   }
 
   @PostMapping("/{reviewId}/remove")
-  ReviewResponse remove(
+  AdminReviewResponse remove(
       Principal principal,
       @PathVariable("reviewId") String reviewId,
       @RequestBody ModerationDecisionRequest request) {
@@ -138,7 +138,7 @@ class AdminReviewController {
     return request.version();
   }
 
-  private ReviewResponse respond(Supplier<Optional<Review>> action, ReviewId requestedId) {
+  private AdminReviewResponse respond(Supplier<Optional<Review>> action, ReviewId requestedId) {
     // In the admin context "not found" is honest — there is nothing to protect about an id that
     // has no review — and the attempt has already been audited by the service.
     return action
@@ -152,13 +152,13 @@ class AdminReviewController {
    * never who. Signals only exist on published reviews, so anything else counts as zero without a
    * query.
    */
-  private ReviewResponse withHelpfulCount(Review review) {
+  private AdminReviewResponse withHelpfulCount(Review review) {
     long helpfulCount =
         review.status() == ReviewStatus.PUBLISHED
             ? helpfulSignalQueryService
                 .activeCountsForVisibleReviews(List.of(review.id()))
                 .getOrDefault(review.id(), 0L)
             : 0L;
-    return ReviewResponse.from(review, helpfulCount);
+    return AdminReviewResponse.from(review, helpfulCount);
   }
 }
