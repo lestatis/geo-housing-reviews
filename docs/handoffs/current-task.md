@@ -2,194 +2,129 @@
 
 ## Objective
 
-Plan 023-C — the property experience: an anonymous user opens a property from search and reads its
-published reviews in the mobile app. Includes three public contract changes: C2 (no `authorAccountId`
-in public review responses), C3 (no `address.originalText` in public property responses) and
-declared nullability for the public detail and review schemas, plus canonical rating category ids
-(P-019).
+Plan 025 — withhold a property an administrator hid from the public read (`GET /api/properties/{id}`
+→ 404 like an unknown id; the public list excludes hidden and merged properties), add an admin read
+`GET /api/admin/properties/{id}`, and switch `apps/web`'s property page to it so moderators keep
+access.
 
 ## Active branch
 
-`feat/023-c-property-experience`, created from `main` at `7301cd0` (023-B merged in #8) on
-2026-11-15. Not committed and not pushed.
+`fix/025-withhold-hidden-properties`, created from `main` at `1d37c28` (023-C merged in #9) on
+2026-11-15. Not pushed.
 
 ## Related issue or plan
 
-`docs/plans/023-mobile-discovery.md`: sections C2, C3 and "023-C — property experience" (engineering
-design, chunks 023-C1 and 023-C2, `ai-l1` blocks).
+`docs/plans/025-withhold-hidden-properties.md` (chunk 025-A, `ai-l1` block); origin: plan 023
+follow-up 10.
 
 ## Current status
 
-in_progress — 023-C1 (`714289c`) and 023-C2 committed locally; both reviewed `READY_TO_MERGE`
-(C2: `.ai/runs/implementation-loop.JNcC1u/review-2.json`). Lead L2 green 2026-11-15: cold
-`./gradlew check --rerun-tasks --no-build-cache` with PITest — BUILD SUCCESSFUL 1m32s, `:app` 374
-tests / 0 failures, thresholds held, 6 PostGIS starts, 0 shutdown warnings; root
-`pnpm lint && pnpm test && pnpm typecheck` green (mobile 20 suites / 188 tests). Not pushed.
+in_progress — 025-A L1-green (8/8) and reviewed `READY_TO_MERGE` (`.ai/runs/implementation-loop.p4gghe`);
+lead L2 and local-stack checks green 2026-11-15 (see plan 025 progress log). Uncommitted; awaiting the
+founder's commit/push/PR decision. `apps/web` `pnpm e2e` not run (needs `.env.local`).
 
 ## Completed work
 
-- Verified against `7301cd0`: `PropertyResponse` and `ReviewResponse` are each shared by public and
-  admin controllers, so C2 and C3 are splits; no admin read-one property endpoint exists; `apps/web`
-  reads neither removed field outside generated types; rating categories have no canonical ids.
-- **C2**: public `ReviewResponse` no longer carries `authorAccountId`; new
-  `AdminReviewResponse` is returned by every `AdminReviewController` action. Internal moderation
-  ports, gateway adapters and ownership checks are untouched.
-- **C3**: public `PropertyResponse.AddressView` no longer carries `originalText`; new
-  `AdminPropertyResponse`/`AdminAddressView` keep it and are returned by every
-  `AdminPropertyController` action. The public create response uses `PropertyResponse`. No
-  migration; domain and persistence shapes are unchanged.
-- **Nullability**: `OpenApiConfiguration`'s customizer is now one declarative table for
-  object-or-null `$ref` fields plus nullable scalar fields, with fail-fast checks on missing schemas
-  and properties. It covers `PropertyResponse`, `AddressView`, `AliasView`, `ReviewListResponse`,
-  `ReviewResponse`, `ContentView`, `RatingView`, `AddressSummaryView` and
-  `PropertySearchHitResponse`.
-- `SearchHitNullabilityContractTest` is replaced by table-driven
-  `PublicNullabilityContractTest`, including positive and negative assertions and fail-fast tests.
-- Gherkin covers: no `originalText` on public detail/list; no internal account identifier on the
-  public feed or review read; `authorAccountId` on an admin review action; `originalText` on an admin
-  property action.
-- `ReviewEndpointIntegrationTest`, `AdminReviewEndpointIntegrationTest` and
-  `AdminPropertyEndpointIntegrationTest` assert the public-by-absence and admin-by-presence split.
-- `docs/api/openapi.json` regenerated/updated for the new schemas, split operations and nullable
-  fields. `DECISION_LOG.md` has P-017 (C2), P-018 (C3) and P-019 (category ids).
-- `apps/web`'s `formatDistance` accepts `number | null | undefined` and renders "—" for both nullish
-  values; the property-row test covers `null` explicitly. No other admin-web code changed.
-- **C2 mobile**: `propertyGuards` and `reviewGuards` narrow the regenerated nullable responses and
-  ignore extra private fields. `useProperty` makes one GET with loading/loaded/notFound/error and
-  manual retry. `useReviewFeed` appends 20-item cursor pages, stops without a cursor, prevents a
-  second in-flight page, preserves loaded pages after a page failure, and drops superseded responses.
-- **C2 UI**: `PropertyScreen` replaces the placeholder and keeps the deep-link-safe Back. It renders
-  identity, aliases, address, translated type, DRAFT notice and 404 copy, with independent header and
-  feed errors. `ReviewCard` renders relationship, years-only residence, checked-relationship badge,
-  recommendation, P-019 category chips, pros/cons/body, helpful count, relative date and the content
-  language tag. No author identifier, total or aggregate is rendered.
-- **C2 localization/tests**: en/ru property and review copy, Russian plural forms and relative-date
-  formatting are covered by node-only Jest tests. Targeted property/review suites pass 36 tests; the
-  full local mobile preflight passes lint, typecheck and 187 tests across 20 suites.
-- **C2 review fix round 1**: `ReviewCard` appends the "checked evidence … does not certify every
-  statement" tooltip to its accessibility label only for `RELATIONSHIP_SIGNAL` and
-  `DOCUMENT_VERIFIED`. `UNVERIFIED` and unknown tiers announce the badge text alone, so no check is
-  implied. `ReviewCard.test.tsx` covers both checked tiers and both not-checked cases. The narrow
-  ReviewCard suite (15 tests), ESLint on the changed files and `tsc --noEmit` pass locally.
+- Verified against `1d37c28`: public `get` and `list` have no status filter; no admin read endpoint
+  exists; `apps/web`'s property page reads the public endpoint; admin review reads are not audited.
+- Plan 025 written; plan 023 follow-up 10 points to it.
+- Application: `PropertyQueryService.getPublicById` throws `PropertyNotFoundException` for `HIDDEN`
+  (identical to an unknown id) and still returns `MERGED` as a tombstone; `listRecentPublic`
+  excludes `HIDDEN`/`MERGED` and clamps the limit. `getById` remains the unfiltered admin read.
+- Persistence: `SpringDataPropertyRepository.findRecentExcluding` filters the excluded statuses in
+  JPQL; `JpaPropertyRepository` passes `HIDDEN`/`MERGED`, and `PropertyQueryService` also filters
+  defensively at the application boundary.
+- Public controller: `get`/`list` use the public variants; the create response is unchanged.
+- Admin controller: `GET /api/admin/properties/{propertyId}` returns `AdminPropertyResponse` for any
+  status, with 400 for a malformed id and 404 for an unknown one. The class Javadoc now separates
+  the unaudited read from the audited lifecycle actions.
+- Web: `apps/web/app/properties/[propertyId]/page.tsx` reads the admin endpoint; `toPropertyRow`
+  accepts `AdminProperty`, and its test covers the admin shape including `originalText`.
+- Tests: `PropertyQueryServiceTest` covers hidden/merged/active/unknown public reads, list
+  withholding and limit clamping; `AdminPropertyEndpointIntegrationTest` covers 401/403, hidden 200
+  with `originalText`, unknown 404, malformed 400 and merged admin read. Gherkin has three new
+  scenarios (public withholding with an identical 404 problem body, moderator read, admin-only
+  gate). The 404 comparison excludes the RFC 7807 `instance` path, which necessarily differs by id,
+  and separately asserts each `instance` matches its own request.
+- Contract/docs: `docs/api/openapi.json` has the new admin read operation (`getProperty`, unchanged
+  schemas); `DECISION_LOG.md` has P-020; plan 025 progress updated.
 
 ## Remaining work
 
-1. Push and open one PR (founder approved 2026-11-15); CI; founder merge decision.
-2. After merge: a plan for follow-up 10 (withhold hidden properties from the public read, with an
-   admin read endpoint), plan 024 hardening, plan 020 closure.
+1. Loop runner: L1 block from plan 025 (Gradle module/app tests, spotless/checkstyle, admin-web
+   lint/typecheck/test, mobile typecheck/test). Any failure comes back as a fix packet.
+2. Lead: cold L2 with PITest, root pnpm gate, local-stack check (curl public 404 / admin 200;
+   emulator deep link shows "no longer listed"; web page opens a hidden property for an admin).
+3. Commit, push, one PR (ask the founder).
 
 ## Decisions made
 
-See plan 023 §023-C "Engineering design": splits for C2 and C3; public create response uses the
-public type; `country` kept; one nullability table in `:app`; empty address line omitted; P-019
-category ids (founder). The lead approved keeping `distanceMeters` nullable and widening only the
-`apps/web` null-distance guard.
+See plan 025 "Decisions": hidden → public 404 identical to an unknown id; merged unchanged
+(tombstone); public list excludes hidden and merged; admin property read not audited (follows the
+admin review read); reviews of a hidden property unchanged; no mobile change.
 
 ## Assumptions
 
-- The mobile app is unreleased and `apps/web` reads neither removed field outside generated types,
-  so the compatibility window for the removals is satisfied (to be recorded in the PR).
-- `PropertySearchHitResponse.from()` can yield a null `distanceMeters` whenever the search has no
-  origin coordinates; the SQL projection already returns `NULL` in that case.
+- No client depends on the public list including hidden properties (web uses search and detail;
+  mobile uses neither).
 
 ## Files changed
 
-- `apps/api/app/src/main/java/com/example/geohousing/app/config/OpenApiConfiguration.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/config/PublicNullabilityContractTest.java` (new)
-- `apps/api/app/src/test/java/com/example/geohousing/app/config/SearchHitNullabilityContractTest.java` (deleted)
-- `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/CatalogueSteps.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/OutcomeSteps.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/ReviewSteps.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/ScenarioState.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/properties/AdminPropertyEndpointIntegrationTest.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/reviews/AdminReviewEndpointIntegrationTest.java`
-- `apps/api/app/src/test/java/com/example/geohousing/app/reviews/ReviewEndpointIntegrationTest.java`
-- `apps/api/app/src/test/resources/features/find-property.feature`
-- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/web/AdminAddressView.java` (new)
+- `docs/plans/025-withhold-hidden-properties.md` (new)
+- `docs/plans/023-mobile-discovery.md` (follow-up 10 pointer)
+- `docs/DECISION_LOG.md` (P-020)
+- `docs/api/openapi.json` (admin property read)
+- `docs/handoffs/current-task.md`
+- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/application/PropertyQueryService.java`
+- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/application/PropertyRepository.java`
+- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/persistence/JpaPropertyRepository.java`
+- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/persistence/SpringDataPropertyRepository.java`
 - `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/web/AdminPropertyController.java`
-- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/web/AdminPropertyResponse.java` (new)
-- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/web/PropertyResponse.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/infrastructure/web/AdminReviewController.java`
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/infrastructure/web/AdminReviewResponse.java` (new)
-- `apps/api/modules/reviews/src/main/java/com/example/geohousing/reviews/infrastructure/web/ReviewResponse.java`
+- `apps/api/modules/properties/src/main/java/com/example/geohousing/properties/infrastructure/web/PropertyController.java`
+- `apps/api/modules/properties/src/test/java/com/example/geohousing/properties/application/PropertyQueryServiceTest.java`
+- `apps/api/app/src/test/java/com/example/geohousing/app/acceptance/CatalogueSteps.java`
+- `apps/api/app/src/test/java/com/example/geohousing/app/properties/AdminPropertyEndpointIntegrationTest.java`
+- `apps/api/app/src/test/resources/features/find-property.feature`
+- `apps/web/app/properties/[propertyId]/page.tsx`
 - `apps/web/src/properties/property.ts`
 - `apps/web/src/properties/property.test.ts`
-- `apps/mobile/app/property/[id].tsx`
-- `apps/mobile/src/api/propertyGuards.ts` (new)
-- `apps/mobile/src/api/reviewGuards.ts` (new)
-- `apps/mobile/src/api/__tests__/propertyGuards.test.ts` (new)
-- `apps/mobile/src/api/__tests__/reviewGuards.test.ts` (new)
-- `apps/mobile/src/components/ReviewCard.tsx` (new)
-- `apps/mobile/src/components/__tests__/ReviewCard.test.tsx` (new)
-- `apps/mobile/src/property/useProperty.ts` (new)
-- `apps/mobile/src/property/__tests__/useProperty.test.tsx` (new)
-- `apps/mobile/src/reviews/useReviewFeed.ts` (new)
-- `apps/mobile/src/reviews/__tests__/useReviewFeed.test.tsx` (new)
-- `apps/mobile/src/screens/PropertyScreen.tsx` (new)
-- `apps/mobile/src/screens/PropertyPlaceholderScreen.tsx` (deleted)
-- `apps/mobile/src/screens/__tests__/PropertyScreen.test.tsx` (new)
-- `apps/mobile/src/screens/__tests__/PropertyPlaceholderScreen.test.tsx` (deleted)
-- `apps/mobile/src/i18n/en.ts`
-- `apps/mobile/src/i18n/ru.ts`
-- `apps/mobile/src/i18n/format.ts`
-- `apps/mobile/src/i18n/__tests__/format.test.ts`
-- `apps/mobile/src/i18n/__tests__/plural.test.ts`
-- `docs/DECISION_LOG.md`
-- `docs/api/openapi.json`
-- `docs/plans/023-mobile-discovery.md`
-- `docs/handoffs/current-task.md`
 
 `apps/web/src/api/generated/schema.d.ts` is regenerated by the admin-web scripts and is gitignored,
 so it is not part of the diff.
 
 ## Commands and tests
 
-- Google Java Format 1.28.0 dry-run on all changed/new Java files: passed (implementation run).
-- `javac` compile of changed backend main and test sources against the cached Gradle classpath:
-  passed (implementation run).
-- Checkstyle 10.24 on changed Java files: passed (implementation run).
+- Google Java Format 1.28.0 `--dry-run --set-exit-if-changed` on every changed Java file: passed
+  after formatting three files.
+- `apps/web` `openapi-typescript` against the updated `docs/api/openapi.json`: passed; generated
+  schema contains `GET /api/admin/properties/{propertyId}`.
+- `apps/web` `vitest run src/properties/property.test.ts`: passed (9 tests).
+- `apps/web` `tsc --noEmit`: passed.
+- `apps/web` `eslint .`: passed.
+- OpenAPI JSON parsed, keys verified sorted, new path present: passed.
 - `git diff --check`: passed.
-- OpenAPI JSON parsed and checked: valid, sorted keys, trailing newline; public `AddressView` has no
-  `originalText`, public `ReviewResponse` has no `authorAccountId`; admin schemas have both.
-- `pnpm --filter @geo-housing/admin-web typecheck`: passed after the nullable-distance guard.
-- `pnpm --filter @geo-housing/admin-web lint`: passed.
-- `pnpm --filter @geo-housing/admin-web test`: passed (10 files, 75 tests), including the explicit
-  `null` distance case.
-- Gradle L1 (`:modules:properties:test`, `:modules:reviews:test`, the `:app:test` filters,
-  spotless/checkstyle): skipped in this sandbox — no Docker/network. The loop runner owns them.
-- Targeted mobile property/review Jest run (`useProperty`, `useReviewFeed`, `ReviewCard`,
-  `PropertyScreen`): passed (4 suites, 36 tests).
-- `pnpm --filter @geo-housing/mobile typecheck`: passed locally.
-- `pnpm --filter @geo-housing/mobile lint`: passed locally.
-- `pnpm --filter @geo-housing/mobile test`: passed locally (20 suites, 187 tests). These are local
-  preflight results; the loop runner must rerun the three mobile L1 commands as the handoff gate.
-- `git diff --check`: passed.
+- Runner-owned L1 (Gradle module/app tests, spotless/checkstyle, admin-web lint/typecheck/test,
+  mobile typecheck/test): skipped in this sandbox — no network or Docker. Recorded as skipped.
 
 ## Known failures
 
-None. C1's L1 passed 5/5 in the runner. C2's local preflight is green.
+None. Round 1's acceptance failure (the 404 `instance` field) was fixed in round 2.
 
 ## Risks and unresolved questions
 
-- Moderation's appeal/report ownership checks must stay on internal ports; `*Moderation*` tests are
-  in C1's L1.
-- Admin DTO nullability (`AdminPropertyResponse`, `AdminReviewResponse`) is intentionally a
-  follow-up; those schemas currently describe optional values as non-null.
-- A hidden property remains publicly readable by id (plan 023 follow-up 10, deferred).
-- 023-C2's Android device check is still pending: navigation from search, header/feed rendering,
-  paging to the end, airplane mode on page 2, DRAFT/404 states, Russian copy and 200% text scaling.
-- The loop runner, not the worker sandbox, must produce the authoritative mobile L1 result.
+- Existing tests reading hidden properties through public endpoints were audited; none besides the
+  updated admin/acceptance coverage depended on the old behaviour.
+- `apps/web` `pnpm e2e` needs the full local stack; if it cannot run, the page is checked by hand.
+- Mutation coverage and the PITest threshold are only proven by the lead's L2 run.
 
 ## Human actions required
 
-None. The Android device checks for 023-B and 023-C were done on an emulator on 2026-11-15
-(`.ai/device-check-023/`).
+None.
 
 ## Recommended next action
 
-Founder: push/PR decision and the device checks. Afterwards: plan 024 hardening (tolerate prose
-around the worker JSON; stop on environment failures; post-review human checks are not
-`human_action_required`), then plan 020 closure and the follow-ups listed in plan 023.
+Run the plan 025 L1 block from a shell with nvm loaded, then inspect the result. Run `./gradlew
+--stop` after any system JDK upgrade.
 
 ## Last updated
 

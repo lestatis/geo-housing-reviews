@@ -3,6 +3,7 @@ import type { components } from "@/src/api/generated/schema";
 
 export type SearchHit = components["schemas"]["PropertySearchHitResponse"];
 export type Property = components["schemas"]["PropertyResponse"];
+export type AdminProperty = components["schemas"]["AdminPropertyResponse"];
 
 /**
  * A search result. Deliberately thin: the search response carries neither status nor version, and
@@ -33,7 +34,7 @@ export type PropertyRow = {
   version: number;
 };
 
-export function toPropertyRow(property: Property): PropertyRow {
+export function toPropertyRow(property: AdminProperty): PropertyRow {
   return {
     propertyId: property.propertyId ?? "",
     name: property.canonicalName ?? "—",
@@ -61,7 +62,7 @@ export function canHide(status: string | undefined): boolean {
   return status === "DRAFT" || status === "ACTIVE";
 }
 
-function formatAddress(address: Property["address"]): string {
+function formatAddress(address: AdminProperty["address"]): string {
   if (!address) {
     return "—";
   }

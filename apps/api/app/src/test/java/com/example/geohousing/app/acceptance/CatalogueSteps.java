@@ -6,11 +6,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.StreamSupport;
+import org.springframework.test.web.servlet.MvcResult;
 
 /** Steps about the property catalogue and the public review listing. */
 public class CatalogueSteps {
@@ -51,6 +54,17 @@ public class CatalogueSteps {
   @When("an anonymous visitor lists the catalogue")
   public void anonymousListsTheCatalogue() throws Exception {
     api.perform(get("/api/properties"));
+  }
+
+  @When("an anonymous visitor opens that property through the admin catalogue")
+  public void anonymousOpensThatPropertyThroughTheAdminCatalogue() throws Exception {
+    api.perform(get("/api/admin/properties/" + state.lastCreatedPropertyId()));
+  }
+
+  @When("{word} opens that property through the admin catalogue")
+  public void actorOpensThatPropertyThroughTheAdminCatalogue(String actor) throws Exception {
+    api.perform(
+        api.authorized(get("/api/admin/properties/" + state.lastCreatedPropertyId()), actor));
   }
 
   @When("an anonymous visitor asks for the reviews of {string}")
@@ -141,6 +155,36 @@ public class CatalogueSteps {
   @Then("the response carries the address original text {string}")
   public void theResponseCarriesTheAddressOriginalText(String originalText) {
     assertThat(api.<String>readLast("$.address.originalText")).isEqualTo(originalText);
+  }
+
+  @Then("the property's status is {string}")
+  public void thePropertyStatusIs(String status) {
+    assertThat(api.<String>readLast("$.status")).isEqualTo(status);
+  }
+
+  @Then("the public detail answers exactly as for an unknown id")
+  public void thePublicDetailAnswersExactlyAsForAnUnknownId() throws Exception {
+    MvcResult withdrawn = state.lastResult();
+    String withdrawnPath = withdrawn.getRequest().getRequestURI();
+    String withdrawnBody = withdrawn.getResponse().getContentAsString();
+
+    String unknownPath = "/api/properties/" + UUID.randomUUID();
+    api.perform(get(unknownPath));
+
+    assertThat(api.lastStatus()).isEqualTo(withdrawn.getResponse().getStatus());
+
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode withdrawnProblem = mapper.readTree(withdrawnBody);
+    JsonNode unknownProblem = mapper.readTree(api.lastBody());
+
+    assertThat(withdrawnProblem.path("instance").asText()).isEqualTo(withdrawnPath);
+    assertThat(unknownProblem.path("instance").asText()).isEqualTo(unknownPath);
+    // The instance is the requested path, so only that field may differ by identifier. Every other
+    // field must match, so a withdrawn property's response cannot confirm that it existed.
+    ((ObjectNode) withdrawnProblem).remove("instance");
+    ((ObjectNode) unknownProblem).remove("instance");
+
+    assertThat(unknownProblem).isEqualTo(withdrawnProblem);
   }
 
   @Then("the search hit for {string} has no address")

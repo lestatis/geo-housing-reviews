@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  type Property,
+  type AdminProperty,
   type SearchHit,
   canActivate,
   canHide,
@@ -15,13 +15,17 @@ const HIT: SearchHit = {
   distanceMeters: 1250,
 };
 
-const PROPERTY: Property = {
+const PROPERTY: AdminProperty = {
   propertyId: "cc440000-0000-4000-8000-000000000001",
   canonicalName: "Orbi Sea Towers Residence",
   type: "BUILDING",
   status: "DRAFT",
   version: 3,
-  address: { city: "Batumi", street: "Chavchavadze Avenue" },
+  address: {
+    city: "Batumi",
+    street: "Chavchavadze Avenue",
+    originalText: "Orbi Sea Towers, apt 9",
+  },
 };
 
 describe("a search hit", () => {
@@ -65,6 +69,21 @@ describe("a property an administrator is about to act on", () => {
 
     expect(merged.status).toBe("Merged");
     expect(merged.mergedInto).toBe("dd550000-0000-4000-8000-000000000002");
+  });
+
+  it("reads the admin shape, which keeps the address text a resident typed", () => {
+    // The page reads the admin endpoint so a withdrawn property stays reachable; the extra
+    // originalText must not change what the row shows.
+    const row = toPropertyRow({
+      ...PROPERTY,
+      address: {
+        city: "Batumi",
+        street: "Chavchavadze Avenue",
+        originalText: "Orbi Sea Towers, apartment 9",
+      },
+    });
+
+    expect(row.address).toBe("Chavchavadze Avenue, Batumi");
   });
 
   it("copes with a property the API described only partially", () => {

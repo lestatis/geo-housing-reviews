@@ -19,7 +19,7 @@ export default async function PropertyDetail({
   const { propertyId } = await params;
   const result = await (
     await serverApi()
-  ).GET("/api/properties/{propertyId}", { params: { path: { propertyId } } });
+  ).GET("/api/admin/properties/{propertyId}", { params: { path: { propertyId } } });
 
   if (result.response.status === 401) {
     redirect("/api/auth/expired");

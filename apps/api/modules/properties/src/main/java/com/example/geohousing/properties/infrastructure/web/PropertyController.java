@@ -76,13 +76,14 @@ class PropertyController {
   @GetMapping("/{propertyId}")
   PropertyResponse get(@PathVariable("propertyId") String propertyId) {
     // A malformed UUID throws IllegalArgumentException, mapped to 400 by the properties advice.
-    return PropertyResponse.from(queryService.getById(PropertyId.of(UUID.fromString(propertyId))));
+    return PropertyResponse.from(
+        queryService.getPublicById(PropertyId.of(UUID.fromString(propertyId))));
   }
 
   @GetMapping
   PropertyListResponse list(@RequestParam(name = "limit", required = false) Integer limit) {
     List<PropertyResponse> items =
-        queryService.listRecent(limit).stream().map(PropertyResponse::from).toList();
+        queryService.listRecentPublic(limit).stream().map(PropertyResponse::from).toList();
     return new PropertyListResponse(items);
   }
 

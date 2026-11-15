@@ -23,45 +23,102 @@ class PropertyQueryServiceTest {
 
   @Test
   void returnsThePropertyWhenItExists() {
-    Property property =
-        Property.create(
-            PropertyId.of(UUID.randomUUID()),
-            PropertyType.BUILDING,
-            "Vake Tower",
-            CreatorId.of(UUID.randomUUID()),
-            CLOCK);
-    PropertyQueryService service = new PropertyQueryService(new SingleProperty(property));
+    Property property = property("Vake Tower");
+    PropertyQueryService service = new PropertyQueryService(new StoredProperties(property));
 
     assertThat(service.getById(property.id())).isSameAs(property);
   }
 
   @Test
-  void throwsWhenThePropertyIsMissing() {
-    PropertyQueryService service = new PropertyQueryService(new SingleProperty(null));
+  void theAdminReadReturnsAHiddenProperty() {
+    Property property = property("Vake Tower");
+    property.hide(CLOCK);
+    PropertyQueryService service = new PropertyQueryService(new StoredProperties(property));
 
-    assertThatThrownBy(() -> service.getById(PropertyId.of(UUID.randomUUID())))
+    assertThat(service.getById(property.id())).isSameAs(property);
+  }
+
+  @Test
+  void thePublicReadReportsAHiddenPropertyAsMissing() {
+    Property property = property("Vake Tower");
+    property.hide(CLOCK);
+    PropertyQueryService service = new PropertyQueryService(new StoredProperties(property));
+
+    assertThatThrownBy(() -> service.getPublicById(property.id()))
         .isInstanceOf(PropertyNotFoundException.class);
   }
 
   @Test
+  void thePublicReadStillReturnsAnActiveProperty() {
+    Property property = property("Vake Tower");
+    property.activate(CLOCK);
+    PropertyQueryService service = new PropertyQueryService(new StoredProperties(property));
+
+    assertThat(service.getPublicById(property.id())).isSameAs(property);
+  }
+
+  @Test
+  void thePublicReadReturnsAMergedPropertyAsATombstone() {
+    Property property = property("Vake Tower");
+    property.mergeInto(PropertyId.of(UUID.randomUUID()), CLOCK);
+    PropertyQueryService service = new PropertyQueryService(new StoredProperties(property));
+
+    assertThat(service.getPublicById(property.id())).isSameAs(property);
+  }
+
+  @Test
+  void thePublicReadReportsAnUnknownPropertyAsMissing() {
+    PropertyQueryService service = new PropertyQueryService(new StoredProperties());
+
+    assertThatThrownBy(() -> service.getPublicById(PropertyId.of(UUID.randomUUID())))
+        .isInstanceOf(PropertyNotFoundException.class);
+  }
+
+  @Test
+  void thePublicListKeepsVisiblePropertiesAndWithholdsHiddenAndMergedOnes() {
+    Property draft = property("Draft Tower");
+    Property active = property("Active Tower");
+    active.activate(CLOCK);
+    Property hidden = property("Hidden Tower");
+    hidden.hide(CLOCK);
+    Property merged = property("Merged Tower");
+    merged.mergeInto(PropertyId.of(UUID.randomUUID()), CLOCK);
+    PropertyQueryService service =
+        new PropertyQueryService(new StoredProperties(draft, active, hidden, merged));
+
+    assertThat(service.listRecentPublic(null))
+        .extracting(Property::id)
+        .containsExactly(draft.id(), active.id());
+  }
+
+  @Test
   void clampsTheRequestedListLimit() {
-    SingleProperty repository = new SingleProperty(null);
+    StoredProperties repository = new StoredProperties();
     PropertyQueryService service = new PropertyQueryService(repository);
 
-    service.listRecent(null);
+    service.listRecentPublic(null);
     assertThat(repository.lastRequestedLimit).isEqualTo(PropertyQueryService.DEFAULT_LIMIT);
 
-    service.listRecent(10_000);
+    service.listRecentPublic(10_000);
     assertThat(repository.lastRequestedLimit).isEqualTo(PropertyQueryService.MAX_LIMIT);
 
-    service.listRecent(0);
+    service.listRecentPublic(0);
     assertThat(repository.lastRequestedLimit).isEqualTo(1);
 
-    service.listRecent(5);
+    service.listRecentPublic(5);
     assertThat(repository.lastRequestedLimit).isEqualTo(5);
   }
 
-  private static final class SingleProperty implements PropertyRepository {
+  private static Property property(String canonicalName) {
+    return Property.create(
+        PropertyId.of(UUID.randomUUID()),
+        PropertyType.BUILDING,
+        canonicalName,
+        CreatorId.of(UUID.randomUUID()),
+        CLOCK);
+  }
+
+  private static final class StoredProperties implements PropertyRepository {
 
     @Override
     public java.util.List<PropertyMatch> search(
@@ -74,24 +131,22 @@ class PropertyQueryServiceTest {
       throw new UnsupportedOperationException("search is covered by PropertySearchIntegrationTest");
     }
 
-    private final Property property;
+    private final List<Property> properties;
     private Integer lastRequestedLimit;
 
-    private SingleProperty(Property property) {
-      this.property = property;
+    private StoredProperties(Property... properties) {
+      this.properties = List.of(properties);
     }
 
     @Override
     public Optional<Property> findById(PropertyId propertyId) {
-      return property != null && property.id().equals(propertyId)
-          ? Optional.of(property)
-          : Optional.empty();
+      return properties.stream().filter(property -> property.id().equals(propertyId)).findFirst();
     }
 
     @Override
     public List<Property> findRecent(int limit) {
       lastRequestedLimit = limit;
-      return property == null ? List.of() : List.of(property);
+      return properties.stream().limit(limit).toList();
     }
 
     @Override
